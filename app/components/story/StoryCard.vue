@@ -365,7 +365,6 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .story-card {
-  /* Chromium can flash filtered card layers white when their paint is deferred. */
   position: relative;
   border: 1px solid color-mix(in oklch, var(--seed-border) 70%, rgb(203 213 225 / 0.58));
   background:
@@ -380,6 +379,13 @@ onBeforeUnmount(() => {
     0 5px 18px rgb(15 23 42 / 0.055),
     0 1px 0 rgb(255 255 255 / 0.46) inset;
   transition-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@supports (content-visibility: auto) {
+  .story-card {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 34rem;
+  }
 }
 
 .story-card:focus-visible {
@@ -468,7 +474,6 @@ onBeforeUnmount(() => {
 
 .story-card-image-track {
   overflow: hidden;
-  backface-visibility: hidden;
 }
 
 .story-card-radial-overlay {
@@ -486,7 +491,11 @@ onBeforeUnmount(() => {
   min-height: 0;
   object-fit: cover;
   object-position: center top;
-  transform: translate3d(0, var(--story-card-image-offset, 0%), 0);
+  /* 2D translate only: a resting 3D transform promotes every thumbnail to its
+     own compositor layer, and Chromium flashes those layers white while their
+     tiles re-rasterize during scroll. Hover and touch parallax opt into
+     will-change below. */
+  transform: translateY(var(--story-card-image-offset, 0%));
   transition: transform 500ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
@@ -550,8 +559,7 @@ onBeforeUnmount(() => {
 
 .story-card-body-image-track {
   min-height: 14rem;
-  backface-visibility: hidden;
-  transform: translate3d(0, var(--story-card-image-offset, 0%), 0);
+  transform: translateY(var(--story-card-image-offset, 0%));
   transition: transform 500ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
@@ -798,7 +806,7 @@ onBeforeUnmount(() => {
 
   .story-card:hover .story-card-image,
   .story-card:hover .story-card-body-image-track {
-    transform: translate3d(0, -20%, 0);
+    transform: translateY(-20%);
     will-change: transform;
   }
 
