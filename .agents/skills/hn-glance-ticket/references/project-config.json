@@ -1,0 +1,82 @@
+{
+  "schemaVersion": 1,
+  "host": "github.com",
+  "repository": "valentinvieriu/hn-glance",
+  "project": {
+    "owner": "valentinvieriu",
+    "number": 3,
+    "id": "PVT_kwHOAAdOks4Beg0C",
+    "title": "HN Glance",
+    "url": "https://github.com/users/valentinvieriu/projects/3"
+  },
+  "defaults": {
+    "status": "Inbox",
+    "priority": "P2"
+  },
+  "titlePrefixes": {
+    "Feature": "[Feature]",
+    "Bug": "[Bug]",
+    "Technical debt": "[Tech Debt]",
+    "Operations": "[Ops]",
+    "Research": "[Research]",
+    "Documentation": "[Docs]",
+    "Epic": "[Epic]"
+  },
+  "fields": {
+    "Status": {
+      "id": "PVTSSF_lAHOAAdOks4Beg0CzhY6bFw",
+      "options": {
+        "Inbox": "bfc704c3",
+        "Ready": "5bec1597",
+        "In Progress": "a6cd45d6",
+        "In Review": "e49adc4a",
+        "Blocked": "6e7ec788",
+        "Done": "9473fe1c"
+      }
+    },
+    "Type": {
+      "id": "PVTSSF_lAHOAAdOks4Beg0CzhY6bZM",
+      "options": {
+        "Feature": "8b79d5c4",
+        "Bug": "c1f4a3ab",
+        "Technical debt": "f1fe33cf",
+        "Operations": "8db4a6e3",
+        "Research": "6d149eab",
+        "Documentation": "4105d727",
+        "Epic": "2cc6304a"
+      }
+    },
+    "Area": {
+      "id": "PVTSSF_lAHOAAdOks4Beg0CzhY6bZI",
+      "options": {
+        "Discovery feeds": "c78ccced",
+        "Story page": "9e5748a8",
+        "Comments": "4160e779",
+        "User activity": "d0e4ff26",
+        "Screenshot pipeline": "325c31dd",
+        "Shared UI": "ad60e91e",
+        "Platform": "94bd26d2",
+        "Developer experience": "5c9367f4"
+      }
+    },
+    "Priority": {
+      "id": "PVTSSF_lAHOAAdOks4Beg0CzhY6bZQ",
+      "options": {
+        "P0": "e19f59fc",
+        "P1": "cfaeafe7",
+        "P2": "b9b4767a",
+        "P3": "0df51471"
+      }
+    },
+    "Effort": {
+      "id": "PVTSSF_lAHOAAdOks4Beg0CzhY6bZE",
+      "options": {
+        "XS": "f49832dd",
+        "S": "a0e83262",
+        "M": "d735ce2c",
+        "L": "b513ea0a",
+        "XL": "8c6cdd5e"
+      }
+    }
+  }
+}

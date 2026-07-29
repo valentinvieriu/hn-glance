@@ -1,0 +1,4 @@
+interface:
+  display_name: "HN Glance Ticket"
+  short_description: "Draft and refine HN Glance GitHub tickets"
+  default_prompt: "Use $hn-glance-ticket to draft or refine a well-scoped HN Glance issue from this request."
