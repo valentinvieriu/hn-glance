@@ -1,6 +1,6 @@
 <template>
   <div class="min-h-screen bg-white text-gray-900 dark:bg-gray-900 dark:text-gray-100">
-    <div class="mx-auto max-w-[112rem] p-4 md:p-8 lg:py-10">
+    <div class="layout-frame py-8 md:py-10">
       <div v-if="error" class="text-center mt-20">
         <h1 class="text-3xl font-display font-semibold mb-4">Error</h1>
         <p class="mb-6 leading-7">{{ error }}</p>
@@ -16,7 +16,7 @@
         <h1 class="text-3xl font-display font-semibold mb-4">Loading...</h1>
       </div>
 
-      <div v-else-if="story" class="story-detail-layout grid gap-8 lg:gap-10 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)] lg:items-start">
+      <div v-else-if="story" class="story-detail-layout grid lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)] lg:items-start">
         <div class="story-detail-primary min-w-0">
           <article class="story-detail-article min-w-0">
           <h1 class="mb-3 text-3xl font-display font-semibold leading-tight text-gray-900 dark:text-gray-100 md:text-4xl">
@@ -445,8 +445,16 @@ useSeoMeta({
   display: contents;
 }
 
+.story-detail-layout {
+  gap: var(--layout-section-gap);
+}
+
 .story-detail-article {
   order: 1;
+}
+
+.story-detail-article > h1 {
+  text-wrap: balance;
 }
 
 .story-detail-comments {
@@ -614,7 +622,6 @@ useSeoMeta({
 @media (min-width: 1536px) {
   .story-detail-layout {
     grid-template-columns: minmax(0, 1.35fr) minmax(34rem, 0.9fr);
-    gap: 3rem;
   }
 }
 

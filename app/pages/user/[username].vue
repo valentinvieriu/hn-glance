@@ -1,6 +1,6 @@
 <template>
   <div class="user-shell seed-palette-surface min-h-full text-slate-900 dark:text-slate-100" :style="userPaletteStyle">
-    <div class="mx-auto max-w-7xl px-4 py-8 md:py-10">
+    <div class="layout-frame py-8 md:py-10">
       <div v-if="pageError" class="mt-20 text-center">
         <h1 class="mb-4 text-3xl font-display font-semibold">User not found</h1>
         <p class="mb-6 leading-7">{{ pageError }}</p>
@@ -13,7 +13,7 @@
       </div>
 
       <div v-else>
-        <header class="user-hero">
+        <header class="user-hero layout-content">
           <div class="min-w-0">
             <p class="user-kicker meta-text mb-2 inline-flex items-center gap-2 font-semibold uppercase">
               <span class="user-kicker-dot h-2.5 w-2.5 rounded-full" aria-hidden="true"></span>
@@ -62,7 +62,7 @@
           </div>
         </header>
 
-        <div class="activity-toolbar">
+        <div class="activity-toolbar layout-content">
           <div class="activity-tabs" role="tablist" aria-label="User activity">
             <button
               type="button"
@@ -95,7 +95,7 @@
           <div
             v-if="postsInitialLoading"
             key="posts-loading"
-            class="grid grid-cols-1 gap-6 md:gap-7 sm:grid-cols-2 lg:grid-cols-3"
+            class="story-grid"
             aria-busy="true"
           >
             <div
@@ -117,7 +117,7 @@
             No posts found.
           </div>
 
-          <div v-else key="posts-grid" class="grid grid-cols-1 gap-6 md:gap-7 sm:grid-cols-2 lg:grid-cols-3">
+          <div v-else key="posts-grid" class="story-grid">
             <StoryCard
               v-for="post in posts"
               :key="post.objectID"
@@ -143,7 +143,7 @@
           </div>
         </section>
 
-        <section v-show="activeTab === 'comments'" role="tabpanel" aria-label="Comments">
+        <section v-show="activeTab === 'comments'" class="layout-content" role="tabpanel" aria-label="Comments">
           <div
             v-if="commentsInitialLoading"
             key="comments-loading"

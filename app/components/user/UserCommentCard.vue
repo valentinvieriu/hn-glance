@@ -156,7 +156,7 @@ const hnCommentUrl = computed(() => getHnItemUrl(props.comment.objectID))
   align-items: center;
   gap: 0.32rem;
   color: rgb(71 85 105);
-  font-size: 0.76rem;
+  font-size: 0.8125rem;
   font-weight: 600;
   line-height: 1;
 }
@@ -168,6 +168,7 @@ const hnCommentUrl = computed(() => getHnItemUrl(props.comment.objectID))
 }
 
 .comment-card-text {
+  max-width: var(--measure-reading);
   padding: 0.95rem 1.05rem 0.2rem;
   color: rgb(30 41 59);
   font-size: 0.95rem;

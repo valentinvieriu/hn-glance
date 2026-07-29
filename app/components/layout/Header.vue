@@ -3,7 +3,7 @@
     class="site-header feed-theme-surface sticky top-0 z-50 border-b"
     :style="currentFeed ? getFeedThemeStyle(currentFeed) : undefined"
   >
-    <div class="max-w-7xl mx-auto flex h-14 items-center justify-between gap-3 px-3 sm:h-16 sm:gap-5 sm:px-5 lg:px-6">
+    <div class="layout-frame flex h-14 items-center justify-between gap-3 sm:h-16 sm:gap-5">
       <NuxtLink to="/top" class="flex shrink-0 items-center space-x-2" aria-label="HN Glance home">
         <h1 class="mb-0 text-[1.3rem] font-display font-semibold leading-none sm:text-2xl">
           <span class="text-slate-900 dark:text-slate-100">HN</span>
@@ -104,7 +104,7 @@ watch(
 
 .feed-nav-link {
   font-family: var(--font-display);
-  font-size: 0.765rem;
+  font-size: 0.8125rem;
   line-height: 1.2;
   color: rgb(71 85 105);
 }

@@ -196,7 +196,7 @@ const shouldRenderChildren = computed(() => {
   background:
     linear-gradient(90deg, color-mix(in oklch, var(--seed-surface-strong), transparent 8%), transparent),
     color-mix(in oklch, var(--seed-metric-bg), transparent 32%);
-  font-size: 0.765rem;
+  font-size: 0.8125rem;
   font-weight: 500;
   line-height: 1.3;
   opacity: 0.82;
@@ -235,7 +235,7 @@ const shouldRenderChildren = computed(() => {
   align-items: center;
   gap: 0.24rem;
   color: var(--seed-author-text);
-  font-size: 0.765rem;
+  font-size: 0.8125rem;
   font-weight: 650;
   line-height: 1;
   white-space: nowrap;
@@ -255,7 +255,7 @@ const shouldRenderChildren = computed(() => {
 
 .comment-text {
   margin: 0;
-  max-width: 72ch;
+  max-width: var(--measure-reading);
   padding: 0.95rem 1rem 0.9rem;
   font-size: 1rem;
   font-weight: 400;
@@ -273,7 +273,7 @@ const shouldRenderChildren = computed(() => {
   background:
     linear-gradient(90deg, color-mix(in oklch, var(--seed-surface), transparent 18%), transparent),
     color-mix(in oklch, var(--seed-metric-bg), transparent 44%);
-  font-size: 0.765rem;
+  font-size: 0.8125rem;
   font-weight: 500;
   line-height: 1.25;
   opacity: 0.78;

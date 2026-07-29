@@ -3,7 +3,7 @@
     class="feed-shell feed-theme-surface min-h-full text-slate-900 dark:text-slate-100"
     :style="feedThemeStyle"
   >
-    <div class="max-w-7xl mx-auto px-4 py-8 md:py-10">
+    <div class="layout-frame py-8 md:py-10">
       <header class="feed-page-header mb-7 md:mb-8">
         <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
@@ -35,7 +35,7 @@
       <div v-else>
         <div
           v-if="isLoading"
-          class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-7"
+          class="story-grid"
           aria-busy="true"
           aria-live="polite"
         >
@@ -81,7 +81,7 @@
             <span>Updating</span>
           </div>
 
-          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-7">
+          <div class="story-grid">
             <StoryCard
               v-for="(story, index) in stories"
               :key="story.objectID"
@@ -209,7 +209,7 @@ useSeoMeta({
 @media (min-width: 640px) {
   .feed-refresh-indicator {
     top: 4.75rem;
-    right: max(1.25rem, calc((100vw - 80rem) / 2 + 1.25rem));
+    right: max(var(--layout-gutter), calc((100vw - var(--layout-wide-max)) / 2));
   }
 }
 

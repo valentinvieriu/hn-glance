@@ -50,6 +50,11 @@ The card model is intentionally simple:
 
 This keeps the browsing flow direct: scan, compare, open, or move on.
 
+The responsive layout follows that same split. Visual discovery surfaces use
+available width to show more screenshots at a useful size, while story text,
+comments, profiles, and policy copy retain bounded reading measures. Shared
+fluid gutters align the app shell and keep content away from the viewport edge.
+
 ## Tech Stack
 
 - Nuxt 4 / Vue 3 / Nitro
@@ -120,6 +125,8 @@ Use `npm run check` as the baseline check before shipping changes.
 - `app/composables/`: shared client logic such as story loading and sanitization.
 - `app/utils/storyScreenshotObserver.ts`: shared feed-card screenshot preload observer.
 - `app/assets/css/main.css`: global typography and rich-text styling.
+- `app/assets/css/main.css` also owns the shared fluid layout frame, page
+  gutters, visual-grid gaps, and reading measure used across the app shell.
 - `shared/types/index.ts`: story, comment, user, and activity types shared by the app and server.
 - `shared/utils/`: framework-neutral HN paths, dates, screenshot paths, timing, and comment-tree analysis.
 - `wrangler.toml`: Cloudflare Workers deployment config.

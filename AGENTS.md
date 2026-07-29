@@ -235,6 +235,9 @@ Preserve these guardrails:
 - Do not raise daily admissions, storage ceiling, retention, dimensions,
   quality, or byte limits without recalculating Queue and R2 free-tier usage.
 - Feed cards share one Intersection Observer.
+- Keep feed cards continuously paintable. Do not add `content-visibility: auto`
+  to `StoryCard`; Chromium can flash the filtered screenshot layers white while
+  scrolling. Screenshot request deferral remains owned by the shared observer.
 - Use `CF-Cache-Status`, `X-HN-Screenshot-Cache`, and
   `X-HN-Screenshot-Source-Route` for diagnostics. Agent stdout must retain
   structured skip reasons and terminal outcome/route/hostname details; do not
@@ -247,6 +250,14 @@ Styling approach:
 - TailwindCSS is the base styling system.
 - Component-specific CSS generally lives in scoped Vue styles.
 - Shared typography/rich-text styling belongs in `app/assets/css/main.css`.
+- Use the shared `layout-frame` and `--layout-*` tokens in `main.css` for
+  page-level width, gutters, and spacing. Header, feed, detail, user, and footer
+  content should share this outer frame; keep prose constrained separately with
+  `reading-measure` rather than introducing one-off page containers.
+- Give the full frame to visual comparison surfaces such as screenshot grids
+  and large source previews. Use `layout-content` or `reading-measure` for
+  reading-heavy sections so wider screens improve scanning without producing
+  long, tiring text lines.
 - Dark mode uses `@nuxtjs/color-mode` with class-based Tailwind dark mode.
 - Fonts are Inter for body text and Sora for display headings.
 - Google Font faces are self-hosted and injected into Nuxt's hashed CSS with `font-display: optional`; do not restore the separate `/css/nuxt-google-fonts.css` render-blocking link.

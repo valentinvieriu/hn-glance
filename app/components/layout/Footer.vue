@@ -1,6 +1,6 @@
 <template>
-  <footer class="py-12 px-4 mt-auto bg-slate-50 dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800">
-    <div class="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center">
+  <footer class="py-12 mt-auto bg-slate-50 dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800">
+    <div class="layout-frame flex flex-col md:flex-row justify-between items-center">
       <div class="mb-8 md:mb-0">
         <h2 class="text-2xl font-display font-semibold mb-2">
           <span class="text-slate-900 dark:text-slate-100">HN</span>
