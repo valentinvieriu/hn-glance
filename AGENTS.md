@@ -296,7 +296,12 @@ Configured production app URL after the renamed Worker is deployed: `https://hn-
   `HN_GLANCE_SCREENSHOT_AGENT_TOKEN` secret, remaining `HN_GLANCE_*` environment
   variables, and `X-HN-*` diagnostic headers stable; they are infrastructure
   contracts retained after the migration.
-- Keep Wrangler Workers Caching and cross-version cache reuse enabled, and keep SSR page routes explicitly `no-store`; uncategorized successful responses otherwise receive the platform's default cache TTL.
+- Keep Wrangler Workers Caching enabled, but preserve its default
+  version-isolated cache. Do not enable `cross_version_cache` without a
+  Worker-scoped deployment purge or equivalent versioned invalidation:
+  cross-version reuse can retain cached negative responses for immutable Nuxt
+  assets. Keep SSR page routes explicitly `no-store`; uncategorized successful
+  responses otherwise receive the platform's default cache TTL.
 - R2 must be enabled on the Cloudflare account before bucket creation or deployment verification can succeed.
 - Production and local development share the remote R2 bucket `hn-glance-screenshots`; do not add a separate preview bucket without reintroducing cross-environment captures.
 - R2 lifecycle should delete active `screenshots/v9/` objects after 28 days and

@@ -153,8 +153,9 @@ The Worker entry and static asset output are configured in `wrangler.toml`:
 - Worker entry: `.output/server/index.mjs`
 - Static assets: `.output/public`
 - Screenshot R2 binding: `SCREENSHOTS_BUCKET`
-- Front-of-Worker response cache: Wrangler `[cache] enabled = true` with
-  cross-version reuse
+- Front-of-Worker response cache: Wrangler `[cache] enabled = true`, with the
+  default version isolation so deployments cannot inherit stale or negative
+  static-asset responses
 
 Cloudflare Early Hints must also be enabled for `hnglance.com` under
 **Speed > Settings > Content Optimization**. The app keeps SSR HTML `no-store`
