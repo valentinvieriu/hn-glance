@@ -13,7 +13,6 @@ remote = true
 
 [cache]
 enabled = true
-cross_version_cache = true
 
 [secrets]
 required = ["HN_GLANCE_SCREENSHOT_AGENT_TOKEN"]
