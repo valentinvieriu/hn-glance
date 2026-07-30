@@ -39,14 +39,15 @@ HN Glance uses Nuxt pages for the main routes and Nitro server routes for Hacker
 Frontend:
 
 - `app/pages/index.vue`, `app/pages/top.vue`, `app/pages/best.vue`, `app/pages/new.vue`, `app/pages/show.vue`: feed pages (`/` and `/top` both render the top feed without a redirect).
-- `app/pages/item/[id].vue`: story detail page with metadata, screenshot, comments, and related stories.
+- `app/pages/item/[id].vue`: story detail page with metadata, screenshot, comments, exact-source HN history, and similar stories.
 - `app/pages/user/[username].vue`: user profile/activity page with posts and comments.
 - `app/components/story/StoryGrid.vue`: feed layout and loading states.
 - `app/components/story/StoryCard.vue`: visual story card, source link, screenshot preview, title, and status row.
 - `app/components/story/StoryPlaceholderVisual.vue`: shared deterministic wireframe fallback for queued and unavailable screenshots.
 - `app/components/comment/CommentThread.vue`: nested comment renderer.
 - `app/components/user/UserCommentCard.vue`: user activity comment card.
-- `app/components/RelatedStories.vue`: related story list on detail pages.
+- `app/components/SubmissionHistory.vue`: compact exact-source HN timeline that marks the current submission.
+- `app/components/RelatedStories.vue`: semantic “Similar Stories” list on detail pages.
 - `app/components/layout/Header.vue` and `app/components/layout/Footer.vue`: shared shell.
 
 Shared client logic:
@@ -62,7 +63,8 @@ Server/API:
 
 - `server/api/top.ts`, `best.ts`, `new.ts`, `show.ts`: configure the shared ordered feed handler.
 - `server/api/item/[id].ts`: fetch story details and comment tree from Algolia Items API.
-- `server/api/related/[id].ts`: build related-story candidates from title, URL, comments, and Algolia search results.
+- `server/api/related/[id].ts`: lazily build exact-source submission history and semantic story suggestions from one bounded set of concurrent Algolia searches.
+- `server/utils/previousSubmissions.ts`: conservative source-URL canonicalization and bounded exact-history selection.
 - `server/api/screenshot/[id].ts`: public R2-only screenshot cache layer.
 - `server/api/internal/screenshot-jobs/[id]/prepare.post.ts`: authenticated capture-agent eligibility, R2 reuse, and content-probe endpoint.
 - `server/api/internal/screenshot-jobs/[id]/result.put.ts`: authenticated bounded-WebP ingestion endpoint.

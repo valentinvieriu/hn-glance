@@ -48,6 +48,31 @@ export const formatCompactTimeAgo = (value: DateInput, now = Date.now()) => {
   return `${Math.floor(elapsedSeconds / year)}y ago`
 }
 
+export const formatCompactTimeRelativeTo = (value: DateInput, reference: DateInput) => {
+  const timestamp = getTimestamp(value)
+  const referenceTimestamp = getTimestamp(reference)
+
+  if (timestamp === null || referenceTimestamp === null) {
+    return ''
+  }
+
+  if (timestamp === referenceTimestamp) {
+    return 'same time'
+  }
+
+  const isEarlier = timestamp < referenceTimestamp
+  const relativeTime = isEarlier
+    ? formatCompactTimeAgo(timestamp, referenceTimestamp)
+    : formatCompactTimeAgo(referenceTimestamp, timestamp)
+  const direction = isEarlier ? 'before' : 'later'
+
+  if (relativeTime === 'now') {
+    return `moments ${direction}`
+  }
+
+  return relativeTime.replace(/ ago$/u, ` ${direction}`)
+}
+
 export const formatTimeAgo = (value: DateInput, now = Date.now()) => {
   const timestamp = getTimestamp(value)
 

@@ -1,5 +1,6 @@
 import type { RelatedStory } from '../../shared/types'
 import type { AlgoliaRankingInfo, AlgoliaStoryHit } from './algolia'
+import { canonicalizeSubmissionUrl } from './previousSubmissions'
 
 const MAX_RELATED_STORIES = 10
 const MAX_STORIES_PER_HOST = 3
@@ -37,6 +38,10 @@ type ScoredCandidate = {
   exactSourceUrl: boolean
   score: number
   tokens: Set<string>
+}
+
+type RelatedStoryRankingOptions = {
+  excludeExactSourceUrl?: boolean
 }
 
 const STOPWORDS = new Set([
@@ -376,13 +381,18 @@ const selectDiverseStories = (scoredCandidates: ScoredCandidate[]) => {
   return selected
 }
 
-export const rankRelatedStories = (results: SearchResult[], source: RelatedSourceStory, excludeId: string) => {
+export const rankRelatedStories = (
+  results: SearchResult[],
+  source: RelatedSourceStory,
+  excludeId: string,
+  options: RelatedStoryRankingOptions = {},
+) => {
   const sourceTitle = cleanTitle(source.title ?? '')
   const sourceTokens = tokenize(sourceTitle)
   const sourceBigrams = getBigrams(sourceTokens)
   const sourceAnchors = getAnchorTokens(sourceTitle, source.url)
   const sourceHost = normalizeHost(source.url)
-  const sourceUrl = canonicalizeUrl(source.url)
+  const exactSourceUrl = canonicalizeSubmissionUrl(source.url)
   const candidates = new Map<string, CandidateEvidence>()
 
   for (const result of results) {
@@ -441,7 +451,10 @@ export const rankRelatedStories = (results: SearchResult[], source: RelatedSourc
     const anchorMatch = matchedTokens.some(token => sourceAnchors.has(token))
     const sameHost = Boolean(sourceHost && normalizeHost(candidate.url) === sourceHost)
     const canonicalUrl = canonicalizeUrl(candidate.url)
-    const exactSourceUrl = Boolean(sourceUrl && canonicalUrl === sourceUrl)
+    const isExactSourceUrl = Boolean(
+      exactSourceUrl
+      && canonicalizeSubmissionUrl(candidate.url) === exactSourceUrl,
+    )
     const strongTitleMatch = matchedTokens.length >= 2
       && (similarity >= 0.28 || bigramMatches > 0)
       && (
@@ -450,11 +463,11 @@ export const rankRelatedStories = (results: SearchResult[], source: RelatedSourc
         || (matchedTokens.length >= 3 && similarity >= 0.4)
       )
     const anchoredRelation = anchorMatch && (sameHost || matchedTokens.length >= 2)
-    const hasRelevantSignal = exactSourceUrl || strongTitleMatch || anchoredRelation
+    const hasRelevantSignal = isExactSourceUrl || strongTitleMatch || anchoredRelation
 
-    if (!hasRelevantSignal) continue
+    if (!hasRelevantSignal || (options.excludeExactSourceUrl && isExactSourceUrl)) continue
 
-    const score = (exactSourceUrl ? 140 : 0)
+    const score = (isExactSourceUrl ? 140 : 0)
       + similarity * 100
       + Math.min(2, bigramMatches) * 8
       + (anchorMatch ? 12 : 0)
@@ -466,7 +479,7 @@ export const rankRelatedStories = (results: SearchResult[], source: RelatedSourc
     scoredCandidates.push({
       candidate,
       canonicalUrl,
-      exactSourceUrl,
+      exactSourceUrl: isExactSourceUrl,
       score,
       tokens,
     })

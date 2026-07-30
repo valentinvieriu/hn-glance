@@ -1,16 +1,16 @@
 <template>
-  <div ref="relatedStoriesRoot" class="mt-10">
+  <div class="mt-10">
     <h2 class="section-title mb-4 text-xl font-semibold text-gray-900 dark:text-gray-100">
-      Related Stories
+      Similar Stories
     </h2>
     <div v-if="status === 'idle' || status === 'pending'" class="text-gray-500">
-      Loading related stories...
+      Loading similar stories...
     </div>
-    <div v-else-if="error" class="text-gray-500">
-      Failed to load related stories.
+    <div v-else-if="failed" class="text-gray-500">
+      Failed to load similar stories.
     </div>
     <div v-else-if="stories.length === 0" class="text-gray-500">
-      No related stories found.
+      No similar stories found.
     </div>
     <div v-else class="related-story-list">
       <NuxtLink
@@ -51,70 +51,15 @@ import type { RelatedStory } from '#shared/types'
 import { formatCompactTimeAgo } from '#shared/utils/date'
 import { getSeedPaletteStyle } from '~/composables/useSeedPalette'
 
-const props = defineProps<{
-  storyId: string
+defineProps<{
+  failed: boolean
+  status: 'idle' | 'pending' | 'success' | 'error'
+  stories: RelatedStory[]
 }>()
-
-const relatedStoriesRoot = ref<HTMLElement | null>(null)
-const isNearViewport = ref(false)
-let relatedStoriesObserver: IntersectionObserver | null = null
 
 const relatedPaletteStyle = (story: RelatedStory) => {
   return getSeedPaletteStyle(story.objectID)
 }
-const { data: stories, status, error, execute, clear } = useLazyFetch<RelatedStory[]>(
-  () => `/api/related/${props.storyId}`,
-  {
-    default: () => [],
-    immediate: false,
-    server: false,
-    watch: false,
-  },
-)
-
-const loadRelatedStories = () => {
-  if (status.value === 'idle') {
-    void execute()
-  }
-}
-
-onMounted(() => {
-  if (!relatedStoriesRoot.value || !('IntersectionObserver' in window)) {
-    isNearViewport.value = true
-    loadRelatedStories()
-    return
-  }
-
-  relatedStoriesObserver = new IntersectionObserver(
-    (entries) => {
-      if (!entries.some((entry) => entry.isIntersecting)) {
-        return
-      }
-
-      isNearViewport.value = true
-      relatedStoriesObserver?.disconnect()
-      relatedStoriesObserver = null
-      loadRelatedStories()
-    },
-    { rootMargin: '600px 0px' },
-  )
-  relatedStoriesObserver.observe(relatedStoriesRoot.value)
-})
-
-watch(
-  () => props.storyId,
-  () => {
-    clear()
-
-    if (isNearViewport.value) {
-      loadRelatedStories()
-    }
-  },
-)
-
-onBeforeUnmount(() => {
-  relatedStoriesObserver?.disconnect()
-})
 </script>
 
 <style scoped>

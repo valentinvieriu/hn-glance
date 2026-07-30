@@ -28,7 +28,7 @@ synthesizes an HN discussion permalink to make them eligible for a feed card.
 
 - Shows Top, Best, New, and Show HN feeds.
 - Presents each story with a visual page preview, title, source, freshness, author, points, and comment count.
-- Opens an HN Glance story page for the card, with metadata, comments, screenshot, and related stories.
+- Opens an HN Glance story page for the card, with metadata, comments, screenshot, exact-source HN history, and similar stories.
 - Opens the original source from the source/domain link.
 - Renders HN comments with safer rich text, nested threads, quote handling, reference links, and expand controls.
 - Includes user activity pages for posts and comments.

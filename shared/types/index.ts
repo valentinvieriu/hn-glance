@@ -65,3 +65,10 @@ export interface RelatedStory {
   num_comments: number;
   author: string;
 }
+
+export type SubmissionHistoryEntry = RelatedStory;
+
+export interface StoryContextResponse {
+  submissionHistory: SubmissionHistoryEntry[];
+  similarStories: RelatedStory[];
+}

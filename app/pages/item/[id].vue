@@ -117,8 +117,21 @@
             v-html="sanitizedText"
           ></div>
           </article>
+          <div ref="storyContextRoot" class="story-detail-history min-w-0">
+            <SubmissionHistory
+              v-if="story && storyId"
+              :current-created-at="story.created_at"
+              :current-story-id="storyId"
+              :submissions="submissionHistory"
+            />
+          </div>
           <section class="story-detail-related min-w-0">
-            <RelatedStories v-if="storyId" :story-id="storyId" />
+            <RelatedStories
+              v-if="storyId"
+              :failed="storyContextFailed"
+              :status="storyContextStatus"
+              :stories="similarStories"
+            />
           </section>
         </div>
         <aside id="comments" class="story-detail-comments min-w-0 scroll-mt-24">
@@ -198,7 +211,11 @@ import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
 import { LucideExternalLink, LucideTrendingUp, LucideMessageSquare, LucideClock, LucideChevronsDown, LucideChevronsUp, LucideMaximize2, LucideX } from '@lucide/vue';
 import { useSanitizer } from '~/composables/useSanitizer';
 import { getSeedPaletteStyle } from '~/composables/useSeedPalette';
-import type { StoryDetail } from '#shared/types'
+import type {
+  RelatedStory,
+  StoryContextResponse,
+  StoryDetail,
+} from '#shared/types'
 import { summarizeCommentTree } from '#shared/utils/comments'
 import { formatTimeAgo } from '#shared/utils/date'
 import { getHnItemUrl, getHnUserPath, normalizeHnItemId } from '#shared/utils/hn'
@@ -272,6 +289,46 @@ const error = computed(() => {
   return null
 })
 const isLoading = computed(() => pending.value)
+const storyContextRoot = ref<HTMLElement | null>(null)
+const isStoryContextNearViewport = ref(false)
+let storyContextObserver: IntersectionObserver | null = null
+type StoryContextPayload = StoryContextResponse | RelatedStory[]
+const {
+  data: storyContextData,
+  status: storyContextStatus,
+  error: storyContextError,
+  execute: executeStoryContext,
+  clear: clearStoryContext,
+} = useLazyFetch<StoryContextPayload>(
+  () => `/api/related/${storyId.value ?? 'invalid'}?format=story-context-v5`,
+  {
+    default: () => ({
+      submissionHistory: [],
+      similarStories: [],
+    }),
+    immediate: false,
+    server: false,
+    watch: false,
+  },
+)
+const storyContext = computed<StoryContextResponse>(() => {
+  if (Array.isArray(storyContextData.value)) {
+    return {
+      submissionHistory: [],
+      similarStories: storyContextData.value,
+    }
+  }
+
+  return storyContextData.value
+})
+const submissionHistory = computed(() => storyContext.value.submissionHistory)
+const similarStories = computed(() => storyContext.value.similarStories)
+const storyContextFailed = computed(() => Boolean(storyContextError.value))
+const loadStoryContext = () => {
+  if (storyId.value && storyContextStatus.value === 'idle') {
+    void executeStoryContext()
+  }
+}
 const screenshotSrc = computed(() => storyId.value ? getScreenshotPath(storyId.value) : '')
 const originalScreenshotSrc = screenshotSrc
 const storyExternalUrl = computed(() => {
@@ -297,6 +354,7 @@ onBeforeUnmount(() => {
     clearTimeout(screenshotRetryTimer)
   }
 
+  storyContextObserver?.disconnect()
   screenshotDialog.value?.close()
 })
 const storyDomain = computed(() => {
@@ -354,6 +412,27 @@ onMounted(() => {
   if (screenshotImage.value?.complete) {
     updateScreenshotPreviewState(screenshotImage.value)
   }
+
+  if (!storyContextRoot.value || !('IntersectionObserver' in window)) {
+    isStoryContextNearViewport.value = true
+    loadStoryContext()
+    return
+  }
+
+  storyContextObserver = new IntersectionObserver(
+    (entries) => {
+      if (!entries.some(entry => entry.isIntersecting)) {
+        return
+      }
+
+      isStoryContextNearViewport.value = true
+      storyContextObserver?.disconnect()
+      storyContextObserver = null
+      loadStoryContext()
+    },
+    { rootMargin: '400px 0px' },
+  )
+  storyContextObserver.observe(storyContextRoot.value)
 })
 
 const openScreenshotPreview = () => {
@@ -385,6 +464,14 @@ watch(screenshotSrc, () => {
 
   screenshotRequestAttempt.value = 0
   screenshotPreviewState.value = 'loading'
+})
+
+watch(storyId, () => {
+  clearStoryContext()
+
+  if (isStoryContextNearViewport.value) {
+    loadStoryContext()
+  }
 })
 
 // Use the sanitizer
@@ -458,11 +545,16 @@ useSeoMeta({
 }
 
 .story-detail-comments {
+  order: 3;
+}
+
+.story-detail-history {
+  min-height: 1px;
   order: 2;
 }
 
 .story-detail-related {
-  order: 3;
+  order: 4;
 }
 
 .source-screenshot-preview {

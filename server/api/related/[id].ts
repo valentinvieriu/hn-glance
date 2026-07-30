@@ -1,4 +1,5 @@
 import { createError, defineEventHandler, getRouterParams, setHeader, setHeaders, type H3Event } from 'h3'
+import type { StoryContextResponse } from '#shared/types'
 import { isValidHnItemId } from '#shared/utils/hn'
 import { formatServerTiming, type ServerTimingMetric } from '#shared/utils/serverTiming'
 import {
@@ -10,12 +11,16 @@ import {
 import { getErrorStatusCode } from '../../utils/error'
 import {
   buildTitleQuery,
-  getUrlTerms,
   rankRelatedStories,
   type RelatedSearchKind,
   type RelatedSourceStory,
   type SearchResult,
 } from '../../utils/relatedStories'
+import {
+  canonicalizeSubmissionUrl,
+  selectSubmissionHistory,
+  SUBMISSION_HISTORY_CANDIDATE_LIMIT,
+} from '../../utils/previousSubmissions'
 
 const RELATED_STORY_ATTRIBUTES = 'objectID,title,created_at,created_at_i,points,num_comments,author,url'
 const SOURCE_STORY_ATTRIBUTES = 'title,url,created_at_i'
@@ -95,6 +100,21 @@ const fetchCommentLinkedStories = async (query: string, excludeId: string): Prom
   }
 }
 
+const fetchSubmissionHistoryHits = async (query: string): Promise<AlgoliaStoryHit[]> => {
+  try {
+    return await searchAlgoliaHits<AlgoliaStoryHit>({
+      attributesToRetrieve: RELATED_STORY_ATTRIBUTES,
+      query,
+      tags: 'story',
+      restrictSearchableAttributes: 'url',
+      hitsPerPage: String(SUBMISSION_HISTORY_CANDIDATE_LIMIT),
+    })
+  } catch (error) {
+    console.warn('Failed to fetch submission history candidates:', error)
+    return []
+  }
+}
+
 const fetchSourceStory = async (id: string) => {
   const stories = await searchAlgoliaHits<RelatedSourceStory>({
     attributesToRetrieve: SOURCE_STORY_ATTRIBUTES,
@@ -131,16 +151,19 @@ export default defineEventHandler(async (event) => {
 
     const titleQuery = buildTitleQuery(story.title)
     const optionalTitleWords = titleQuery
-    const urlQuery = getUrlTerms(story.url).join(' ')
+    const submissionUrlQuery = canonicalizeSubmissionUrl(story.url)
 
-    if (!titleQuery && !urlQuery) {
+    if (!titleQuery && !submissionUrlQuery) {
       setRelatedCacheHeaders(event)
       setHeader(event, 'Server-Timing', formatServerTiming([{
         name: 'source-item',
         duration: sourceItemDuration,
         description: 'Algolia source item',
       }]))
-      return []
+      return {
+        submissionHistory: [],
+        similarStories: [],
+      } satisfies StoryContextResponse
     }
 
     const searches: Array<Promise<SearchResult>> = []
@@ -171,21 +194,24 @@ export default defineEventHandler(async (event) => {
       searches.push(fetchCommentLinkedStories(titleQuery, id))
     }
 
-    if (urlQuery) {
-      searches.push(fetchStoryHits({
-        query: urlQuery,
-        tags: 'story',
-        restrictSearchableAttributes: 'url',
-        hitsPerPage: '16'
-      }, 28, 'url'))
-    }
+    const submissionHistorySearch = submissionUrlQuery
+      ? fetchSubmissionHistoryHits(submissionUrlQuery)
+      : Promise.resolve<AlgoliaStoryHit[]>([])
 
     const relatedSearchesStartedAt = performance.now()
-    const results = await Promise.all(searches)
+    const [results, submissionHistoryHits] = await Promise.all([
+      Promise.all(searches),
+      submissionHistorySearch,
+    ])
     const relatedSearchesDuration = performance.now() - relatedSearchesStartedAt
     const relatedRankStartedAt = performance.now()
-    const relatedStories = rankRelatedStories(results, story, id)
+    const relatedStories = rankRelatedStories(results, story, id, {
+      excludeExactSourceUrl: true,
+    })
     const relatedRankDuration = performance.now() - relatedRankStartedAt
+    const historyMatchStartedAt = performance.now()
+    const submissionHistory = selectSubmissionHistory(submissionHistoryHits, story)
+    const historyMatchDuration = performance.now() - historyMatchStartedAt
     const timingMetrics: ServerTimingMetric[] = [
       {
         name: 'source-item',
@@ -195,19 +221,27 @@ export default defineEventHandler(async (event) => {
       {
         name: 'related-searches',
         duration: relatedSearchesDuration,
-        description: 'Concurrent Algolia related searches',
+        description: 'Concurrent Algolia story-context searches',
       },
       {
         name: 'related-rank',
         duration: relatedRankDuration,
         description: 'Related-story ranking',
       },
+      {
+        name: 'history-match',
+        duration: historyMatchDuration,
+        description: 'Submission-history URL matching',
+      },
     ]
 
     setRelatedCacheHeaders(event)
     setHeader(event, 'Server-Timing', formatServerTiming(timingMetrics))
 
-    return relatedStories
+    return {
+      submissionHistory,
+      similarStories: relatedStories,
+    } satisfies StoryContextResponse
 
   } catch (error: unknown) {
     if (getErrorStatusCode(error) !== null) {
@@ -216,7 +250,7 @@ export default defineEventHandler(async (event) => {
 
     throw createError({
       statusCode: 500,
-      message: 'Failed to fetch related stories',
+      message: 'Failed to fetch story context',
       cause: error
     })
   }

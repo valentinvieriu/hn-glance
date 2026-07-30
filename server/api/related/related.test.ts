@@ -137,6 +137,23 @@ describe('rankRelatedStories', () => {
     expect(ranked.map(item => item.objectID)).toEqual(['501'])
   })
 
+  it('can keep exact prior submissions out of semantic suggestions', () => {
+    const ranked = rankRelatedStories([
+      result('title', [
+        story('521', 'PCjs Machines', 1_700_000_100, 'https://www.pcjs.org/'),
+        story('522', 'PCjs emulator architecture', 1_700_000_200, 'https://pcjs.org/emulator'),
+      ]),
+    ], {
+      title: 'PCjs Machines',
+      url: 'https://pcjs.org/',
+      created_at_i: 1_800_000_000,
+    }, '520', {
+      excludeExactSourceUrl: true,
+    })
+
+    expect(ranked.map(item => item.objectID)).toEqual(['522'])
+  })
+
   it('rejects unrelated stories that only share a publisher hostname', () => {
     const ranked = rankRelatedStories([
       result('url', [
