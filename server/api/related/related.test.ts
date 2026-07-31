@@ -55,6 +55,7 @@ describe('rankRelatedStories', () => {
 
     expect(ranked.map(item => item.objectID)).toEqual(['101', '102', '103'])
     expect(ranked.every(item => item.created_at)).toBe(true)
+    expect(ranked.every(item => item.url)).toBe(true)
   })
 
   it('chooses the ten strongest candidates without a chronological reorder', () => {

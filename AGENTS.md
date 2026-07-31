@@ -237,6 +237,9 @@ Preserve these guardrails:
 - Do not raise daily admissions, storage ceiling, retention, dimensions,
   quality, or byte limits without recalculating Queue and R2 free-tier usage.
 - Feed cards share one Intersection Observer.
+- Keep feed cards continuously paintable. Do not add `content-visibility: auto`
+  to `StoryCard`; Chromium can flash the filtered screenshot layers while
+  scrolling. Screenshot request deferral remains owned by the shared observer.
 - Use `CF-Cache-Status`, `X-HN-Screenshot-Cache`, and
   `X-HN-Screenshot-Source-Route` for diagnostics. Agent stdout must retain
   structured skip reasons and terminal outcome/route/hostname details; do not

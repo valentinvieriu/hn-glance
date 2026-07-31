@@ -64,6 +64,7 @@ export interface RelatedStory {
   points: number;
   num_comments: number;
   author: string;
+  url?: string;
 }
 
 export type SubmissionHistoryEntry = RelatedStory;

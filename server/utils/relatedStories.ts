@@ -503,5 +503,5 @@ export const rankRelatedStories = (
       || Number(second.candidate.objectID) - Number(first.candidate.objectID)
   }))
     .map(({ candidate }) => candidate)
-    .map(({ url: _url, created_at_i: _createdAt, evidence: _evidence, ranks: _ranks, rankingInfo: _rankingInfo, ...story }) => story)
+    .map(({ created_at_i: _createdAt, evidence: _evidence, ranks: _ranks, rankingInfo: _rankingInfo, ...story }) => story)
 }

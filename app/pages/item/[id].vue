@@ -300,7 +300,7 @@ const {
   execute: executeStoryContext,
   clear: clearStoryContext,
 } = useLazyFetch<StoryContextPayload>(
-  () => `/api/related/${storyId.value ?? 'invalid'}?format=story-context-v5`,
+  () => `/api/related/${storyId.value ?? 'invalid'}?format=story-context-v6`,
   {
     default: () => ({
       submissionHistory: [],

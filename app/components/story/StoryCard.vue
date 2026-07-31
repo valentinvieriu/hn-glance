@@ -365,6 +365,8 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .story-card {
+  /* Keep screenshot layers continuously paintable. Chromium can flash the
+     filtered image layers when content-visibility defers a card mid-scroll. */
   position: relative;
   border: 1px solid color-mix(in oklch, var(--seed-border) 70%, rgb(203 213 225 / 0.58));
   background:
@@ -379,13 +381,6 @@ onBeforeUnmount(() => {
     0 5px 18px rgb(15 23 42 / 0.055),
     0 1px 0 rgb(255 255 255 / 0.46) inset;
   transition-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
-}
-
-@supports (content-visibility: auto) {
-  .story-card {
-    content-visibility: auto;
-    contain-intrinsic-size: auto 34rem;
-  }
 }
 
 .story-card:focus-visible {
