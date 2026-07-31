@@ -18,6 +18,16 @@
           class="story-source-link"
           :aria-label="`Open ${storyDomain} externally`"
         >
+          <img
+            v-if="faviconUrl && !faviconFailed"
+            :src="faviconUrl"
+            alt=""
+            class="story-source-favicon"
+            loading="lazy"
+            decoding="async"
+            referrerpolicy="no-referrer"
+            @error="faviconFailed = true"
+          >
           <span class="story-domain-chip">{{ storyDomain }}</span>
           <LucideExternalLink class="story-source-icon" aria-hidden="true" />
         </NuxtLink>
@@ -116,11 +126,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { LucideTrendingUp, LucideMessageSquare, LucideExternalLink, LucideClock } from '@lucide/vue'
 import type { Story } from '#shared/types'
 import { getSeedPaletteStyle } from '~/composables/useSeedPalette'
 import { normalizeStoryPlaceholderDomain } from '~/composables/useStoryPlaceholder'
+import { getSourceFaviconUrl } from '~/utils/sourceFavicon'
 import { getScreenshotPath } from '#shared/utils/screenshot'
 import { formatCompactTimeAgo } from '#shared/utils/date'
 import { getHnItemUrl, getHnUserPath } from '#shared/utils/hn'
@@ -143,9 +154,15 @@ const getDomainFromUrl = (url: string): string => {
 
 const externalStoryUrl = computed(() => props.story.url || getHnItemUrl(props.story.objectID))
 const storyDomain = computed(() => getDomainFromUrl(externalStoryUrl.value))
+const faviconUrl = computed(() => getSourceFaviconUrl(externalStoryUrl.value))
+const faviconFailed = ref(false)
 const paletteDomain = computed(() => normalizeStoryPlaceholderDomain(storyDomain.value))
 const cardPaletteStyle = computed(() => getSeedPaletteStyle(props.story.objectID, paletteDomain.value))
 const screenshotSrc = getScreenshotPath(props.story.objectID)
+
+watch(faviconUrl, () => {
+  faviconFailed.value = false
+})
 
 const pointsToneClass = computed(() => {
   if (props.story.points < 100 && props.story.num_comments < 50) {
@@ -602,6 +619,16 @@ onBeforeUnmount(() => {
 
 .dark .story-source-link {
   color: color-mix(in oklch, var(--seed-author-text) 90%, white);
+}
+
+.story-source-favicon {
+  width: 1rem;
+  height: 1rem;
+  flex: 0 0 auto;
+  padding: 0.09rem;
+  border-radius: 0.28rem;
+  background: rgb(255 255 255 / 0.9);
+  object-fit: contain;
 }
 
 .story-domain-chip {

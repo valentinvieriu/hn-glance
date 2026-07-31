@@ -48,6 +48,7 @@ Frontend:
 - `app/components/user/UserCommentCard.vue`: user activity comment card.
 - `app/components/SubmissionHistory.vue`: compact exact-source HN timeline that marks the current submission.
 - `app/components/RelatedStories.vue`: semantic “Similar Stories” list on detail pages.
+- `app/components/CommentLinks.vue`: value-ordered category groups of outbound links extracted from the comment tree, with deep links back to the comments that shared them.
 - `app/components/layout/Header.vue` and `app/components/layout/Footer.vue`: shared shell.
 
 Shared client logic:
@@ -87,6 +88,7 @@ Types and global styling:
 
 - `shared/types/index.ts`: shared story, comment, user, and activity types used by the Vue app and Nitro server.
 - `shared/utils/comments.ts`, `date.ts`, and `hn.ts`: framework-neutral comment analysis, date formatting, and HN identifier/path helpers.
+- `shared/utils/commentLinks.ts`: bounded, framework-neutral extraction, deduplication, and value-ordered source categorization for outbound links shared in comments.
 - `app/assets/css/main.css`: base typography, rich-text rendering, quote/code/reference styles.
 - `tailwind.config.ts`: Tailwind app content path, fonts, dark mode, and extended color tokens.
 
@@ -188,6 +190,15 @@ Current rendering uses `useSanitizer.ts` to:
 - Style `Edit:`, `Update:`, and `TL;DR:` as note labels.
 
 Nested comments render to a limited depth by default. `app/pages/item/[id].vue` analyzes the tree once for totals, author activity, descendant counts, and collapsed-state; `CommentThread.vue` uses that shared summary for local reply disclosure.
+
+Story detail pages also extract a bounded set of safe HTTP(S) links from the
+already-loaded comment tree. `CommentLinks.vue` shows all extracted links in
+stable category groups ordered by source value: documentation, papers, code,
+reference, news, video, discussion, social, then other links. Each link carries
+its sharing author's seed color and jumps back to the sharing comment, cycling
+through comments for multi-mention links. A jump expands only the target's ancestor replies before
+focusing and briefly highlighting the comment; do not add a second upstream
+request or fetch third-party link metadata for this section.
 
 ## Images And Screenshots
 

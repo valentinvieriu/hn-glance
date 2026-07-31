@@ -2,7 +2,7 @@ import type { RelatedStory } from '../../shared/types'
 import type { AlgoliaRankingInfo, AlgoliaStoryHit } from './algolia'
 import { canonicalizeSubmissionUrl } from './previousSubmissions'
 
-const MAX_RELATED_STORIES = 10
+const MAX_RELATED_STORIES = 6
 const MAX_STORIES_PER_HOST = 3
 const TITLE_SIMILARITY_THRESHOLD = 0.82
 const RELATED_TOKEN_LIMIT = 24
@@ -485,7 +485,7 @@ export const rankRelatedStories = (
     })
   }
 
-  return selectDiverseStories(scoredCandidates.sort((first, second) => {
+  const selectedStories = selectDiverseStories(scoredCandidates.sort((first, second) => {
     if (
       first.exactSourceUrl
       && second.exactSourceUrl
@@ -502,6 +502,13 @@ export const rankRelatedStories = (
       || second.candidate.created_at_i - first.candidate.created_at_i
       || Number(second.candidate.objectID) - Number(first.candidate.objectID)
   }))
+
+  return selectedStories
+    .sort((first, second) => (
+      second.candidate.created_at_i - first.candidate.created_at_i
+      || second.score - first.score
+      || Number(second.candidate.objectID) - Number(first.candidate.objectID)
+    ))
     .map(({ candidate }) => candidate)
     .map(({ created_at_i: _createdAt, evidence: _evidence, ranks: _ranks, rankingInfo: _rankingInfo, ...story }) => story)
 }

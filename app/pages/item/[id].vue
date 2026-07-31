@@ -17,7 +17,10 @@
       </div>
 
       <div v-else-if="story" class="story-detail-layout grid lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)] lg:items-start">
-        <div class="story-detail-primary min-w-0">
+        <div
+          class="story-detail-primary story-context-palette min-w-0"
+          :style="storyContextPaletteStyle"
+        >
           <article class="story-detail-article min-w-0">
           <h1 class="mb-3 text-3xl font-display font-semibold leading-tight text-gray-900 dark:text-gray-100 md:text-4xl">
             {{ story.title }}
@@ -27,9 +30,11 @@
             :href="storyExternalUrl"
             target="_blank"
             rel="noopener noreferrer"
-            class="meta-text mb-3 flex items-center gap-1.5 text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
+            class="story-source-link meta-text mb-3 inline-flex items-center gap-1.5"
+            :aria-label="`Open source on ${storyDomain}`"
           >
-            <span class="truncate">{{ storyExternalUrl }}</span> <LucideExternalLink :size="14" />
+            <span class="truncate">{{ storyDomain }}</span>
+            <LucideExternalLink :size="14" aria-hidden="true" />
           </a>
           <div class="meta-text mb-4 text-gray-600 dark:text-gray-400">
             by
@@ -43,7 +48,7 @@
           </div>
           <div class="meta-text flex items-center gap-4 mb-6">
             <span :class="['flex', 'items-center', 'gap-1', story.points >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-500 dark:text-red-400']">
-              <LucideTrendingUp class="w-4 h-4" />
+              <LucideTrendingUp class="w-4 h-4" aria-hidden="true" />
               {{ story.points }}
             </span>
             <a
@@ -51,13 +56,9 @@
               aria-label="Jump to comments"
               class="flex items-center gap-1 text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200"
             >
-              <LucideMessageSquare class="w-4 h-4" />
+              <LucideMessageSquare class="w-4 h-4" aria-hidden="true" />
               {{ commentCount }}
             </a>
-            <span class="flex items-center gap-1 text-gray-600 dark:text-gray-400">
-              <LucideClock class="w-4 h-4" />
-              {{ timeAgo }}
-            </span>
           </div>
           <div
             class="source-screenshot-preview seed-palette-surface mb-6 lg:mb-8"
@@ -87,12 +88,19 @@
               @load="handleScreenshotPreviewLoad"
               @error="handleScreenshotPreviewError"
             />
+            <button
+              v-if="screenshotPreviewState === 'loaded'"
+              type="button"
+              class="source-preview-open-button"
+              aria-label="Open source preview at full size"
+              @click="openScreenshotPreview"
+            ></button>
             <a
               v-if="storyExternalUrl"
               :href="storyExternalUrl"
               target="_blank"
               rel="noopener noreferrer"
-              class="source-preview-mobile-link"
+              class="source-preview-source-link"
               :aria-label="`Open ${storyDomain} externally`"
               data-testid="compact-source-preview"
             >
@@ -101,16 +109,14 @@
                 <LucideExternalLink class="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
               </span>
             </a>
-            <button
+            <span
               v-if="screenshotPreviewState === 'loaded'"
-              type="button"
-              class="source-preview-expand-button"
-              aria-label="Open source preview at full size"
-              @click="openScreenshotPreview"
+              class="source-preview-expand-label"
+              aria-hidden="true"
             >
-              <LucideMaximize2 class="h-4 w-4" aria-hidden="true" />
+              <LucideMaximize2 class="h-4 w-4" />
               <span>Full size</span>
-            </button>
+            </span>
           </div>
           <div
             class="story-detail-text rich-text reading-measure mb-5 text-base leading-7 text-gray-700 dark:text-gray-300"
@@ -131,6 +137,12 @@
               :failed="storyContextFailed"
               :status="storyContextStatus"
               :stories="similarStories"
+            />
+            <CommentLinks
+              v-if="story"
+              :comments="story.children"
+              :story-url="story.url"
+              @jump-to-comment="jumpToComment"
             />
           </section>
         </div>
@@ -162,6 +174,7 @@
               :key="comment.id"
               :comment="comment"
               :expand-all="expandAllComments"
+              :force-expanded-ids="forceExpandedCommentIds"
               :author-comment-counts="authorCommentCounts"
               :descendant-comment-counts="descendantCommentCounts"
             />
@@ -207,16 +220,16 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
-import { LucideExternalLink, LucideTrendingUp, LucideMessageSquare, LucideClock, LucideChevronsDown, LucideChevronsUp, LucideMaximize2, LucideX } from '@lucide/vue';
+import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue';
+import { LucideExternalLink, LucideTrendingUp, LucideMessageSquare, LucideChevronsDown, LucideChevronsUp, LucideMaximize2, LucideX } from '@lucide/vue';
 import { useSanitizer } from '~/composables/useSanitizer';
-import { getSeedPaletteStyle } from '~/composables/useSeedPalette';
+import { getSeedPaletteStyle, getStoryContextPaletteStyle } from '~/composables/useSeedPalette';
 import type {
   RelatedStory,
   StoryContextResponse,
   StoryDetail,
 } from '#shared/types'
-import { summarizeCommentTree } from '#shared/utils/comments'
+import { getCommentPathIds, summarizeCommentTree } from '#shared/utils/comments'
 import { formatTimeAgo } from '#shared/utils/date'
 import { getHnItemUrl, getHnUserPath, normalizeHnItemId } from '#shared/utils/hn'
 import { getScreenshotPath } from '#shared/utils/screenshot'
@@ -354,6 +367,7 @@ onBeforeUnmount(() => {
     clearTimeout(screenshotRetryTimer)
   }
 
+  clearCommentHighlight()
   storyContextObserver?.disconnect()
   screenshotDialog.value?.close()
 })
@@ -367,6 +381,10 @@ const storyDomain = computed(() => {
   } catch {
     return 'source'
   }
+})
+
+const storyContextPaletteStyle = computed(() => {
+  return getStoryContextPaletteStyle(storyId.value, storyDomain.value)
 })
 
 const screenshotPreviewStyle = computed(() => {
@@ -408,9 +426,83 @@ const handleScreenshotPreviewError = () => {
   scheduleScreenshotRetry()
 }
 
+const getCommentIdFromHash = (hash: string) => {
+  const commentId = Number(hash.match(/^#comment-(\d+)$/u)?.[1])
+
+  return Number.isSafeInteger(commentId) && commentId > 0 ? commentId : null
+}
+
+const forceExpandedCommentIds = ref<ReadonlySet<number>>(new Set())
+let commentHighlightTimer: ReturnType<typeof setTimeout> | undefined
+let highlightedComment: HTMLElement | null = null
+
+const clearCommentHighlight = () => {
+  if (commentHighlightTimer) {
+    clearTimeout(commentHighlightTimer)
+    commentHighlightTimer = undefined
+  }
+
+  highlightedComment?.classList.remove('comment-jump-highlight')
+  highlightedComment = null
+}
+
+const highlightComment = (target: HTMLElement) => {
+  clearCommentHighlight()
+  highlightedComment = target
+  target.classList.add('comment-jump-highlight')
+  commentHighlightTimer = setTimeout(clearCommentHighlight, 1600)
+}
+
+const jumpToComment = async (commentId: number, updateHash = true) => {
+  if (!Number.isSafeInteger(commentId) || commentId <= 0) {
+    return
+  }
+
+  const pathIds = getCommentPathIds(story.value?.children ?? [], commentId)
+
+  if (pathIds) {
+    forceExpandedCommentIds.value = new Set([...forceExpandedCommentIds.value, ...pathIds])
+  }
+  await nextTick()
+
+  let target = document.getElementById(`comment-${commentId}`)
+
+  if (!target) {
+    // Safety net: force the whole tree open if targeted expansion missed.
+    expandAllComments.value = true
+    await nextTick()
+    target = document.getElementById(`comment-${commentId}`)
+  }
+
+  if (!target) {
+    return
+  }
+
+  if (updateHash) {
+    window.history.replaceState(
+      window.history.state,
+      '',
+      `${window.location.pathname}${window.location.search}#comment-${commentId}`,
+    )
+  }
+
+  const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  target.scrollIntoView({
+    behavior: prefersReducedMotion ? 'auto' : 'smooth',
+    block: 'start',
+  })
+  target.focus({ preventScroll: true })
+  highlightComment(target)
+}
+
 onMounted(() => {
   if (screenshotImage.value?.complete) {
     updateScreenshotPreviewState(screenshotImage.value)
+  }
+
+  const hashedCommentId = getCommentIdFromHash(route.hash)
+  if (hashedCommentId) {
+    void jumpToComment(hashedCommentId, false)
   }
 
   if (!storyContextRoot.value || !('IntersectionObserver' in window)) {
@@ -467,10 +559,20 @@ watch(screenshotSrc, () => {
 })
 
 watch(storyId, () => {
+  clearCommentHighlight()
+  forceExpandedCommentIds.value = new Set()
   clearStoryContext()
 
   if (isStoryContextNearViewport.value) {
     loadStoryContext()
+  }
+})
+
+watch(() => route.hash, (hash) => {
+  const commentId = getCommentIdFromHash(hash)
+
+  if (commentId) {
+    void jumpToComment(commentId, false)
   }
 })
 
@@ -554,7 +656,26 @@ useSeoMeta({
 }
 
 .story-detail-related {
-  order: 4;
+  order: 2;
+}
+
+.story-source-link {
+  color: var(--story-context-accent-strong);
+  font-weight: 700;
+  text-decoration-color: transparent;
+  text-underline-offset: 0.18em;
+}
+
+.story-source-link:hover,
+.story-source-link:focus-visible {
+  color: var(--story-context-accent);
+  text-decoration-line: underline;
+}
+
+.story-source-link:focus-visible {
+  border-radius: 0.2rem;
+  outline: 2px solid var(--story-context-focus);
+  outline-offset: 2px;
 }
 
 .source-screenshot-preview {
@@ -594,27 +715,46 @@ useSeoMeta({
   visibility: hidden;
 }
 
-.source-preview-mobile-link {
+.source-preview-open-button {
   position: absolute;
   z-index: 3;
   inset: 0;
   display: block;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
   border-radius: inherit;
+  background: transparent;
+  cursor: zoom-in;
 }
 
-.source-preview-mobile-link:focus-visible {
+.source-preview-open-button:focus-visible {
   outline: 3px solid var(--seed-accent);
   outline-offset: -3px;
 }
 
-.source-preview-domain-chip {
+.source-preview-source-link {
   position: absolute;
-  right: 0.75rem;
+  z-index: 4;
+  right: auto;
   bottom: 0.75rem;
   left: 0.75rem;
-  display: inline-flex;
+  display: block;
   width: max-content;
   max-width: calc(100% - 1.5rem);
+  border-radius: 999px;
+}
+
+.source-preview-source-link:focus-visible {
+  outline: 3px solid var(--seed-accent);
+  outline-offset: 2px;
+}
+
+.source-preview-domain-chip {
+  display: inline-flex;
+  width: max-content;
+  max-width: 100%;
   align-items: center;
   gap: 0.35rem;
   padding: 0.42rem 0.58rem;
@@ -636,12 +776,12 @@ useSeoMeta({
   white-space: nowrap;
 }
 
-.source-preview-expand-button {
+.source-preview-expand-label {
   position: absolute;
   top: 0.75rem;
   right: 0.75rem;
-  z-index: 3;
-  display: none;
+  z-index: 4;
+  display: inline-flex;
   min-height: 2.25rem;
   align-items: center;
   gap: 0.4rem;
@@ -655,13 +795,7 @@ useSeoMeta({
   line-height: 1;
   box-shadow: 0 8px 22px -14px rgb(15 23 42 / 0.75);
   backdrop-filter: blur(12px);
-  transition: background-color 0.2s ease, transform 0.2s ease;
-}
-
-.source-preview-expand-button:hover,
-.source-preview-expand-button:focus-visible {
-  background: white;
-  transform: translateY(-1px);
+  pointer-events: none;
 }
 
 @media (min-width: 1024px) {
@@ -701,14 +835,6 @@ useSeoMeta({
     object-fit: contain;
   }
 
-  .source-screenshot-preview::after,
-  .source-preview-mobile-link {
-    display: none;
-  }
-
-  .source-preview-expand-button {
-    display: inline-flex;
-  }
 }
 
 @media (min-width: 1536px) {
@@ -795,15 +921,10 @@ useSeoMeta({
     linear-gradient(180deg, var(--seed-surface-raised), var(--seed-surface));
 }
 
-.dark .source-preview-expand-button {
+.dark .source-preview-expand-label {
   border-color: rgb(255 255 255 / 0.16);
   background: rgb(15 23 42 / 0.82);
   color: rgb(226 232 240);
-}
-
-.dark .source-preview-expand-button:hover,
-.dark .source-preview-expand-button:focus-visible {
-  background: rgb(30 41 59 / 0.96);
 }
 
 .dark .source-preview-dialog {

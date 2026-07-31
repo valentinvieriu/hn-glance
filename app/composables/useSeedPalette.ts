@@ -3,6 +3,7 @@ type SeedPaletteStyle = Record<string, string>
 const DEFAULT_SEED = 'hn'
 const DEFAULT_CONTEXT_SEED = 'hn-visual-palette'
 const HARMONY_OFFSETS = [0, 28, -28, 58, -58, 88, -88, 118, -118, 148, -148, 180]
+const STORY_CONTEXT_HUES = [205, 225, 245, 265, 285] as const
 
 const normalizeHue = (hue: number) => ((hue % 360) + 360) % 360
 
@@ -38,5 +39,18 @@ export const getSeedPaletteStyle = (
 
   return {
     '--seed-hue': `${hue}`,
+  }
+}
+
+export const getStoryContextPaletteStyle = (
+  storyId: string | number | null | undefined,
+  domain: string | number | null | undefined,
+): SeedPaletteStyle => {
+  const paletteIndex = hashSeed(`${storyId ?? DEFAULT_SEED}:${domain ?? DEFAULT_CONTEXT_SEED}`)
+    % STORY_CONTEXT_HUES.length
+  const hue = STORY_CONTEXT_HUES[paletteIndex] ?? STORY_CONTEXT_HUES[0]
+
+  return {
+    '--story-context-hue': `${hue}`,
   }
 }

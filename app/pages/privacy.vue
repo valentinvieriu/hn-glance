@@ -2,7 +2,7 @@
   <div class="max-w-3xl mx-auto py-16 px-4 sm:px-6 lg:px-8">
     <h1 class="text-3xl font-display font-semibold mb-8">Privacy Policy</h1>
     <p class="mb-8 leading-7 text-slate-600 dark:text-slate-400">
-      Last updated: July 22, 2026
+      Last updated: July 31, 2026
     </p>
 
     <p class="mb-5 leading-7">
@@ -43,6 +43,13 @@
       visitor profiles. When you click out to an external article, Hacker News
       page, or other third-party website, you leave HN Glance and that site may
       process your visit under its own privacy policy.
+    </p>
+
+    <p class="mb-5 leading-7">
+      Small site icons on story cards and beside related stories and discussion links
+      are loaded lazily from Google's public favicon service with the browser referrer
+      suppressed. The service receives the linked site's origin so it can return the
+      corresponding icon.
     </p>
 
     <h2 class="text-2xl font-display font-semibold mt-8 mb-4">How Information Is Used</h2>

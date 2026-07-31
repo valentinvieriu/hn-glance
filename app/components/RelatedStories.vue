@@ -1,8 +1,8 @@
 <template>
   <section class="related-stories mt-10" aria-labelledby="similar-stories-title">
-    <div class="related-stories-header">
-      <div class="related-stories-heading">
-        <span class="related-stories-heading-icon" aria-hidden="true">
+    <div class="story-context-section-header">
+      <div class="story-context-section-heading">
+        <span class="story-context-section-icon" aria-hidden="true">
           <LucideWaypoints class="h-4 w-4" />
         </span>
         <h2
@@ -14,7 +14,7 @@
       </div>
       <span
         v-if="stories.length > 0"
-        class="related-stories-count"
+        class="story-context-section-count"
         :aria-label="`${stories.length} similar ${stories.length === 1 ? 'story' : 'stories'}`"
       >
         {{ stories.length }}
@@ -32,21 +32,29 @@
     <div v-else-if="stories.length === 0" class="related-stories-state meta-text">
       No similar stories found.
     </div>
-    <ol v-else class="related-story-list">
+    <ol
+      v-else
+      id="similar-stories-list"
+      class="related-story-list"
+      :class="{ 'is-expanded': isExpanded }"
+    >
       <li
-        v-for="story in stories"
+        v-for="(story, index) in stories"
         :key="story.objectID"
-        class="related-story-row seed-palette-surface"
+        class="related-story-row story-context-interactive-row story-context-palette"
+        :class="{ 'is-mobile-extra': index >= MOBILE_VISIBLE_STORIES }"
         :style="relatedPaletteStyle(story)"
       >
-        <span class="related-story-mark" aria-hidden="true">
-          {{ getStoryInitial(story) }}
-        </span>
+        <SourceIdentity
+          :url="story.url || getHnStoryUrl(story.objectID)"
+          :label="story.title"
+          :preview-url="story.url ? getStoryPreviewUrl(story.objectID) : undefined"
+        />
         <div class="related-story-content">
           <h3>
             <NuxtLink
               :to="`/item/${story.objectID}`"
-              class="related-story-title"
+              class="related-story-title story-context-primary-link"
             >
               {{ story.title }}
             </NuxtLink>
@@ -57,50 +65,63 @@
               :href="story.url"
               target="_blank"
               rel="noopener noreferrer"
-              class="related-story-source"
+              class="related-story-source story-context-secondary-link"
               :aria-label="`Open source on ${getStoryDomain(story)}`"
             >
               <span>{{ getStoryDomain(story) }}</span>
-              <LucideExternalLink class="h-3.5 w-3.5" aria-hidden="true" />
             </a>
             <span v-else class="related-story-source-fallback">HN discussion</span>
-            <span class="related-story-author">by {{ story.author }}</span>
+            <span class="related-story-author">
+              by
+              <NuxtLink
+                :to="getHnUserPath(story.author)"
+                class="related-story-author-link story-context-secondary-link"
+              >
+                {{ story.author }}
+              </NuxtLink>
+            </span>
           </div>
           <div class="related-story-meta meta-text">
-            <span class="related-story-metric">
-              <LucideTrendingUp class="h-3.5 w-3.5" aria-hidden="true" />
-              {{ story.points }}
-            </span>
-            <span class="related-story-metric">
-              <LucideMessageSquare class="h-3.5 w-3.5" aria-hidden="true" />
+            <span>{{ story.points }} {{ story.points === 1 ? 'point' : 'points' }}</span>
+            <span aria-hidden="true">·</span>
+            <span>
               {{ story.num_comments }}
+              {{ story.num_comments === 1 ? 'comment' : 'comments' }}
             </span>
+            <span v-if="story.created_at" aria-hidden="true">·</span>
             <time
               v-if="story.created_at"
-              class="related-story-metric"
               :datetime="story.created_at"
             >
-              <LucideClock class="h-3.5 w-3.5" aria-hidden="true" />
               {{ formatCompactTimeAgo(story.created_at) }}
             </time>
           </div>
         </div>
       </li>
     </ol>
+    <button
+      v-if="stories.length > MOBILE_VISIBLE_STORIES"
+      type="button"
+      class="related-stories-toggle"
+      :aria-expanded="isExpanded"
+      aria-controls="similar-stories-list"
+      @click="isExpanded = !isExpanded"
+    >
+      {{ isExpanded ? 'Show fewer similar stories' : `Show all ${stories.length} similar stories` }}
+    </button>
   </section>
 </template>
 
 <script setup lang="ts">
-import {
-  LucideClock,
-  LucideExternalLink,
-  LucideMessageSquare,
-  LucideTrendingUp,
-  LucideWaypoints,
-} from '@lucide/vue'
+import { ref } from 'vue'
+import { LucideWaypoints } from '@lucide/vue'
 import type { RelatedStory } from '#shared/types'
 import { formatCompactTimeAgo } from '#shared/utils/date'
-import { getSeedPaletteStyle } from '~/composables/useSeedPalette'
+import { getHnUserPath } from '#shared/utils/hn'
+import { getStoryContextPaletteStyle } from '~/composables/useSeedPalette'
+
+const MOBILE_VISIBLE_STORIES = 4
+const isExpanded = ref(false)
 
 defineProps<{
   failed: boolean
@@ -118,13 +139,18 @@ const getStoryDomain = (story: RelatedStory) => {
   }
 }
 
-const getStoryInitial = (story: RelatedStory) => {
-  return story.title.trim().charAt(0).toLocaleUpperCase() || 'H'
+const relatedPaletteStyle = (story: RelatedStory) => {
+  return getStoryContextPaletteStyle(story.objectID, getStoryDomain(story))
 }
 
-const relatedPaletteStyle = (story: RelatedStory) => {
-  return getSeedPaletteStyle(story.objectID, getStoryDomain(story))
+const getHnStoryUrl = (storyId: string) => {
+  return `https://news.ycombinator.com/item?id=${storyId}`
 }
+
+const getStoryPreviewUrl = (storyId: string) => {
+  return `/api/screenshot/${storyId}?profile=v9`
+}
+
 </script>
 
 <style scoped>
@@ -132,115 +158,36 @@ const relatedPaletteStyle = (story: RelatedStory) => {
   min-width: 0;
 }
 
-.related-stories-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  margin-bottom: 0.85rem;
-}
-
-.related-stories-heading {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  gap: 0.55rem;
-}
-
-.related-stories-heading-icon {
-  display: inline-flex;
-  width: 1.75rem;
-  height: 1.75rem;
-  flex: 0 0 auto;
-  align-items: center;
-  justify-content: center;
-  border-radius: 0.5rem;
-  background: rgb(37 99 235 / 0.09);
-  color: rgb(37 99 235);
-}
-
-.related-stories-count {
-  display: inline-flex;
-  min-width: 1.9rem;
-  height: 1.9rem;
-  flex: 0 0 auto;
-  align-items: center;
-  justify-content: center;
-  border-radius: 0.55rem;
-  background: rgb(148 163 184 / 0.12);
-  color: rgb(100 116 139);
-  font-size: 0.78rem;
-  font-weight: 750;
-}
-
 .related-stories-state {
   padding: 0.75rem 0;
-  color: rgb(100 116 139);
+  color: var(--story-context-muted);
 }
 
 .related-story-list {
   margin: 0;
+  margin-inline: -0.4rem;
   padding: 0;
-  border: 1px solid rgb(148 163 184 / 0.24);
-  border-radius: 0.75rem;
-  background: rgb(248 250 252 / 0.54);
+  border-top: 1px solid var(--story-context-border);
   list-style: none;
 }
 
 .related-story-row {
+  --source-identity-accent: var(--story-context-accent-strong);
+  --source-identity-border: var(--story-context-border);
+  --source-identity-surface: var(--story-context-accent-soft);
+  --source-identity-surface-dark: var(--story-context-accent-soft);
   display: grid;
   min-width: 0;
-  grid-template-columns: 3.15rem minmax(0, 1fr);
-  gap: 0.85rem;
-  padding: 0.85rem;
-  transition: background-color 160ms ease;
+  grid-template-columns: 2.85rem minmax(0, 1fr);
+  gap: 0.72rem;
+  padding: 0.78rem 0.4rem;
+  border-bottom: 1px solid var(--story-context-border);
+  background: transparent;
 }
 
-.related-story-row + .related-story-row {
-  border-top: 1px solid rgb(148 163 184 / 0.2);
-}
-
-.related-story-row:hover {
-  background: var(--seed-accent-soft);
-}
-
-.related-story-mark {
-  position: relative;
-  display: flex;
-  width: 3.15rem;
-  height: 3.15rem;
-  align-items: center;
-  justify-content: center;
-  align-self: start;
-  border: 1px solid color-mix(in oklch, var(--seed-border) 78%, transparent);
-  border-radius: 0.75rem;
-  background:
-    radial-gradient(circle at 24% 20%, var(--seed-highlight), transparent 52%),
-    var(--seed-surface-raised);
-  color: var(--seed-accent-strong);
-  font-family: var(--font-display);
-  font-size: 1.08rem;
-  font-weight: 750;
-  line-height: 1;
-  box-shadow: 0 8px 20px -16px var(--seed-shadow-strong);
-}
-
-.related-story-mark::after {
-  position: absolute;
-  right: -0.2rem;
-  bottom: -0.2rem;
-  width: 1.15rem;
-  height: 1.15rem;
-  border: 2px solid white;
-  border-radius: 0.38rem;
-  content: "↗";
-  background: var(--seed-accent);
-  color: white;
-  font-family: var(--font-body);
-  font-size: 0.68rem;
-  font-weight: 800;
-  line-height: 0.95rem;
-  text-align: center;
+.related-story-row:has(.story-context-primary-link:hover),
+.related-story-row:has(.story-context-primary-link:focus-visible) {
+  background: var(--story-context-accent-soft);
 }
 
 .related-story-content {
@@ -262,14 +209,9 @@ const relatedPaletteStyle = (story: RelatedStory) => {
 
 .related-story-title:hover,
 .related-story-title:focus-visible {
-  color: var(--seed-accent-strong);
+  color: var(--story-context-accent-strong);
   text-decoration-line: underline;
-  text-decoration-color: var(--seed-accent);
-}
-
-.related-story-title:focus-visible {
-  outline: 2px solid var(--seed-accent);
-  outline-offset: 2px;
+  text-decoration-color: var(--story-context-accent);
 }
 
 .related-story-source-line {
@@ -279,7 +221,7 @@ const relatedPaletteStyle = (story: RelatedStory) => {
   align-items: center;
   gap: 0.25rem 0.55rem;
   margin-top: 0.3rem;
-  color: rgb(100 116 139);
+  color: var(--story-context-muted);
 }
 
 .related-story-source {
@@ -288,7 +230,7 @@ const relatedPaletteStyle = (story: RelatedStory) => {
   max-width: 100%;
   align-items: center;
   gap: 0.25rem;
-  color: var(--seed-accent-strong);
+  color: var(--story-context-accent-strong);
   font-weight: 700;
 }
 
@@ -304,6 +246,13 @@ const relatedPaletteStyle = (story: RelatedStory) => {
   text-underline-offset: 0.18em;
 }
 
+.related-story-source:focus-visible,
+.related-story-author-link:focus-visible {
+  border-radius: 0.15rem;
+  outline: 2px solid var(--story-context-focus);
+  outline-offset: 2px;
+}
+
 .related-story-source-fallback {
   font-weight: 650;
 }
@@ -315,44 +264,26 @@ const relatedPaletteStyle = (story: RelatedStory) => {
   white-space: nowrap;
 }
 
+.related-story-author-link {
+  color: inherit;
+  font-weight: 650;
+}
+
+.related-story-author-link:hover,
+.related-story-author-link:focus-visible {
+  color: var(--story-context-accent-strong);
+  text-decoration: underline;
+  text-underline-offset: 0.18em;
+}
+
 .related-story-meta {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.7rem;
-  margin-top: 0.48rem;
-  color: rgb(100 116 139);
-}
-
-.related-story-metric {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
+  gap: 0.28rem;
+  margin-top: 0.4rem;
+  color: var(--story-context-muted);
   font-weight: 650;
-}
-
-.dark .related-stories-heading-icon {
-  background: rgb(59 130 246 / 0.14);
-  color: rgb(96 165 250);
-}
-
-.dark .related-stories-count,
-.dark .related-stories-state {
-  color: rgb(148 163 184);
-}
-
-.dark .related-story-list {
-  border-color: rgb(148 163 184 / 0.2);
-  background: rgb(30 41 59 / 0.3);
-}
-
-.dark .related-story-row + .related-story-row {
-  border-color: rgb(148 163 184 / 0.16);
-}
-
-.dark .related-story-mark::after {
-  border-color: rgb(17 24 39);
-  color: rgb(15 23 42);
 }
 
 .dark .related-story-title {
@@ -362,7 +293,7 @@ const relatedPaletteStyle = (story: RelatedStory) => {
 .dark .related-story-title:hover,
 .dark .related-story-title:focus-visible,
 .dark .related-story-source {
-  color: var(--seed-accent);
+  color: var(--story-context-accent);
 }
 
 .dark .related-story-source-line,
@@ -370,16 +301,43 @@ const relatedPaletteStyle = (story: RelatedStory) => {
   color: rgb(203 213 225 / 0.78);
 }
 
-@media (max-width: 480px) {
-  .related-story-row {
-    grid-template-columns: 2.75rem minmax(0, 1fr);
-    gap: 0.75rem;
-    padding: 0.75rem;
+.related-stories-toggle {
+  display: none;
+  min-height: 2.25rem;
+  align-items: center;
+  margin-top: 0.75rem;
+  padding: 0.4rem 0.7rem;
+  border: 1px solid var(--story-context-border);
+  border-radius: 999px;
+  background: var(--story-context-accent-soft);
+  color: var(--story-context-accent-strong);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.related-stories-toggle:hover,
+.related-stories-toggle:focus-visible {
+  background: var(--story-context-surface-raised);
+}
+
+.related-stories-toggle:focus-visible {
+  outline: 2px solid var(--story-context-focus);
+  outline-offset: 2px;
+}
+
+@media (max-width: 1023px) {
+  .related-story-list:not(.is-expanded) .related-story-row.is-mobile-extra {
+    display: none;
   }
 
-  .related-story-mark {
-    width: 2.75rem;
-    height: 2.75rem;
+  .related-stories-toggle {
+    display: inline-flex;
+  }
+}
+
+@media (max-width: 480px) {
+  .related-story-row {
+    gap: 0.65rem;
   }
 }
 </style>

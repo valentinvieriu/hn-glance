@@ -40,7 +40,7 @@ describe('buildTitleQuery', () => {
 })
 
 describe('rankRelatedStories', () => {
-  it('presents selected stories in relevance order', () => {
+  it('presents relevance-qualified stories newest first', () => {
     const ranked = rankRelatedStories([
       result('title', [
         story('101', 'Postgres query planner notes', 1_700_000_100),
@@ -53,16 +53,16 @@ describe('rankRelatedStories', () => {
       created_at_i: 1_700_000_400,
     }, '100')
 
-    expect(ranked.map(item => item.objectID)).toEqual(['101', '102', '103'])
+    expect(ranked.map(item => item.objectID)).toEqual(['102', '103', '101'])
     expect(ranked.every(item => item.created_at)).toBe(true)
     expect(ranked.every(item => item.url)).toBe(true)
   })
 
-  it('chooses the ten strongest candidates without a chronological reorder', () => {
-    const hits = Array.from({ length: 11 }, (_, index) => story(
+  it('chooses the six strongest candidates before ordering them newest first', () => {
+    const hits = Array.from({ length: 7 }, (_, index) => story(
       String(201 + index),
       `Postgres planner update ${index}`,
-      index === 10 ? 1_800_000_000 : 1_700_000_000 + index,
+      index === 6 ? 1_800_000_000 : 1_700_000_000 + index,
     ))
 
     const ranked = rankRelatedStories([
@@ -72,9 +72,9 @@ describe('rankRelatedStories', () => {
       url: 'https://source.example/postgres-planner',
     }, '200')
 
-    expect(ranked).toHaveLength(10)
+    expect(ranked).toHaveLength(6)
     expect(ranked.map(item => item.objectID)).toEqual([
-      '201', '202', '203', '204', '205', '206', '207', '208', '209', '210',
+      '206', '205', '204', '203', '202', '201',
     ])
   })
 
@@ -119,7 +119,7 @@ describe('rankRelatedStories', () => {
       url: 'https://source.example/postgres-planner',
     }, '400')
 
-    expect(ranked.map(item => item.objectID)).toEqual(['402', '403'])
+    expect(ranked.map(item => item.objectID)).toEqual(['403', '402'])
   })
 
   it('retains the strongest previous discussion of the exact source URL', () => {

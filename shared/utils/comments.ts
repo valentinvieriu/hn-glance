@@ -67,3 +67,32 @@ export const summarizeCommentTree = (
     total,
   }
 }
+
+export const getCommentPathIds = (
+  comments: Comment[],
+  commentId: number,
+): number[] | null => {
+  const stack: Array<{ comment: Comment; path: number[] }> = comments
+    .map(comment => ({ comment, path: [] as number[] }))
+    .reverse()
+
+  while (stack.length > 0) {
+    const frame = stack.pop()
+
+    if (!frame) continue
+
+    const path = [...frame.path, frame.comment.id]
+
+    if (frame.comment.id === commentId) {
+      return path
+    }
+
+    const children = frame.comment.children ?? []
+    for (let index = children.length - 1; index >= 0; index -= 1) {
+      const child = children[index]
+      if (child) stack.push({ comment: child, path })
+    }
+  }
+
+  return null
+}

@@ -1,13 +1,13 @@
 <template>
   <section
-    v-if="submissions.length > 0"
+    v-if="submissions.length > 1"
     aria-labelledby="submission-history-title"
     class="submission-history mt-10"
     data-testid="submission-history"
   >
-    <div class="submission-history-header">
-      <div class="submission-history-heading">
-        <span class="submission-history-heading-icon" aria-hidden="true">
+    <div class="story-context-section-header">
+      <div class="story-context-section-heading">
+        <span class="story-context-section-icon" aria-hidden="true">
           <LucideHistory class="h-4 w-4" />
         </span>
         <h2
@@ -18,7 +18,7 @@
         </h2>
       </div>
       <span
-        class="submission-history-count"
+        class="story-context-section-count"
         :aria-label="`${submissions.length} ${submissions.length === 1 ? 'submission' : 'submissions'}`"
       >
         {{ submissions.length }}
@@ -31,9 +31,8 @@
         class="submission-history-item"
         :class="{ 'is-current': submission.objectID === currentStoryId }"
       >
-        <NuxtLink
-          :to="`/item/${submission.objectID}`"
-          class="submission-history-row"
+        <div
+          class="submission-history-row story-context-interactive-row"
           :class="{ 'is-current': submission.objectID === currentStoryId }"
           :aria-current="submission.objectID === currentStoryId ? 'page' : undefined"
         >
@@ -52,7 +51,15 @@
             >
               {{ formatCompactTimeRelativeTo(submission.created_at, currentCreatedAt) }}
             </time>
-            <span class="submission-history-author">by {{ submission.author }}</span>
+            <span class="submission-history-author">
+              by
+              <NuxtLink
+                :to="getHnUserPath(submission.author)"
+                class="submission-history-author-link story-context-secondary-link"
+              >
+                {{ submission.author }}
+              </NuxtLink>
+            </span>
           </div>
           <div class="submission-history-stats meta-text">
             <span>{{ submission.points }} {{ submission.points === 1 ? 'point' : 'points' }}</span>
@@ -62,8 +69,17 @@
               {{ submission.num_comments === 1 ? 'comment' : 'comments' }}
             </span>
           </div>
-          <h3 class="submission-history-entry-title">{{ submission.title }}</h3>
-        </NuxtLink>
+          <h3 class="submission-history-entry-title">
+            <span v-if="submission.objectID === currentStoryId">{{ submission.title }}</span>
+            <NuxtLink
+              v-else
+              :to="`/item/${submission.objectID}`"
+              class="submission-history-entry-link story-context-primary-link"
+            >
+              {{ submission.title }}
+            </NuxtLink>
+          </h3>
+        </div>
       </li>
     </ol>
   </section>
@@ -73,6 +89,7 @@
 import { LucideHistory } from '@lucide/vue'
 import type { SubmissionHistoryEntry } from '#shared/types'
 import { formatCalendarDate, formatCompactTimeRelativeTo } from '#shared/utils/date'
+import { getHnUserPath } from '#shared/utils/hn'
 
 defineProps<{
   currentCreatedAt: string
@@ -84,47 +101,6 @@ defineProps<{
 <style scoped>
 .submission-history {
   min-width: 0;
-}
-
-.submission-history-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  margin-bottom: 0.65rem;
-}
-
-.submission-history-heading {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  gap: 0.55rem;
-}
-
-.submission-history-heading-icon {
-  display: inline-flex;
-  width: 1.75rem;
-  height: 1.75rem;
-  flex: 0 0 auto;
-  align-items: center;
-  justify-content: center;
-  border-radius: 0.5rem;
-  background: rgb(249 115 22 / 0.1);
-  color: rgb(194 65 12);
-}
-
-.submission-history-count {
-  display: inline-flex;
-  min-width: 1.9rem;
-  height: 1.9rem;
-  flex: 0 0 auto;
-  align-items: center;
-  justify-content: center;
-  border-radius: 0.55rem;
-  background: rgb(148 163 184 / 0.12);
-  color: rgb(100 116 139);
-  font-size: 0.78rem;
-  font-weight: 750;
 }
 
 .submission-history-list {
@@ -145,7 +121,7 @@ defineProps<{
   left: 0.5rem;
   width: 1px;
   content: "";
-  background: rgb(249 115 22 / 0.34);
+  background: var(--story-context-border);
 }
 
 .submission-history-item:first-child::before {
@@ -162,7 +138,7 @@ defineProps<{
   left: 0;
   width: 1.05rem;
   height: 1.05rem;
-  border: 2px solid rgb(251 146 60);
+  border: 2px solid var(--story-context-accent);
   border-radius: 999px;
   content: "";
   background: white;
@@ -170,37 +146,20 @@ defineProps<{
 }
 
 .submission-history-item.is-current::after {
-  border-color: rgb(5 150 105);
-  background: rgb(5 150 105);
+  border-color: var(--story-context-accent);
+  background: var(--story-context-accent);
 }
 
 .submission-history-row {
   display: block;
   padding: 0.7rem 0.7rem 0.9rem;
   border-radius: 0.65rem;
-  transition:
-    background-color 160ms ease,
-    transform 160ms ease;
-}
-
-.submission-history-row:hover,
-.submission-history-row:focus-visible {
-  background: rgb(255 247 237 / 0.78);
-  transform: translateX(2px);
-}
-
-.submission-history-row:focus-visible {
-  outline: 2px solid rgb(249 115 22 / 0.72);
-  outline-offset: 2px;
+  border: 1px solid transparent;
 }
 
 .submission-history-row.is-current {
-  background: rgb(5 150 105 / 0.06);
-}
-
-.submission-history-row.is-current:hover,
-.submission-history-row.is-current:focus-visible {
-  transform: none;
+  border-color: var(--story-context-border);
+  background: var(--story-context-accent-soft);
 }
 
 .submission-history-entry-title {
@@ -222,12 +181,16 @@ defineProps<{
 
 .submission-history-age,
 .submission-history-current {
-  color: rgb(194 65 12);
+  color: var(--story-context-accent-strong);
   font-weight: 700;
 }
 
-.submission-history-current {
-  color: rgb(4 120 87);
+.submission-history-entry-link:hover,
+.submission-history-entry-link:focus-visible {
+  color: var(--story-context-accent-strong);
+  text-decoration: underline;
+  text-decoration-color: var(--story-context-accent);
+  text-underline-offset: 0.18em;
 }
 
 .submission-history-author {
@@ -236,6 +199,24 @@ defineProps<{
   color: rgb(71 85 105);
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.submission-history-author-link {
+  color: inherit;
+  font-weight: 650;
+}
+
+.submission-history-author-link:hover,
+.submission-history-author-link:focus-visible {
+  color: var(--story-context-accent-strong);
+  text-decoration: underline;
+  text-underline-offset: 0.18em;
+}
+
+.submission-history-author-link:focus-visible {
+  border-radius: 0.15rem;
+  outline: 2px solid var(--story-context-focus);
+  outline-offset: 2px;
 }
 
 .submission-history-stats {
@@ -247,37 +228,23 @@ defineProps<{
   font-weight: 600;
 }
 
-.dark .submission-history-count {
-  color: rgb(148 163 184);
-}
-
-.dark .submission-history-heading-icon {
-  background: rgb(249 115 22 / 0.14);
-  color: rgb(251 146 60);
-}
-
 .dark .submission-history-item::before {
-  background: rgb(251 146 60 / 0.36);
+  background: var(--story-context-border);
 }
 
 .dark .submission-history-item::after {
-  border-color: rgb(251 146 60);
+  border-color: var(--story-context-accent);
   background: rgb(17 24 39);
   box-shadow: 0 0 0 3px rgb(17 24 39);
 }
 
 .dark .submission-history-item.is-current::after {
-  border-color: rgb(52 211 153);
-  background: rgb(52 211 153);
-}
-
-.dark .submission-history-row:hover,
-.dark .submission-history-row:focus-visible {
-  background: rgb(67 42 28 / 0.46);
+  border-color: var(--story-context-accent);
+  background: var(--story-context-accent);
 }
 
 .dark .submission-history-row.is-current {
-  background: rgb(16 185 129 / 0.08);
+  background: var(--story-context-accent-soft);
 }
 
 .dark .submission-history-entry-title {
@@ -292,11 +259,7 @@ defineProps<{
 
 .dark .submission-history-age,
 .dark .submission-history-current {
-  color: rgb(251 146 60);
-}
-
-.dark .submission-history-current {
-  color: rgb(52 211 153);
+  color: var(--story-context-accent-strong);
 }
 
 @media (max-width: 480px) {

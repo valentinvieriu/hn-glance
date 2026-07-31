@@ -1,5 +1,13 @@
 <template>
-  <article class="seed-palette-surface" :class="commentContainerClasses" :style="commentPaletteStyle" :data-author="comment.author">
+  <article
+    :id="`comment-${comment.id}`"
+    class="seed-palette-surface"
+    :class="commentContainerClasses"
+    :style="commentPaletteStyle"
+    :data-author="comment.author"
+    :data-comment-id="comment.id"
+    tabindex="-1"
+  >
     <div class="comment-panel">
       <div class="comment-header flex items-center text-gray-600 dark:text-gray-400">
         <span class="author-chip">
@@ -57,6 +65,7 @@
         :comment="child"
         :current-depth="currentDepth + 1"
         :expand-all="expandAll"
+        :force-expanded-ids="forceExpandedIds"
         :author-comment-counts="authorCommentCounts"
         :descendant-comment-counts="descendantCommentCounts"
       />
@@ -65,7 +74,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { LucideMessageSquare, LucideClock, LucideChevronDown, LucideChevronRight } from '@lucide/vue'
 import type { Comment } from '#shared/types'
 import { DEFAULT_COMMENT_DEPTH } from '#shared/utils/comments'
@@ -78,6 +87,7 @@ const props = defineProps<{
   comment: Comment
   currentDepth?: number
   expandAll?: boolean
+  forceExpandedIds?: ReadonlySet<number>
   authorCommentCounts: ReadonlyMap<string, number>
   descendantCommentCounts: ReadonlyMap<number, number>
 }>()
@@ -110,6 +120,16 @@ const commentContainerClasses = computed(() => {
 const showReplies = ref(false)
 const hiddenReplyCount = computed(() => descendantCommentCounts.value.get(props.comment.id) ?? 0)
 
+watch(
+  () => props.forceExpandedIds?.has(props.comment.id) ?? false,
+  (forced) => {
+    if (forced) {
+      showReplies.value = true
+    }
+  },
+  { immediate: true },
+)
+
 const canShowMoreReplies = computed(() => {
   return !expandAll.value
     && currentDepth.value >= DEFAULT_COMMENT_DEPTH
@@ -136,6 +156,39 @@ const shouldRenderChildren = computed(() => {
 <style scoped>
 .comment-container {
   position: relative;
+  scroll-margin-top: 6rem;
+}
+
+.comment-container:focus {
+  outline: none;
+}
+
+.comment-container:focus-visible .comment-panel {
+  outline: 3px solid var(--seed-accent);
+  outline-offset: 3px;
+}
+
+/* Added imperatively by the story page after a jump; must live in this scoped
+   block so the rule matches the component root's scope attribute. */
+.comment-container.comment-jump-highlight .comment-panel {
+  border-color: var(--seed-border-strong);
+  animation: comment-jump-pulse 1.5s ease-out;
+}
+
+@keyframes comment-jump-pulse {
+  from {
+    background-color: color-mix(in oklch, var(--seed-accent) 18%, transparent);
+  }
+
+  to {
+    background-color: transparent;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .comment-container.comment-jump-highlight .comment-panel {
+    animation: none;
+  }
 }
 
 .comment-top-level {
