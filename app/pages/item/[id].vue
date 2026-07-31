@@ -142,6 +142,7 @@
               v-if="story"
               :comments="story.children"
               :story-url="story.url"
+              :author-comment-counts="authorCommentCounts"
               @jump-to-comment="jumpToComment"
             />
           </section>
@@ -151,32 +152,33 @@
             <div class="comments-title-group">
               <h2 class="section-title mb-0 text-2xl font-semibold text-gray-900 dark:text-gray-100">Comments</h2>
               <span v-if="commentCount > 0" class="comments-count text-gray-600 dark:text-gray-400">
-                {{ commentCount }}
+                {{ commentCount }} total
               </span>
             </div>
             <button
-              v-if="hasCollapsedReplies"
+              v-if="canToggleAllComments"
               type="button"
               class="expand-comments-button text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100"
               @click="toggleExpandAllComments"
             >
-              <LucideChevronsUp v-if="expandAllComments" class="w-4 h-4" />
+              <LucideChevronsUp v-if="areAllCommentsExpanded" class="w-4 h-4" />
               <LucideChevronsDown v-else class="w-4 h-4" />
-              <span>{{ expandAllComments ? 'Collapse nested' : 'Expand all' }}</span>
+              <span>{{ areAllCommentsExpanded ? 'Collapse nested' : 'Expand all' }}</span>
             </button>
           </div>
           <div v-if="story.children.length === 0" class="text-gray-500 leading-7">
             No comments yet.
           </div>
-          <div v-else class="space-y-4">
+          <div v-else class="comments-list">
             <CommentThread
               v-for="comment in story.children"
               :key="comment.id"
               :comment="comment"
-              :expand-all="expandAllComments"
-              :force-expanded-ids="forceExpandedCommentIds"
+              :story-author="story.author"
               :author-comment-counts="authorCommentCounts"
               :descendant-comment-counts="descendantCommentCounts"
+              :collapsed-ids="collapsedCommentIds"
+              :toggle-collapsed="toggleCommentCollapsed"
             />
           </div>
         </aside>
@@ -236,7 +238,6 @@ import { getScreenshotPath } from '#shared/utils/screenshot'
 import { appendServerTiming } from '#shared/utils/serverTiming'
 
 const route = useRoute();
-const expandAllComments = ref(false);
 
 const storyId = computed(() => normalizeHnItemId(route.params.id))
 const storyDataKey = computed(() => `story-detail:${storyId.value ?? 'missing'}`)
@@ -432,7 +433,14 @@ const getCommentIdFromHash = (hash: string) => {
   return Number.isSafeInteger(commentId) && commentId > 0 ? commentId : null
 }
 
-const forceExpandedCommentIds = ref<ReadonlySet<number>>(new Set())
+/**
+ * Single source of truth for comment disclosure. The per-comment toggle, the
+ * spine, the toolbar, and deep links all resolve to edits on this set. It stays
+ * null until something is toggled so the rendered state derives from the summary
+ * on both SSR and hydration -- a seeding watcher would miss, because Vue does not
+ * re-run watchers on the server once the story request resolves.
+ */
+const collapsedCommentOverride = ref<ReadonlySet<number> | null>(null)
 let commentHighlightTimer: ReturnType<typeof setTimeout> | undefined
 let highlightedComment: HTMLElement | null = null
 
@@ -461,15 +469,18 @@ const jumpToComment = async (commentId: number, updateHash = true) => {
   const pathIds = getCommentPathIds(story.value?.children ?? [], commentId)
 
   if (pathIds) {
-    forceExpandedCommentIds.value = new Set([...forceExpandedCommentIds.value, ...pathIds])
+    // Open only the ancestors of the target; the rest of the thread stays as-is.
+    const nextCollapsed = new Set(collapsedCommentIds.value)
+    pathIds.forEach(pathId => nextCollapsed.delete(pathId))
+    collapsedCommentOverride.value = nextCollapsed
   }
   await nextTick()
 
   let target = document.getElementById(`comment-${commentId}`)
 
   if (!target) {
-    // Safety net: force the whole tree open if targeted expansion missed.
-    expandAllComments.value = true
+    // Safety net: open the whole tree if targeted expansion missed.
+    collapsedCommentOverride.value = new Set()
     await nextTick()
     target = document.getElementById(`comment-${commentId}`)
   }
@@ -560,7 +571,7 @@ watch(screenshotSrc, () => {
 
 watch(storyId, () => {
   clearCommentHighlight()
-  forceExpandedCommentIds.value = new Set()
+  collapsedCommentOverride.value = null
   clearStoryContext()
 
   if (isStoryContextNearViewport.value) {
@@ -582,13 +593,34 @@ const sanitizedText = computed(() => sanitize(story.value?.text || '', `story-${
 
 const commentSummary = computed(() => summarizeCommentTree(story.value?.children || []))
 const commentCount = computed(() => commentSummary.value.total)
-const hasCollapsedReplies = computed(() => commentSummary.value.hasRepliesBeyondDefaultDepth)
 const authorCommentCounts = computed(() => commentSummary.value.authorCounts)
 const descendantCommentCounts = computed(() => commentSummary.value.descendantCounts)
+const defaultCollapsedCommentIds = computed(() => commentSummary.value.defaultCollapsedIds)
+
+const collapsedCommentIds = computed<ReadonlySet<number>>(() => {
+  return collapsedCommentOverride.value ?? defaultCollapsedCommentIds.value
+})
+
+const areAllCommentsExpanded = computed(() => collapsedCommentIds.value.size === 0)
+const canToggleAllComments = computed(() => {
+  return defaultCollapsedCommentIds.value.size > 0 || collapsedCommentIds.value.size > 0
+})
 
 const toggleExpandAllComments = () => {
-  expandAllComments.value = !expandAllComments.value;
-};
+  collapsedCommentOverride.value = areAllCommentsExpanded.value
+    ? new Set(defaultCollapsedCommentIds.value)
+    : new Set()
+}
+
+const toggleCommentCollapsed = (commentId: number) => {
+  const nextCollapsed = new Set(collapsedCommentIds.value)
+
+  if (!nextCollapsed.delete(commentId)) {
+    nextCollapsed.add(commentId)
+  }
+
+  collapsedCommentOverride.value = nextCollapsed
+}
 
 const timeAgo = computed(() => {
   return formatTimeAgo(story.value?.created_at || '')
@@ -973,6 +1005,19 @@ useSeoMeta({
   align-items: baseline;
   gap: 0.55rem;
   min-width: 0;
+}
+
+/* Top-level comments lost their card frame, so a hairline carries the break
+   between separate conversations. Only page-scoped roots match, which keeps
+   nested replies out of this rule. */
+.comments-list > .comment-container + .comment-container {
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid rgb(148 163 184 / 0.22);
+}
+
+.dark .comments-list > .comment-container + .comment-container {
+  border-top-color: rgb(148 163 184 / 0.16);
 }
 
 .comments-count {

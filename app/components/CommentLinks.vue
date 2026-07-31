@@ -66,6 +66,7 @@
                 <span class="comment-link-shared-by">shared by</span>
                 <span
                   class="comment-link-author-chip seed-palette-surface"
+                  :class="getAuthorSeedClass(link)"
                   :style="getAuthorSeedStyle(link)"
                 >
                   <span class="comment-link-author-dot" aria-hidden="true"></span>
@@ -80,6 +81,7 @@
                 <a
                   :href="`#comment-${getActiveMention(link).commentId}`"
                   class="comment-link-jump story-context-secondary-link seed-palette-surface"
+                  :class="getAuthorSeedClass(link)"
                   :style="getAuthorSeedStyle(link)"
                   :aria-label="getJumpAriaLabel(link)"
                   :title="getActiveMention(link).excerpt || undefined"
@@ -119,6 +121,7 @@ import { getSeedPaletteStyle } from '~/composables/useSeedPalette'
 const props = defineProps<{
   comments: Comment[]
   storyUrl?: string
+  authorCommentCounts?: ReadonlyMap<string, number>
 }>()
 
 const emit = defineEmits<{
@@ -211,6 +214,16 @@ const getActiveMention = (link: CommentLink): CommentLinkMention => {
 
 const getAuthorSeedStyle = (link: CommentLink) => {
   return getSeedPaletteStyle(getActiveMention(link).author)
+}
+
+// Matches CommentThread: one-off authors stay neutral so a colour always means
+// the same thing on both sides of a jump.
+const getAuthorSeedClass = (link: CommentLink) => {
+  const author = getActiveMention(link).author
+
+  return {
+    'seed-palette-neutral': (props.authorCommentCounts?.get(author) ?? 1) < 2,
+  }
 }
 
 const getJumpAriaLabel = (link: CommentLink) => {

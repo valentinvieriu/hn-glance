@@ -1,21 +1,33 @@
 <template>
   <article
     :id="`comment-${comment.id}`"
-    class="seed-palette-surface"
+    class="comment-container seed-palette-surface"
     :class="commentContainerClasses"
     :style="commentPaletteStyle"
     :data-author="comment.author"
     :data-comment-id="comment.id"
     tabindex="-1"
   >
-    <div class="comment-panel">
-      <div class="comment-header flex items-center text-gray-600 dark:text-gray-400">
+    <div class="comment-body">
+      <div class="comment-header">
+        <button
+          type="button"
+          class="comment-collapse-toggle"
+          :aria-expanded="!isCollapsed"
+          :aria-controls="hasChildren ? childrenElementId : undefined"
+          :aria-label="collapseActionLabel"
+          @click="toggleCollapsed(comment.id)"
+        >
+          <LucideChevronDown v-if="!isCollapsed" class="w-3.5 h-3.5" aria-hidden="true" />
+          <LucideChevronRight v-else class="w-3.5 h-3.5" aria-hidden="true" />
+        </button>
         <span class="author-chip">
           <span class="author-dot" aria-hidden="true"></span>
-          <NuxtLink :to="getHnUserPath(comment.author)" class="hover:underline">
+          <NuxtLink :to="getHnUserPath(comment.author)" class="author-name">
             {{ comment.author }}
           </NuxtLink>
         </span>
+        <span v-if="isOriginalPoster" class="comment-badge" title="Submitted this story">OP</span>
         <span
           v-if="authorCommentCount > 1"
           class="author-activity-stat"
@@ -26,58 +38,76 @@
           <LucideMessageSquare class="w-3.5 h-3.5" aria-hidden="true" />
           <span>{{ authorCommentCount }}</span>
         </span>
-        <span class="comment-separator">•</span>
-        <span class="comment-time">
-          <LucideClock class="w-3.5 h-3.5" />
-          {{ timeAgo }}
+        <span class="comment-time">{{ timeAgo }}</span>
+        <span
+          v-if="replyTarget"
+          class="comment-reply-target"
+          :aria-label="`Replying to ${replyTarget}`"
+          :title="`Replying to ${replyTarget}`"
+        >
+          <LucideCornerDownRight class="w-3.5 h-3.5" aria-hidden="true" />
+          <span class="comment-reply-target-label">to</span>
+          <span class="comment-reply-target-author">{{ replyTarget }}</span>
         </span>
-      </div>
-      <div
-        class="comment-text rich-text break-words text-gray-800 dark:text-gray-200"
-        v-html="sanitizedText"
-      ></div>
-      <div class="comment-actions">
+        <span
+          v-if="hasChildren"
+          class="comment-thread-stat"
+          :aria-label="replyCountLabel"
+          :title="replyCountLabel"
+        >
+          {{ threadSizeLabel }}
+        </span>
+        <template v-if="isCollapsed">
+          <span v-if="preview" class="comment-collapsed-preview">{{ preview }}</span>
+        </template>
         <a
-          :href="`https://news.ycombinator.com/reply?id=${comment.id}&goto=item%3Fid%3D${comment.parent_id}%23${comment.id}`"
+          v-else
+          :href="replyHref"
           target="_blank"
           rel="noopener noreferrer"
-          class="reply-action reply-link text-gray-600 hover:text-gray-800 hover:underline dark:text-gray-400 dark:hover:text-gray-300"
+          class="comment-reply-link"
         >
-          <LucideMessageSquare class="w-3.5 h-3.5" />
-          <span>Reply</span>
+          Reply
         </a>
-        <button 
-          v-if="canShowMoreReplies" 
-          @click="toggleReplies" 
-          class="more-replies-button text-gray-600 hover:text-gray-800 focus:outline-none dark:text-gray-400 dark:hover:text-gray-300"
-          :aria-expanded="showReplies"
-        >
-          <LucideChevronDown v-if="showReplies" class="w-3.5 h-3.5" />
-          <LucideChevronRight v-else class="w-3.5 h-3.5" />
-          <span>{{ showReplies ? 'Hide replies' : `Show ${hiddenReplyCount} repl${hiddenReplyCount > 1 ? 'ies' : 'y'}` }}</span>
-        </button>
       </div>
+      <div
+        v-if="!isCollapsed"
+        class="comment-text rich-text break-words"
+        v-html="sanitizedText"
+      ></div>
     </div>
-    <div v-if="shouldRenderChildren" class="comment-children">
-      <CommentThread
-        v-for="child in comment.children"
-        :key="child.id"
-        :comment="child"
-        :current-depth="currentDepth + 1"
-        :expand-all="expandAll"
-        :force-expanded-ids="forceExpandedIds"
-        :author-comment-counts="authorCommentCounts"
-        :descendant-comment-counts="descendantCommentCounts"
-      />
+    <div v-if="hasChildren && !isCollapsed" :id="childrenElementId" class="comment-children">
+      <!-- Pointer-only shortcut for the header toggle, which stays the single
+           accessible control; a focusable twin would double the tab stops. -->
+      <div class="comment-spine" aria-hidden="true" @click="toggleCollapsed(comment.id)"></div>
+      <div class="comment-children-list">
+        <CommentThread
+          v-for="child in comment.children"
+          :key="child.id"
+          :comment="child"
+          :current-depth="currentDepth + 1"
+          :replying-to-author="comment.author"
+          :story-author="storyAuthor"
+          :author-comment-counts="authorCommentCounts"
+          :descendant-comment-counts="descendantCommentCounts"
+          :collapsed-ids="collapsedIds"
+          :toggle-collapsed="toggleCollapsed"
+        />
+      </div>
     </div>
   </article>
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
-import { LucideMessageSquare, LucideClock, LucideChevronDown, LucideChevronRight } from '@lucide/vue'
+import { computed } from 'vue'
+import {
+  LucideChevronDown,
+  LucideChevronRight,
+  LucideCornerDownRight,
+  LucideMessageSquare,
+} from '@lucide/vue'
 import type { Comment } from '#shared/types'
-import { DEFAULT_COMMENT_DEPTH } from '#shared/utils/comments'
+import { getCommentPreview } from '#shared/utils/comments'
 import { formatTimeAgo } from '#shared/utils/date'
 import { getHnUserPath } from '#shared/utils/hn'
 import { useSanitizer } from '~/composables/useSanitizer'
@@ -86,92 +116,108 @@ import { getSeedPaletteStyle } from '~/composables/useSeedPalette'
 const props = defineProps<{
   comment: Comment
   currentDepth?: number
-  expandAll?: boolean
-  forceExpandedIds?: ReadonlySet<number>
+  /** Parent author, surfaced as an explicit reply cue in nested discussions. */
+  replyingToAuthor?: string
+  storyAuthor?: string
   authorCommentCounts: ReadonlyMap<string, number>
   descendantCommentCounts: ReadonlyMap<number, number>
+  collapsedIds: ReadonlySet<number>
+  toggleCollapsed: (commentId: number) => void
 }>()
 
 const { sanitize } = useSanitizer()
 const sanitizedText = computed(() => sanitize(props.comment.text || '', `comment-${props.comment.id}`))
 
 const currentDepth = computed(() => props.currentDepth ?? 1)
-const expandAll = computed(() => Boolean(props.expandAll))
-const authorCommentCounts = computed(() => props.authorCommentCounts)
-const descendantCommentCounts = computed(() => props.descendantCommentCounts)
-const authorCommentCount = computed(() => authorCommentCounts.value.get(props.comment.author) ?? 1)
+const authorCommentCount = computed(() => props.authorCommentCounts.get(props.comment.author) ?? 1)
 const commentPaletteStyle = computed(() => getSeedPaletteStyle(props.comment.author))
+const timeAgo = computed(() => formatTimeAgo(props.comment.created_at))
 
-const timeAgo = computed(() => {
-  return formatTimeAgo(props.comment.created_at)
+const isCollapsed = computed(() => props.collapsedIds.has(props.comment.id))
+const childReplies = computed(() => props.comment.children ?? [])
+const hasChildren = computed(() => childReplies.value.length > 0)
+const subtreeCount = computed(() => props.descendantCommentCounts.get(props.comment.id) ?? 0)
+const childrenElementId = computed(() => `comment-children-${props.comment.id}`)
+
+const isOriginalPoster = computed(() => {
+  return Boolean(props.storyAuthor) && props.comment.author === props.storyAuthor
 })
+
+// A follow-up to your own comment needs no "replying to" pointer.
+const replyTarget = computed(() => {
+  return props.replyingToAuthor === props.comment.author ? '' : props.replyingToAuthor
+})
+
+// Colour is spent only on authors the reader will meet again in this thread.
+const isRecurringAuthor = computed(() => authorCommentCount.value > 1)
 
 const commentContainerClasses = computed(() => {
-  return [
-    'comment-container',
-    `comment-depth-${Math.min(currentDepth.value, DEFAULT_COMMENT_DEPTH)}`,
-    {
-      'comment-top-level': currentDepth.value === 1,
-      'comment-max-depth': currentDepth.value >= DEFAULT_COMMENT_DEPTH,
-    },
-  ]
+  return {
+    'comment-top-level': currentDepth.value === 1,
+    'comment-deep': currentDepth.value >= 4,
+    'comment-collapsed': isCollapsed.value,
+    'seed-palette-neutral': !isRecurringAuthor.value,
+  }
 })
 
-const showReplies = ref(false)
-const hiddenReplyCount = computed(() => descendantCommentCounts.value.get(props.comment.id) ?? 0)
+const replyCountLabel = computed(() => {
+  const direct = childReplies.value.length
+  const label = `${direct} ${direct === 1 ? 'reply' : 'replies'}`
 
-watch(
-  () => props.forceExpandedIds?.has(props.comment.id) ?? false,
-  (forced) => {
-    if (forced) {
-      showReplies.value = true
-    }
-  },
-  { immediate: true },
-)
-
-const canShowMoreReplies = computed(() => {
-  return !expandAll.value
-    && currentDepth.value >= DEFAULT_COMMENT_DEPTH
-    && hiddenReplyCount.value > 0
+  return subtreeCount.value > direct ? `${label} · ${subtreeCount.value} in thread` : label
 })
 
-const toggleReplies = () => {
-  showReplies.value = !showReplies.value
-}
+const threadSizeLabel = computed(() => {
+  const count = subtreeCount.value
 
-const shouldRenderChildren = computed(() => {
-  if (expandAll.value) {
-    return props.comment.children.length > 0
-  }
+  return `${count} ${count === 1 ? 'reply' : 'replies'}`
+})
 
-  if (currentDepth.value < DEFAULT_COMMENT_DEPTH) {
-    return props.comment.children.length > 0
-  } else {
-    return showReplies.value
-  }
+const collapseActionLabel = computed(() => {
+  const subject = hasChildren.value
+    ? `${props.comment.author} and ${replyCountLabel.value}`
+    : `${props.comment.author}'s comment`
+
+  return isCollapsed.value ? `Expand ${subject}` : `Collapse ${subject}`
+})
+
+const preview = computed(() => getCommentPreview(props.comment.text))
+
+const replyHref = computed(() => {
+  return `https://news.ycombinator.com/reply?id=${props.comment.id}&goto=item%3Fid%3D${props.comment.parent_id}%23${props.comment.id}`
 })
 </script>
 
 <style scoped>
 .comment-container {
+  --comment-indent: 0.85rem;
+  /* Roughly 70 characters in Inter: wide enough to reduce scroll in long
+     discussions while staying below the 75-80 character readability ceiling.
+     Held in rem so the smaller metadata row shares the body's visual edge. */
+  --comment-measure: 33rem;
   position: relative;
   scroll-margin-top: 6rem;
+}
+
+/* Taper the gutter once a chain is deep so width loss stops compounding. */
+.comment-deep {
+  --comment-indent: 0.45rem;
 }
 
 .comment-container:focus {
   outline: none;
 }
 
-.comment-container:focus-visible .comment-panel {
-  outline: 3px solid var(--seed-accent);
-  outline-offset: 3px;
+.comment-container:focus-visible > .comment-body {
+  outline: 2px solid var(--seed-accent);
+  outline-offset: 4px;
+  border-radius: 0.35rem;
 }
 
 /* Added imperatively by the story page after a jump; must live in this scoped
    block so the rule matches the component root's scope attribute. */
-.comment-container.comment-jump-highlight .comment-panel {
-  border-color: var(--seed-border-strong);
+.comment-container.comment-jump-highlight > .comment-body {
+  border-radius: 0.35rem;
   animation: comment-jump-pulse 1.5s ease-out;
 }
 
@@ -186,7 +232,7 @@ const shouldRenderChildren = computed(() => {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .comment-container.comment-jump-highlight .comment-panel {
+  .comment-container.comment-jump-highlight > .comment-body {
     animation: none;
   }
 }
@@ -196,63 +242,68 @@ const shouldRenderChildren = computed(() => {
   contain-intrinsic-size: auto 20rem;
 }
 
-.comment-panel {
+.comment-body {
   position: relative;
-  background:
-    linear-gradient(135deg, var(--seed-highlight), transparent 36%),
-    linear-gradient(90deg, var(--seed-surface-raised) 0%, var(--seed-surface) 66%, transparent 100%);
-  border: 1px solid color-mix(in oklch, var(--seed-border) 82%, transparent);
-  border-left: 4px solid var(--seed-rail);
-  border-radius: 0.5rem;
-  box-shadow:
-    0 14px 34px var(--seed-shadow),
-    inset 0 1px 0 rgb(255 255 255 / 0.34);
-  overflow: hidden;
-  transition: background-color 0.3s ease, border-color 0.3s ease;
+  padding: 0.1rem 0 0;
 }
 
-.dark .comment-panel {
-  box-shadow:
-    0 16px 38px var(--seed-shadow),
-    inset 0 1px 0 rgb(255 255 255 / 0.08);
-}
-
-.comment-panel::before {
-  content: '';
-  position: absolute;
-  inset: 0.75rem auto 0.75rem -4px;
-  width: 4px;
-  border-radius: 999px;
-  background: var(--seed-accent);
-  box-shadow: 0 0 0 3px var(--seed-ring);
-}
-
-.comment-depth-2 .comment-panel {
-  border-left-width: 3px;
-}
-
-.comment-depth-3 .comment-panel {
-  border-left-width: 2px;
-}
-
-.comment-max-depth .comment-panel {
-  background:
-    linear-gradient(135deg, var(--seed-highlight), transparent 32%),
-    linear-gradient(90deg, var(--seed-surface-raised) 0%, var(--seed-surface) 48%, transparent 100%);
-}
-
+/* The speaker strip is the boundary between voices. It is tinted with the
+   author's seed colour, so a one-off author (chroma 0) still gets the break
+   without the colour. Capped to the reading measure so it aligns with the body
+   instead of reading as a full-width card header. */
 .comment-header {
-  gap: 0.375rem;
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.32rem 0.42rem;
   flex-wrap: wrap;
-  padding: 0.625rem 0.95rem 0.55rem 1rem;
-  border-bottom: 1px solid color-mix(in oklch, var(--seed-border), transparent 25%);
-  background:
-    linear-gradient(90deg, color-mix(in oklch, var(--seed-surface-strong), transparent 8%), transparent),
-    color-mix(in oklch, var(--seed-metric-bg), transparent 32%);
+  max-width: var(--comment-measure);
+  min-height: 2rem;
+  padding: 0.22rem 0.55rem 0.22rem 0.25rem;
+  border: 1px solid color-mix(in oklch, var(--seed-border-strong) 46%, transparent);
+  border-left-width: 3px;
+  border-radius: 0.4rem;
+  background: var(--seed-accent-soft);
   font-size: 0.8125rem;
   font-weight: 500;
   line-height: 1.3;
-  opacity: 0.82;
+  color: rgb(71 85 105);
+}
+
+.dark .comment-header {
+  color: rgb(148 163 184);
+}
+
+/* Collapsed rows are the summary, so let the preview use the full column. */
+.comment-collapsed .comment-header {
+  max-width: none;
+}
+
+.comment-collapse-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 1.65rem;
+  height: 1.65rem;
+  border-radius: 0.35rem;
+  color: inherit;
+  opacity: 0.72;
+  transition: background-color 0.15s ease, opacity 0.15s ease;
+}
+
+.comment-collapse-toggle:hover,
+.comment-collapse-toggle:focus-visible {
+  background: var(--seed-metric-bg-hover);
+  opacity: 1;
+}
+
+/* Collapsed rows behave like the story-context rows: the toggle owns the whole
+   line and the author link lifts above the overlay. */
+.comment-collapsed .comment-collapse-toggle::after {
+  content: '';
+  position: absolute;
+  inset: 0;
 }
 
 .author-chip {
@@ -262,25 +313,41 @@ const shouldRenderChildren = computed(() => {
   max-width: 100%;
   gap: 0.35rem;
   color: var(--seed-author-text);
+  font-size: 0.875rem;
+  font-weight: 650;
 }
 
 .author-dot {
   flex: 0 0 auto;
-  width: 0.55rem;
-  height: 0.55rem;
+  width: 0.5rem;
+  height: 0.5rem;
   border-radius: 999px;
   background: var(--seed-accent);
-  box-shadow: 0 0 0 3px var(--seed-ring);
+  box-shadow: 0 0 0 2.5px var(--seed-ring);
 }
 
-.author-chip a {
+.author-name {
+  position: relative;
+  z-index: 1;
   color: inherit;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.comment-separator {
-  opacity: 0.45;
+.author-name:hover {
+  text-decoration: underline;
+}
+
+.comment-badge {
+  flex: 0 0 auto;
+  padding: 0.02rem 0.3rem;
+  border: 1px solid var(--seed-border-strong);
+  border-radius: 0.25rem;
+  color: var(--seed-accent-strong);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  line-height: 1.5;
 }
 
 .author-activity-stat {
@@ -288,11 +355,10 @@ const shouldRenderChildren = computed(() => {
   align-items: center;
   gap: 0.24rem;
   color: var(--seed-author-text);
-  font-size: 0.8125rem;
   font-weight: 650;
   line-height: 1;
   white-space: nowrap;
-  opacity: 0.82;
+  opacity: 0.75;
 }
 
 .author-activity-stat-strong {
@@ -300,122 +366,153 @@ const shouldRenderChildren = computed(() => {
   opacity: 1;
 }
 
-.comment-time {
+.comment-reply-target {
   display: inline-flex;
   align-items: center;
-  gap: 0.25rem;
-}
-
-.comment-text {
-  margin: 0;
-  max-width: var(--measure-reading);
-  padding: 0.95rem 1rem 0.9rem;
-  font-size: 1rem;
-  font-weight: 400;
-  line-height: 1.72;
-  overflow-wrap: anywhere;
-}
-
-.comment-actions {
-  display: flex;
-  align-items: center;
-  gap: 0.45rem;
-  flex-wrap: wrap;
-  padding: 0.55rem 1rem 0.65rem;
-  border-top: 1px solid color-mix(in oklch, var(--seed-border), transparent 28%);
-  background:
-    linear-gradient(90deg, color-mix(in oklch, var(--seed-surface), transparent 18%), transparent),
-    color-mix(in oklch, var(--seed-metric-bg), transparent 44%);
-  font-size: 0.8125rem;
-  font-weight: 500;
-  line-height: 1.25;
+  gap: 0.2rem;
+  min-width: 0;
+  max-width: 11rem;
+  padding-left: 0.05rem;
   opacity: 0.78;
 }
 
-.comment-children {
-  border-left: 1px dashed var(--seed-child-guide);
-  margin: 0.85rem 0 0 0.85rem;
-  padding-left: 0.95rem;
+.comment-reply-target-label {
+  font-size: 0.74rem;
+  opacity: 0.8;
 }
 
-.comment-children > .comment-container + .comment-container {
-  margin-top: 0.85rem;
+.comment-reply-target-author {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 650;
 }
 
-.comment-header a:hover {
+.comment-time {
+  flex: 0 0 auto;
+  white-space: nowrap;
+  opacity: 0.85;
+}
+
+.comment-thread-stat {
+  flex: 0 0 auto;
+  padding-left: 0.42rem;
+  border-left: 1px solid color-mix(in oklch, var(--seed-border-strong) 60%, transparent);
+  color: var(--seed-accent-strong);
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.comment-collapsed-preview {
+  flex: 1 1 12rem;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  opacity: 0.72;
+}
+
+.comment-reply-link {
+  display: inline-flex;
+  align-items: center;
+  position: relative;
+  flex: 0 0 auto;
+  margin-left: auto;
+  min-height: 1.5rem;
+  padding: 0 0.18rem;
+  color: inherit;
+  font-weight: 650;
+  opacity: 0.72;
+  transition: opacity 0.15s ease;
+}
+
+.comment-reply-link:hover {
+  opacity: 1;
   text-decoration: underline;
 }
 
-.reply-link {
-  font-size: inherit;
-  font-weight: inherit;
+.comment-text {
+  margin: 0.55rem 0 0;
+  padding-left: 0.3rem;
+  max-width: var(--comment-measure);
+  font-size: 1.03125rem;
+  font-weight: 400;
+  line-height: 1.66;
+  color: rgb(30 41 59);
+  overflow-wrap: anywhere;
 }
 
-.reply-action,
-.more-replies-button {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  min-height: 1.8rem;
+.dark .comment-text {
+  color: rgb(226 232 240);
 }
 
-.reply-action {
-  padding: 0.2rem 0.55rem;
-  border: 1px solid color-mix(in oklch, var(--seed-border), transparent 20%);
+.comment-text :deep(blockquote) {
+  border-left-color: var(--seed-accent);
+  background: color-mix(in oklch, var(--seed-accent-soft) 72%, transparent);
+  opacity: 0.92;
+}
+
+.comment-children {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: var(--comment-indent);
+  margin-top: 0.7rem;
+}
+
+.comment-spine {
+  position: relative;
+  width: 2px;
   border-radius: 999px;
-  background:
-    linear-gradient(180deg, var(--seed-highlight), transparent 46%),
-    var(--seed-metric-bg);
-  box-shadow: 0 1px 0 rgb(255 255 255 / 0.34) inset;
-  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+  background: var(--seed-child-guide);
+  cursor: pointer;
+  transition: background-color 0.15s ease;
 }
 
-.reply-action:hover {
-  border-color: var(--seed-border-strong);
-  background:
-    linear-gradient(180deg, var(--seed-highlight), transparent 42%),
-    var(--seed-metric-bg-hover);
+/* Widens the pointer target without widening the indent gutter. */
+.comment-spine::before {
+  content: '';
+  position: absolute;
+  inset: 0 -0.45rem;
 }
 
-.more-replies-button {
-  margin-left: 0.15rem;
-  padding: 0.2rem 0.55rem;
-  border: 1px solid color-mix(in oklch, var(--seed-border), transparent 20%);
-  border-radius: 999px;
-  background:
-    linear-gradient(180deg, var(--seed-highlight), transparent 46%),
-    var(--seed-metric-bg);
-  box-shadow: 0 1px 0 rgb(255 255 255 / 0.34) inset;
-  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+.comment-spine:hover,
+.comment-spine:active {
+  background: var(--seed-accent);
 }
 
-.more-replies-button:hover {
-  border-color: var(--seed-border-strong);
-  background:
-    linear-gradient(180deg, var(--seed-highlight), transparent 42%),
-    var(--seed-metric-bg-hover);
+.comment-children:has(> .comment-spine:hover) > .comment-children-list {
+  background: var(--seed-accent-soft);
+  box-shadow: 0 0 0 0.4rem var(--seed-accent-soft);
+  border-radius: 0.2rem;
+}
+
+.comment-children-list {
+  min-width: 0;
+  transition: background-color 0.15s ease;
+}
+
+/* Must clearly exceed the 1.05rem gap between paragraphs inside one comment,
+   otherwise a change of speaker reads as weaker than a change of paragraph. */
+.comment-children-list > .comment-container + .comment-container {
+  margin-top: 1.6rem;
 }
 
 @media (max-width: 640px) {
-  .comment-header {
-    padding: 0.55rem 0.75rem 0.5rem;
+  .comment-container {
+    --comment-indent: 0.6rem;
+  }
+
+  .comment-deep {
+    --comment-indent: 0.3rem;
   }
 
   .comment-text {
-    padding: 0.8rem 0.75rem;
-    font-size: 0.98rem;
-    line-height: 1.68;
+    font-size: 1rem;
+    line-height: 1.65;
   }
 
-  .comment-actions {
-    padding: 0.5rem 0.75rem 0.55rem;
-    gap: 0.35rem;
-  }
-
-  .comment-children {
-    margin-left: 0.45rem;
-    margin-top: 0.75rem;
-    padding-left: 0.7rem;
+  .comment-reply-target {
+    max-width: 9rem;
   }
 }
 </style>
