@@ -101,29 +101,6 @@ describe('comment tree summary', () => {
     expect(summary.rootCommentIds.get(4)).toBe(4)
     expect(summary.commentAuthors.get(3)).toBe('carol')
   })
-
-  it('records sibling navigation in native order with explicit boundaries', () => {
-    const summary = summarizeCommentTree([
-      comment(1, 'alice', [
-        comment(2, 'bob'),
-        comment(3, 'carol'),
-        comment(4, 'dave'),
-      ]),
-      comment(5, 'erin'),
-    ])
-
-    expect(summary.previousSiblingIds.get(1)).toBeUndefined()
-    expect(summary.nextSiblingIds.get(1)).toBe(5)
-    expect(summary.previousSiblingIds.get(5)).toBe(1)
-    expect(summary.nextSiblingIds.get(5)).toBeUndefined()
-
-    expect(summary.previousSiblingIds.get(2)).toBeUndefined()
-    expect(summary.nextSiblingIds.get(2)).toBe(3)
-    expect(summary.previousSiblingIds.get(3)).toBe(2)
-    expect(summary.nextSiblingIds.get(3)).toBe(4)
-    expect(summary.previousSiblingIds.get(4)).toBe(3)
-    expect(summary.nextSiblingIds.get(4)).toBeUndefined()
-  })
 })
 
 describe('collapsed comment preview', () => {

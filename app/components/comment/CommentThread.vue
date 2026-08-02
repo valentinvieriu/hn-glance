@@ -48,57 +48,6 @@
         >
           {{ timeAgo }}
         </a>
-        <a
-          v-if="!isCompacted && parentCommentId && parentAuthor"
-          :href="parentPermalink"
-          class="comment-ancestry-link"
-          :aria-label="`Jump to parent comment by ${parentAuthor}`"
-          :title="`Jump to parent comment by ${parentAuthor}`"
-          @click.prevent="jumpToParent"
-        >
-          <LucideCornerDownRight class="w-3.5 h-3.5" aria-hidden="true" />
-          <span class="comment-ancestry-label">Parent comment:</span>
-          <span class="comment-ancestry-author">{{ parentAuthor }}</span>
-        </a>
-        <a
-          v-if="!isCompacted && showRootLink && rootAuthor"
-          :href="rootPermalink"
-          class="comment-ancestry-link comment-root-link"
-          :aria-label="`Jump to root comment by ${rootAuthor}`"
-          :title="`Jump to root comment by ${rootAuthor}`"
-          @click.prevent="jumpToRoot"
-        >
-          <span class="comment-ancestry-label">Root comment:</span>
-          <span class="comment-ancestry-author">{{ rootAuthor }}</span>
-        </a>
-        <nav
-          v-if="!isCompacted && hasSiblingNavigation"
-          class="comment-sibling-navigation"
-          :aria-label="`Navigate sibling comments beside ${comment.author}`"
-        >
-          <a
-            v-if="previousSiblingId"
-            :href="previousSiblingPermalink"
-            class="comment-sibling-link"
-            :aria-label="previousSiblingLabel"
-            :title="previousSiblingLabel"
-            @click.prevent="jumpToPreviousSibling"
-          >
-            <LucideChevronLeft class="w-3.5 h-3.5" aria-hidden="true" />
-            <span>Previous</span>
-          </a>
-          <a
-            v-if="nextSiblingId"
-            :href="nextSiblingPermalink"
-            class="comment-sibling-link"
-            :aria-label="nextSiblingLabel"
-            :title="nextSiblingLabel"
-            @click.prevent="jumpToNextSibling"
-          >
-            <span>Next</span>
-            <LucideChevronRight class="w-3.5 h-3.5" aria-hidden="true" />
-          </a>
-        </nav>
         <span
           v-if="isCompacted && hasChildren"
           class="comment-thread-stat"
@@ -111,6 +60,35 @@
           <span v-if="preview" class="comment-collapsed-preview">{{ preview }}</span>
         </template>
       </div>
+      <nav
+        v-if="!isCompacted && parentCommentId && parentAuthor"
+        class="comment-ancestry-navigation"
+        :aria-label="`Ancestry for ${comment.author}'s comment`"
+      >
+        <a
+          :href="parentPermalink"
+          class="comment-ancestry-link"
+          :aria-label="`Jump to parent comment by ${parentAuthor}`"
+          :title="`Jump to parent comment by ${parentAuthor}`"
+          @click.prevent="jumpToParent"
+        >
+          <LucideCornerDownRight class="comment-ancestry-icon" aria-hidden="true" />
+          <span class="comment-ancestry-label">Parent comment:</span>
+          <span class="comment-ancestry-author">{{ parentAuthor }}</span>
+        </a>
+        <a
+          v-if="showRootLink && rootAuthor"
+          :href="rootPermalink"
+          class="comment-ancestry-link"
+          :aria-label="`Jump to thread start by ${rootAuthor}`"
+          :title="`Jump to thread start by ${rootAuthor}`"
+          @click.prevent="jumpToRoot"
+        >
+          <LucideArrowUpToLine class="comment-ancestry-icon" aria-hidden="true" />
+          <span class="comment-ancestry-label">Thread start:</span>
+          <span class="comment-ancestry-author">{{ rootAuthor }}</span>
+        </a>
+      </nav>
     </div>
     <div v-if="!isCompacted" :id="commentContentElementId" class="comment-expanded-content">
       <div
@@ -167,8 +145,6 @@
             :descendant-comment-counts="descendantCommentCounts"
             :parent-comment-ids="parentCommentIds"
             :root-comment-ids="rootCommentIds"
-            :previous-sibling-ids="previousSiblingIds"
-            :next-sibling-ids="nextSiblingIds"
             :compacted-ids="compactedIds"
             :hidden-reply-ids="hiddenReplyIds"
             :toggle-compacted="toggleCompacted"
@@ -184,8 +160,8 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import {
+  LucideArrowUpToLine,
   LucideChevronDown,
-  LucideChevronLeft,
   LucideChevronRight,
   LucideCornerDownRight,
   LucideExternalLink,
@@ -212,8 +188,6 @@ const props = defineProps<{
   descendantCommentCounts: ReadonlyMap<number, number>
   parentCommentIds: ReadonlyMap<number, number | null>
   rootCommentIds: ReadonlyMap<number, number>
-  previousSiblingIds: ReadonlyMap<number, number>
-  nextSiblingIds: ReadonlyMap<number, number>
   compactedIds: ReadonlySet<number>
   hiddenReplyIds: ReadonlySet<number>
   toggleCompacted: (commentId: number) => void
@@ -240,8 +214,6 @@ const isFork = computed(() => childReplies.value.length > 1)
 const subtreeCount = computed(() => props.descendantCommentCounts.get(props.comment.id) ?? 0)
 const parentCommentId = computed(() => props.parentCommentIds.get(props.comment.id) ?? null)
 const rootCommentId = computed(() => props.rootCommentIds.get(props.comment.id) ?? props.comment.id)
-const previousSiblingId = computed(() => props.previousSiblingIds.get(props.comment.id) ?? null)
-const nextSiblingId = computed(() => props.nextSiblingIds.get(props.comment.id) ?? null)
 const commentContentElementId = computed(() => `comment-content-${props.comment.id}`)
 const childrenElementId = computed(() => `comment-children-${props.comment.id}`)
 
@@ -255,9 +227,6 @@ const parentAuthor = computed(() => {
 const rootAuthor = computed(() => props.commentAuthors.get(rootCommentId.value) ?? '')
 const showRootLink = computed(() => {
   return Boolean(parentCommentId.value) && rootCommentId.value !== parentCommentId.value
-})
-const hasSiblingNavigation = computed(() => {
-  return Boolean(previousSiblingId.value || nextSiblingId.value)
 })
 
 // One-off voices keep a quieter version of their thread-assigned hue; repeat
@@ -300,22 +269,6 @@ const preview = computed(() => getCommentPreview(props.comment.text))
 const commentPermalink = computed(() => `#comment-${props.comment.id}`)
 const parentPermalink = computed(() => `#comment-${parentCommentId.value}`)
 const rootPermalink = computed(() => `#comment-${rootCommentId.value}`)
-const previousSiblingPermalink = computed(() => `#comment-${previousSiblingId.value}`)
-const nextSiblingPermalink = computed(() => `#comment-${nextSiblingId.value}`)
-const previousSiblingLabel = computed(() => {
-  const author = previousSiblingId.value
-    ? props.commentAuthors.get(previousSiblingId.value)
-    : null
-
-  return author ? `Previous sibling comment by ${author}` : 'Previous sibling comment'
-})
-const nextSiblingLabel = computed(() => {
-  const author = nextSiblingId.value
-    ? props.commentAuthors.get(nextSiblingId.value)
-    : null
-
-  return author ? `Next sibling comment by ${author}` : 'Next sibling comment'
-})
 
 const jumpToParent = () => {
   if (parentCommentId.value) {
@@ -325,18 +278,6 @@ const jumpToParent = () => {
 
 const jumpToRoot = () => {
   void props.jumpToComment(rootCommentId.value)
-}
-
-const jumpToPreviousSibling = () => {
-  if (previousSiblingId.value) {
-    void props.jumpToComment(previousSiblingId.value)
-  }
-}
-
-const jumpToNextSibling = () => {
-  if (nextSiblingId.value) {
-    void props.jumpToComment(nextSiblingId.value)
-  }
 }
 
 const replyHref = computed(() => {
@@ -407,7 +348,7 @@ const replyHref = computed(() => {
   display: flex;
   align-items: center;
   gap: 0.32rem 0.42rem;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   max-width: var(--comment-measure);
   min-height: 2rem;
   padding: 0.22rem 0.55rem 0.22rem 0.25rem;
@@ -427,6 +368,7 @@ const replyHref = computed(() => {
 
 /* Compacted rows are the summary, so let the preview use the full column. */
 .comment-compacted .comment-header {
+  flex-wrap: wrap;
   max-width: none;
 }
 
@@ -460,8 +402,10 @@ const replyHref = computed(() => {
 .author-chip {
   display: inline-flex;
   align-items: center;
+  flex: 0 1 auto;
   min-width: 0;
   max-width: 100%;
+  overflow: hidden;
   gap: 0.35rem;
   color: var(--seed-author-text);
   font-size: 0.875rem;
@@ -483,6 +427,7 @@ const replyHref = computed(() => {
   color: inherit;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .author-name:hover {
@@ -517,14 +462,32 @@ const replyHref = computed(() => {
   opacity: 1;
 }
 
+.comment-ancestry-navigation {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.12rem 0.8rem;
+  max-width: var(--comment-measure);
+  min-width: 0;
+  padding: 0.28rem 0.3rem 0;
+  color: rgb(71 85 105);
+  font-size: 0.75rem;
+  font-weight: 550;
+  line-height: 1.35;
+}
+
+.dark .comment-ancestry-navigation {
+  color: rgb(148 163 184);
+}
+
 .comment-ancestry-link {
   display: inline-flex;
   align-items: center;
   gap: 0.2rem;
   min-width: 0;
-  max-width: 14rem;
-  padding-left: 0.05rem;
-  opacity: 0.78;
+  max-width: min(100%, 18rem);
+  min-height: 1.75rem;
+  opacity: 0.82;
   transition: color 0.15s ease, opacity 0.15s ease;
 }
 
@@ -534,10 +497,15 @@ const replyHref = computed(() => {
   opacity: 1;
 }
 
+.comment-ancestry-icon {
+  flex: 0 0 auto;
+  width: 0.875rem;
+  height: 0.875rem;
+}
+
 .comment-ancestry-label {
   flex: 0 0 auto;
-  font-size: 0.74rem;
-  opacity: 0.8;
+  opacity: 0.76;
 }
 
 .comment-ancestry-author {
@@ -545,6 +513,7 @@ const replyHref = computed(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  color: var(--seed-accent-strong);
   font-weight: 600;
 }
 
@@ -564,39 +533,6 @@ const replyHref = computed(() => {
 
 .comment-compacted .comment-time {
   z-index: 1;
-}
-
-.comment-root-link {
-  padding-left: 0.42rem;
-  border-left: 1px solid color-mix(in oklch, var(--seed-border-strong) 60%, transparent);
-  color: var(--seed-accent-strong);
-}
-
-.comment-sibling-navigation {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.08rem;
-  min-height: 1.65rem;
-  padding-left: 0.28rem;
-  border-left: 1px solid color-mix(in oklch, var(--seed-border-strong) 60%, transparent);
-}
-
-.comment-sibling-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.04rem;
-  min-height: 1.65rem;
-  padding: 0 0.18rem;
-  font-size: 0.74rem;
-  font-weight: 620;
-  opacity: 0.72;
-  transition: color 0.15s ease, opacity 0.15s ease;
-}
-
-.comment-sibling-link:hover,
-.comment-sibling-link:focus-visible {
-  color: var(--seed-accent-strong);
-  opacity: 1;
 }
 
 .comment-thread-stat {
@@ -828,8 +764,12 @@ const replyHref = computed(() => {
     line-height: 1.65;
   }
 
+  .comment-ancestry-navigation {
+    gap: 0.08rem 0.55rem;
+  }
+
   .comment-ancestry-link {
-    max-width: 12rem;
+    max-width: 100%;
   }
 }
 </style>

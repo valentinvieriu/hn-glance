@@ -183,8 +183,6 @@
               :descendant-comment-counts="descendantCommentCounts"
               :parent-comment-ids="parentCommentIds"
               :root-comment-ids="rootCommentIds"
-              :previous-sibling-ids="previousSiblingIds"
-              :next-sibling-ids="nextSiblingIds"
               :compacted-ids="compactedCommentIds"
               :hidden-reply-ids="hiddenReplyIds"
               :toggle-compacted="toggleCommentCompacted"
@@ -633,8 +631,6 @@ const commentAuthors = computed(() => commentSummary.value.commentAuthors)
 const descendantCommentCounts = computed(() => commentSummary.value.descendantCounts)
 const parentCommentIds = computed(() => commentSummary.value.parentCommentIds)
 const rootCommentIds = computed(() => commentSummary.value.rootCommentIds)
-const previousSiblingIds = computed(() => commentSummary.value.previousSiblingIds)
-const nextSiblingIds = computed(() => commentSummary.value.nextSiblingIds)
 const defaultHiddenReplyIds = computed(() => commentSummary.value.defaultHiddenReplyIds)
 const EMPTY_COMMENT_THREAD_AUTHOR_PALETTE: CommentThreadAuthorPalette = {
   authorCounts: new Map(),

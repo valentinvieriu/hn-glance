@@ -22,8 +22,6 @@ export type CommentTreeSummary = {
   descendantCounts: ReadonlyMap<number, number>
   parentCommentIds: ReadonlyMap<number, number | null>
   rootCommentIds: ReadonlyMap<number, number>
-  previousSiblingIds: ReadonlyMap<number, number>
-  nextSiblingIds: ReadonlyMap<number, number>
   /**
    * Comments whose replies are hidden on first render. The gate is armed at
    * exactly `maximumDepth`, never below it, so opening one of these renders the
@@ -50,8 +48,6 @@ export const summarizeCommentTree = (
   const descendantCounts = new Map<number, number>()
   const parentCommentIds = new Map<number, number | null>()
   const rootCommentIds = new Map<number, number>()
-  const previousSiblingIds = new Map<number, number>()
-  const nextSiblingIds = new Map<number, number>()
   const defaultHiddenReplyIds = new Set<number>()
   const stack: CommentFrame[] = comments.map((comment) => ({
     comment,
@@ -61,22 +57,6 @@ export const summarizeCommentTree = (
     visited: false,
   }))
   let total = 0
-
-  const recordSiblingNavigation = (siblings: Comment[]) => {
-    siblings.forEach((comment, index) => {
-      const previousSibling = siblings[index - 1]
-      const nextSibling = siblings[index + 1]
-
-      if (previousSibling) {
-        previousSiblingIds.set(comment.id, previousSibling.id)
-      }
-      if (nextSibling) {
-        nextSiblingIds.set(comment.id, nextSibling.id)
-      }
-    })
-  }
-
-  recordSiblingNavigation(comments)
 
   while (stack.length > 0) {
     const frame = stack.pop()
@@ -109,7 +89,6 @@ export const summarizeCommentTree = (
     commentAuthors.set(comment.id, comment.author)
     parentCommentIds.set(comment.id, parentCommentId)
     rootCommentIds.set(comment.id, rootCommentId)
-    recordSiblingNavigation(children)
 
     stack.push({ comment, depth, parentCommentId, rootCommentId, visited: true })
     children.forEach((child) => {
@@ -129,8 +108,6 @@ export const summarizeCommentTree = (
     descendantCounts,
     parentCommentIds,
     rootCommentIds,
-    previousSiblingIds,
-    nextSiblingIds,
     defaultHiddenReplyIds,
     total,
   }
