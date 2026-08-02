@@ -10,107 +10,111 @@
   >
     <div class="comment-body">
       <div class="comment-header">
-        <button
-          type="button"
-          class="comment-collapse-toggle"
-          :aria-expanded="!isCompacted"
-          :aria-controls="commentContentElementId"
-          :aria-label="compactionActionLabel"
-          :title="compactionActionLabel"
-          @click="toggleCompacted(comment.id)"
+        <div class="comment-header-primary">
+          <button
+            type="button"
+            class="comment-collapse-toggle"
+            :aria-expanded="!isCompacted"
+            :aria-controls="commentContentElementId"
+            :aria-label="compactionActionLabel"
+            :title="compactionActionLabel"
+            @click="toggleCompacted(comment.id)"
+          >
+            <LucideChevronDown v-if="!isCompacted" class="w-3.5 h-3.5" aria-hidden="true" />
+            <LucideChevronRight v-else class="w-3.5 h-3.5" aria-hidden="true" />
+          </button>
+          <span class="author-chip">
+            <span class="author-dot" aria-hidden="true"></span>
+            <NuxtLink :to="getHnUserPath(comment.author)" class="author-name">
+              {{ comment.author }}
+            </NuxtLink>
+          </span>
+          <span v-if="isOriginalPoster" class="comment-badge" title="Submitted this story">OP</span>
+          <span
+            v-if="authorCommentCount > 1"
+            class="author-activity-stat"
+            :class="{ 'author-activity-stat-strong': authorCommentCount >= 5 }"
+            :aria-label="`${comment.author} has made ${authorCommentCount} comments on this story`"
+            :title="`${comment.author} has made ${authorCommentCount} comments on this story`"
+          >
+            <LucideMessageSquare class="w-3.5 h-3.5" aria-hidden="true" />
+            <span>{{ authorCommentCount }}</span>
+          </span>
+          <a
+            :href="commentPermalink"
+            class="comment-time"
+            :aria-label="`Permalink to ${comment.author}'s comment from ${timeAgo}`"
+            title="Comment permalink"
+            @click.prevent="jumpToComment(comment.id)"
+          >
+            {{ timeAgo }}
+          </a>
+          <span
+            v-if="isCompacted && hasChildren"
+            class="comment-thread-stat"
+            :aria-label="replyCountLabel"
+            :title="replyCountLabel"
+          >
+            {{ threadSizeLabel }}
+          </span>
+          <template v-if="isCompacted">
+            <span v-if="preview" class="comment-collapsed-preview">{{ preview }}</span>
+          </template>
+        </div>
+        <nav
+          v-if="!isCompacted && parentCommentId && parentAuthor"
+          class="comment-ancestry-navigation"
+          :aria-label="`Ancestry for ${comment.author}'s comment`"
         >
-          <LucideChevronDown v-if="!isCompacted" class="w-3.5 h-3.5" aria-hidden="true" />
-          <LucideChevronRight v-else class="w-3.5 h-3.5" aria-hidden="true" />
-        </button>
-        <span class="author-chip">
-          <span class="author-dot" aria-hidden="true"></span>
-          <NuxtLink :to="getHnUserPath(comment.author)" class="author-name">
-            {{ comment.author }}
-          </NuxtLink>
-        </span>
-        <span v-if="isOriginalPoster" class="comment-badge" title="Submitted this story">OP</span>
-        <span
-          v-if="authorCommentCount > 1"
-          class="author-activity-stat"
-          :class="{ 'author-activity-stat-strong': authorCommentCount >= 5 }"
-          :aria-label="`${comment.author} has made ${authorCommentCount} comments on this story`"
-          :title="`${comment.author} has made ${authorCommentCount} comments on this story`"
-        >
-          <LucideMessageSquare class="w-3.5 h-3.5" aria-hidden="true" />
-          <span>{{ authorCommentCount }}</span>
-        </span>
-        <a
-          :href="commentPermalink"
-          class="comment-time"
-          :aria-label="`Permalink to ${comment.author}'s comment from ${timeAgo}`"
-          title="Comment permalink"
-          @click.prevent="jumpToComment(comment.id)"
-        >
-          {{ timeAgo }}
-        </a>
-        <span
-          v-if="isCompacted && hasChildren"
-          class="comment-thread-stat"
-          :aria-label="replyCountLabel"
-          :title="replyCountLabel"
-        >
-          {{ threadSizeLabel }}
-        </span>
-        <template v-if="isCompacted">
-          <span v-if="preview" class="comment-collapsed-preview">{{ preview }}</span>
-        </template>
+          <a
+            :href="parentPermalink"
+            class="comment-ancestry-link"
+            :aria-label="`Jump to parent comment by ${parentAuthor}`"
+            :title="`Jump to parent comment by ${parentAuthor}`"
+            @click.prevent="jumpToParent"
+          >
+            <LucideCornerDownRight class="comment-ancestry-icon" aria-hidden="true" />
+            <span class="comment-ancestry-label">Parent comment:</span>
+            <span class="comment-ancestry-author">{{ parentAuthor }}</span>
+          </a>
+          <a
+            v-if="showRootLink && rootAuthor"
+            :href="rootPermalink"
+            class="comment-ancestry-link"
+            :aria-label="`Jump to thread start by ${rootAuthor}`"
+            :title="`Jump to thread start by ${rootAuthor}`"
+            @click.prevent="jumpToRoot"
+          >
+            <LucideArrowUpToLine class="comment-ancestry-icon" aria-hidden="true" />
+            <span class="comment-ancestry-label">Thread start:</span>
+            <span class="comment-ancestry-author">{{ rootAuthor }}</span>
+          </a>
+        </nav>
       </div>
-      <nav
-        v-if="!isCompacted && parentCommentId && parentAuthor"
-        class="comment-ancestry-navigation"
-        :aria-label="`Ancestry for ${comment.author}'s comment`"
-      >
-        <a
-          :href="parentPermalink"
-          class="comment-ancestry-link"
-          :aria-label="`Jump to parent comment by ${parentAuthor}`"
-          :title="`Jump to parent comment by ${parentAuthor}`"
-          @click.prevent="jumpToParent"
-        >
-          <LucideCornerDownRight class="comment-ancestry-icon" aria-hidden="true" />
-          <span class="comment-ancestry-label">Parent comment:</span>
-          <span class="comment-ancestry-author">{{ parentAuthor }}</span>
-        </a>
-        <a
-          v-if="showRootLink && rootAuthor"
-          :href="rootPermalink"
-          class="comment-ancestry-link"
-          :aria-label="`Jump to thread start by ${rootAuthor}`"
-          :title="`Jump to thread start by ${rootAuthor}`"
-          @click.prevent="jumpToRoot"
-        >
-          <LucideArrowUpToLine class="comment-ancestry-icon" aria-hidden="true" />
-          <span class="comment-ancestry-label">Thread start:</span>
-          <span class="comment-ancestry-author">{{ rootAuthor }}</span>
-        </a>
-      </nav>
     </div>
     <div v-if="!isCompacted" :id="commentContentElementId" class="comment-expanded-content">
       <div
         class="comment-text reading-text rich-text break-words"
         v-html="sanitizedText"
       ></div>
-      <div class="comment-actions">
+      <div
+        class="comment-actions"
+        :class="{ 'comment-actions-with-replies': hasChildren }"
+      >
         <div v-if="hasChildren" class="comment-reply-actions">
-          <LucideGitFork v-if="isFork" class="comment-fork-icon" aria-hidden="true" />
-          <span class="comment-reply-summary">{{ replyCountLabel }}</span>
           <button
             type="button"
             class="comment-replies-toggle"
             :aria-expanded="!areRepliesHidden"
             :aria-controls="childrenElementId"
             :aria-label="replyDisclosureLabel"
+            :title="replyDisclosureLabel"
             @click="toggleRepliesHidden(comment.id)"
           >
-            <LucideChevronRight v-if="areRepliesHidden" class="w-3.5 h-3.5" aria-hidden="true" />
-            <LucideChevronDown v-else class="w-3.5 h-3.5" aria-hidden="true" />
-            <span>{{ areRepliesHidden ? 'Show replies' : 'Hide replies' }}</span>
+            <LucidePlus v-if="areRepliesHidden" class="w-3 h-3" aria-hidden="true" />
+            <LucideMinus v-else class="w-3 h-3" aria-hidden="true" />
           </button>
+          <span class="comment-reply-summary">{{ replyCountLabel }}</span>
         </div>
         <a
           :href="replyHref"
@@ -127,7 +131,6 @@
         v-if="hasChildren && !areRepliesHidden"
         :id="childrenElementId"
         class="comment-children"
-        :class="{ 'comment-children-forked': isFork }"
       >
         <!-- Pointer-only shortcut for reply disclosure. The footer button is
              the keyboard and assistive-technology equivalent. -->
@@ -165,8 +168,9 @@ import {
   LucideChevronRight,
   LucideCornerDownRight,
   LucideExternalLink,
-  LucideGitFork,
   LucideMessageSquare,
+  LucideMinus,
+  LucidePlus,
 } from '@lucide/vue'
 import type { Comment } from '#shared/types'
 import { getCommentPreview, getCommentReplyCountLabel } from '#shared/utils/comments'
@@ -177,6 +181,8 @@ import {
   getSeedPaletteStyle,
   type CommentThreadAuthorPalette,
 } from '~/composables/useSeedPalette'
+
+const COMMENT_INDENT_CAP_DEPTH = 8
 
 const props = defineProps<{
   comment: Comment
@@ -210,7 +216,6 @@ const isCompacted = computed(() => props.compactedIds.has(props.comment.id))
 const areRepliesHidden = computed(() => props.hiddenReplyIds.has(props.comment.id))
 const childReplies = computed(() => props.comment.children ?? [])
 const hasChildren = computed(() => childReplies.value.length > 0)
-const isFork = computed(() => childReplies.value.length > 1)
 const subtreeCount = computed(() => props.descendantCommentCounts.get(props.comment.id) ?? 0)
 const parentCommentId = computed(() => props.parentCommentIds.get(props.comment.id) ?? null)
 const rootCommentId = computed(() => props.rootCommentIds.get(props.comment.id) ?? props.comment.id)
@@ -236,7 +241,7 @@ const isRecurringAuthor = computed(() => authorCommentCount.value > 1)
 const commentContainerClasses = computed(() => {
   return {
     'comment-top-level': currentDepth.value === 1,
-    'comment-indent-capped': currentDepth.value >= 4,
+    'comment-indent-capped': currentDepth.value >= COMMENT_INDENT_CAP_DEPTH,
     'comment-compacted': isCompacted.value,
     'comment-replies-hidden': areRepliesHidden.value,
     'seed-palette-quiet': !isRecurringAuthor.value,
@@ -288,6 +293,8 @@ const replyHref = computed(() => {
 <style scoped>
 .comment-container {
   --comment-indent: 0.85rem;
+  --comment-incoming-rail-center: calc(-1 * var(--comment-indent) - 1px);
+  --comment-outgoing-rail-left: 0px;
   /* Roughly 60-68 characters in the reading face: wide enough to reduce scroll
      while staying below the 75-80 character readability ceiling. Held in rem
      so the smaller metadata row shares the body's visual edge. */
@@ -337,7 +344,6 @@ const replyHref = computed(() => {
 .comment-body {
   position: relative;
   z-index: 1;
-  padding: 0.1rem 0 0;
 }
 
 /* The speaker strip is the boundary between voices. A one-off author receives
@@ -345,14 +351,10 @@ const replyHref = computed(() => {
    accent. Capped to the reading measure so it aligns with the body. */
 .comment-header {
   position: relative;
-  display: flex;
-  align-items: center;
-  gap: 0.32rem 0.42rem;
-  flex-wrap: nowrap;
   max-width: var(--comment-measure);
-  min-height: 2rem;
-  padding: 0.22rem 0.55rem 0.22rem 0.25rem;
+  overflow: hidden;
   border: 1px solid color-mix(in oklch, var(--seed-border-strong) 46%, transparent);
+  border-left-color: var(--seed-rail);
   border-left-width: 3px;
   border-radius: 0.4rem;
   background: var(--seed-accent-soft);
@@ -362,14 +364,26 @@ const replyHref = computed(() => {
   color: rgb(71 85 105);
 }
 
+.comment-header-primary {
+  display: flex;
+  align-items: center;
+  gap: 0.32rem 0.42rem;
+  flex-wrap: nowrap;
+  min-height: 2rem;
+  padding: 0.22rem 0.55rem 0.22rem 0.25rem;
+}
+
 .dark .comment-header {
   color: rgb(148 163 184);
 }
 
 /* Compacted rows are the summary, so let the preview use the full column. */
 .comment-compacted .comment-header {
-  flex-wrap: wrap;
   max-width: none;
+}
+
+.comment-compacted .comment-header-primary {
+  flex-wrap: wrap;
 }
 
 .comment-collapse-toggle {
@@ -467,9 +481,9 @@ const replyHref = computed(() => {
   align-items: center;
   flex-wrap: wrap;
   gap: 0.12rem 0.8rem;
-  max-width: var(--comment-measure);
   min-width: 0;
-  padding: 0.28rem 0.3rem 0;
+  padding: 0.18rem 0.55rem 0.28rem 2.05rem;
+  border-top: 1px solid color-mix(in oklch, var(--seed-border-strong) 34%, transparent);
   color: rgb(71 85 105);
   font-size: 0.75rem;
   font-weight: 550;
@@ -558,9 +572,8 @@ const replyHref = computed(() => {
   align-items: center;
   gap: 0.3rem;
   flex: 0 0 auto;
-  margin-left: auto;
-  min-height: 2rem;
-  padding: 0 0.35rem;
+  min-height: 1.5rem;
+  padding: 0 0.15rem;
   color: rgb(71 85 105);
   font-size: 0.8125rem;
   font-weight: 650;
@@ -580,8 +593,8 @@ const replyHref = computed(() => {
 }
 
 .comment-text {
-  margin: 0.55rem 0 0;
-  padding-left: 0.3rem;
+  margin: 0.75rem 0 0;
+  padding-left: 0.75rem;
   max-width: var(--comment-measure);
   font-size: 1.0625rem;
   font-weight: 400;
@@ -604,27 +617,23 @@ const replyHref = computed(() => {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 0.45rem 0.7rem;
+  gap: 0.3rem 0.65rem;
   max-width: var(--comment-measure);
-  min-height: 2rem;
-  margin-top: 0.7rem;
-  padding-left: 0.3rem;
+  min-height: 1.5rem;
+  margin-top: 0.8rem;
+  padding-left: 0.75rem;
+}
+
+.comment-actions-with-replies {
+  padding-left: 0;
 }
 
 .comment-reply-actions {
   display: inline-flex;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 0.35rem 0.55rem;
+  flex: 0 1 auto;
+  gap: 0.45rem;
   min-width: 0;
-}
-
-.comment-fork-icon {
-  flex: 0 0 auto;
-  width: 0.9rem;
-  height: 0.9rem;
-  color: var(--seed-accent-strong);
-  opacity: 0.78;
 }
 
 .comment-reply-summary {
@@ -642,38 +651,43 @@ const replyHref = computed(() => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 0.28rem;
-  min-height: 2rem;
-  padding: 0 0.55rem;
-  border: 1px solid color-mix(in oklch, var(--seed-border-strong) 48%, transparent);
+  flex: 0 0 auto;
+  width: 1.5rem;
+  height: 1.5rem;
+  /* The 1px correction centers the control over a 2px rail. The shared rail
+     offset moves both together once horizontal indentation is capped. */
+  margin-left: calc(var(--comment-outgoing-rail-left) - 0.6875rem);
+  padding: 0;
+  border: 1px solid var(--seed-rail);
   border-radius: 999px;
-  background: var(--seed-metric-bg);
+  background: var(--seed-accent-soft);
   color: var(--seed-accent-strong);
-  font-size: 0.8125rem;
-  font-weight: 650;
-  line-height: 1;
-  transition: background-color 0.15s ease, border-color 0.15s ease;
+  box-shadow: 0 0 0 2px rgb(255 255 255 / 0.88);
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.dark .comment-replies-toggle {
+  box-shadow: 0 0 0 2px rgb(17 24 39 / 0.92);
 }
 
 .comment-replies-toggle:hover,
 .comment-replies-toggle:focus-visible {
-  border-color: var(--seed-border-strong);
+  border-color: var(--seed-accent);
   background: var(--seed-metric-bg-hover);
+  color: var(--seed-accent);
 }
 
 .comment-children {
-  --comment-branch-width: var(--comment-indent);
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   column-gap: var(--comment-indent);
-  margin-top: 0.7rem;
 }
 
 .comment-spine {
   position: relative;
   width: 2px;
   border-radius: 999px;
-  background: var(--seed-child-guide);
+  background: var(--seed-rail);
   cursor: pointer;
   transition: background-color 0.15s ease;
 }
@@ -698,54 +712,62 @@ const replyHref = computed(() => {
 
 .comment-children-list {
   min-width: 0;
+  padding-top: 0.85rem;
+  color: var(--seed-rail);
   transition: background-color 0.15s ease;
 }
 
-/* Each direct reply gets a short destination-coloured arm. At a true fork,
-   diamonds mark the junctions without turning the rail into another control. */
+/* Every direct reply gets the same branch-coloured arm and node. Multiple
+   nodes on one rail already make a fork visible, so the footer and junction do
+   not need a second topology vocabulary. The arm inherits the resolved parent
+   rail colour instead of recalculating it from the child's author palette. */
 .comment-children-list > .comment-container::before {
   content: '';
   position: absolute;
   z-index: 0;
   top: 1.1rem;
-  left: calc(-1 * var(--comment-branch-width));
-  width: var(--comment-branch-width);
+  left: var(--comment-incoming-rail-center);
+  width: calc(var(--comment-indent) + 1px);
   height: 1.5px;
-  background: var(--seed-child-guide);
+  background: currentColor;
   pointer-events: none;
 }
 
-.comment-children-forked > .comment-children-list > .comment-container::after {
+.comment-children-list > .comment-container::after {
   content: '';
   position: absolute;
   z-index: 2;
   top: 0.94rem;
-  left: calc(-1 * var(--comment-branch-width) - 0.14rem);
+  left: calc(var(--comment-incoming-rail-center) - 0.17rem);
   width: 0.34rem;
   height: 0.34rem;
-  border-radius: 0.06rem;
-  background: var(--seed-accent);
+  border-radius: 999px;
+  background: currentColor;
   box-shadow: 0 0 0 2px rgb(255 255 255 / 0.86);
-  transform: rotate(45deg);
   pointer-events: none;
 }
 
-.dark .comment-children-forked > .comment-children-list > .comment-container::after {
+.dark .comment-children-list > .comment-container::after {
   box-shadow: 0 0 0 2px rgb(17 24 39 / 0.9);
 }
 
-/* Depth four is the final horizontal step. Deeper reply lists keep the same
+/* Depth eight is the final horizontal step. Deeper reply lists keep the same
    text edge, while a rail just outside that edge retains ancestry and the
    pointer shortcut without covering selectable comment text. */
 .comment-indent-capped > .comment-expanded-content > .comment-children {
-  --comment-branch-width: 0.65rem;
   position: relative;
   display: block;
 }
 
+.comment-indent-capped {
+  /* Reuse the incoming rail after deeper comments stop moving their text to
+     the right. The rail's left edge is one pixel before its shared centre. */
+  --comment-outgoing-rail-left: calc(var(--comment-incoming-rail-center) - 1px);
+}
+
 .comment-indent-capped > .comment-expanded-content > .comment-children > .comment-spine {
   position: absolute;
-  inset: 0 auto 0 -0.65rem;
+  inset: 0 auto 0 var(--comment-outgoing-rail-left);
 }
 
 /* Must clearly exceed the 1.05rem gap between paragraphs inside one comment,
@@ -756,7 +778,7 @@ const replyHref = computed(() => {
 
 @media (max-width: 640px) {
   .comment-container {
-    --comment-indent: 0.6rem;
+    --comment-indent: 0.8125rem;
   }
 
   .comment-text {
