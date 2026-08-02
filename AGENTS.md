@@ -381,6 +381,9 @@ git diff --check
 
 ## Working Conventions
 
+- Work on and push `main` by default. Create or switch to a feature branch only
+  when the user explicitly asks for a branch or pull-request workflow; do not
+  infer branch creation from a generic publishing workflow.
 - Preserve user changes in the worktree. Do not revert unrelated edits.
 - Keep edits scoped to the request and the surrounding module.
 - Prefer compatibility fixes over broad rewrites.
