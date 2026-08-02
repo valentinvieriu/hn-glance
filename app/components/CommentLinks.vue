@@ -116,12 +116,17 @@ import {
   type CommentLinkMention,
 } from '#shared/utils/commentLinks'
 import { getHnUserPath } from '#shared/utils/hn'
-import { getSeedPaletteStyle } from '~/composables/useSeedPalette'
+import {
+  getSeedPaletteStyle,
+  type CommentThreadAuthorPalette,
+} from '~/composables/useSeedPalette'
 
 const props = defineProps<{
   comments: Comment[]
   storyUrl?: string
   authorCommentCounts?: ReadonlyMap<string, number>
+  threadAuthorPalettes?: ReadonlyMap<number, CommentThreadAuthorPalette>
+  rootCommentIds?: ReadonlyMap<number, number>
 }>()
 
 const emit = defineEmits<{
@@ -213,16 +218,22 @@ const getActiveMention = (link: CommentLink): CommentLinkMention => {
 }
 
 const getAuthorSeedStyle = (link: CommentLink) => {
-  return getSeedPaletteStyle(getActiveMention(link).author)
+  const mention = getActiveMention(link)
+  const rootCommentId = props.rootCommentIds?.get(mention.commentId)
+
+  return props.threadAuthorPalettes
+    ?.get(rootCommentId ?? 0)
+    ?.authorStyles.get(mention.author)
+    ?? getSeedPaletteStyle(mention.author)
 }
 
-// Matches CommentThread: one-off authors stay neutral so a colour always means
-// the same thing on both sides of a jump.
+// Matches CommentThread: a jump keeps both the thread-local hue and the quieter
+// treatment reserved for voices that appear only once in the discussion.
 const getAuthorSeedClass = (link: CommentLink) => {
-  const author = getActiveMention(link).author
+  const mention = getActiveMention(link)
 
   return {
-    'seed-palette-neutral': (props.authorCommentCounts?.get(author) ?? 1) < 2,
+    'seed-palette-quiet': (props.authorCommentCounts?.get(mention.author) ?? 1) < 2,
   }
 }
 

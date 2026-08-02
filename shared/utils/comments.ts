@@ -3,28 +3,41 @@ import type { Comment } from '#shared/types'
 export const DEFAULT_COMMENT_DEPTH = 3
 
 /**
- * A subtree only starts collapsed when hiding it actually saves scanning effort.
- * Below this size the replies are cheaper to read than the disclosure control.
+ * A subtree only starts behind a reply gate when hiding it actually saves
+ * scanning effort. Below this size the replies are cheaper to read than the
+ * disclosure control.
  */
-export const COLLAPSED_SUBTREE_MIN_DESCENDANTS = 4
+export const HIDDEN_REPLY_SUBTREE_MIN_DESCENDANTS = 4
 
 export const COMMENT_PREVIEW_LENGTH = 100
 
+export type CommentDisclosureState = {
+  compactedIds: ReadonlySet<number>
+  hiddenReplyIds: ReadonlySet<number>
+}
+
 export type CommentTreeSummary = {
   authorCounts: ReadonlyMap<string, number>
+  commentAuthors: ReadonlyMap<number, string>
   descendantCounts: ReadonlyMap<number, number>
+  parentCommentIds: ReadonlyMap<number, number | null>
+  rootCommentIds: ReadonlyMap<number, number>
+  previousSiblingIds: ReadonlyMap<number, number>
+  nextSiblingIds: ReadonlyMap<number, number>
   /**
    * Comments whose replies are hidden on first render. The gate is armed at
    * exactly `maximumDepth`, never below it, so opening one of these renders the
    * rest of the chain in a single click instead of one click per level.
    */
-  defaultCollapsedIds: ReadonlySet<number>
+  defaultHiddenReplyIds: ReadonlySet<number>
   total: number
 }
 
 type CommentFrame = {
   comment: Comment
   depth: number
+  parentCommentId: number | null
+  rootCommentId: number
   visited: boolean
 }
 
@@ -33,14 +46,37 @@ export const summarizeCommentTree = (
   maximumDepth = DEFAULT_COMMENT_DEPTH,
 ): CommentTreeSummary => {
   const authorCounts = new Map<string, number>()
+  const commentAuthors = new Map<number, string>()
   const descendantCounts = new Map<number, number>()
-  const defaultCollapsedIds = new Set<number>()
+  const parentCommentIds = new Map<number, number | null>()
+  const rootCommentIds = new Map<number, number>()
+  const previousSiblingIds = new Map<number, number>()
+  const nextSiblingIds = new Map<number, number>()
+  const defaultHiddenReplyIds = new Set<number>()
   const stack: CommentFrame[] = comments.map((comment) => ({
     comment,
     depth: 1,
+    parentCommentId: null,
+    rootCommentId: comment.id,
     visited: false,
   }))
   let total = 0
+
+  const recordSiblingNavigation = (siblings: Comment[]) => {
+    siblings.forEach((comment, index) => {
+      const previousSibling = siblings[index - 1]
+      const nextSibling = siblings[index + 1]
+
+      if (previousSibling) {
+        previousSiblingIds.set(comment.id, previousSibling.id)
+      }
+      if (nextSibling) {
+        nextSiblingIds.set(comment.id, nextSibling.id)
+      }
+    })
+  }
+
+  recordSiblingNavigation(comments)
 
   while (stack.length > 0) {
     const frame = stack.pop()
@@ -49,7 +85,7 @@ export const summarizeCommentTree = (
       continue
     }
 
-    const { comment, depth, visited } = frame
+    const { comment, depth, parentCommentId, rootCommentId, visited } = frame
     const children = comment.children ?? []
 
     if (visited) {
@@ -58,8 +94,11 @@ export const summarizeCommentTree = (
       }, 0)
       descendantCounts.set(comment.id, descendantCount)
 
-      if (depth === maximumDepth && descendantCount >= COLLAPSED_SUBTREE_MIN_DESCENDANTS) {
-        defaultCollapsedIds.add(comment.id)
+      if (
+        depth === maximumDepth
+        && descendantCount >= HIDDEN_REPLY_SUBTREE_MIN_DESCENDANTS
+      ) {
+        defaultHiddenReplyIds.add(comment.id)
       }
 
       continue
@@ -67,18 +106,98 @@ export const summarizeCommentTree = (
 
     total += 1
     authorCounts.set(comment.author, (authorCounts.get(comment.author) ?? 0) + 1)
+    commentAuthors.set(comment.id, comment.author)
+    parentCommentIds.set(comment.id, parentCommentId)
+    rootCommentIds.set(comment.id, rootCommentId)
+    recordSiblingNavigation(children)
 
-    stack.push({ comment, depth, visited: true })
+    stack.push({ comment, depth, parentCommentId, rootCommentId, visited: true })
     children.forEach((child) => {
-      stack.push({ comment: child, depth: depth + 1, visited: false })
+      stack.push({
+        comment: child,
+        depth: depth + 1,
+        parentCommentId: comment.id,
+        rootCommentId,
+        visited: false,
+      })
     })
   }
 
   return {
     authorCounts,
+    commentAuthors,
     descendantCounts,
-    defaultCollapsedIds,
+    parentCommentIds,
+    rootCommentIds,
+    previousSiblingIds,
+    nextSiblingIds,
+    defaultHiddenReplyIds,
     total,
+  }
+}
+
+export const getCommentReplyCountLabel = (
+  directReplyCount: number,
+  descendantCount: number,
+) => {
+  const directLabel = `${directReplyCount} ${directReplyCount === 1 ? 'reply' : 'replies'}`
+
+  return descendantCount > directReplyCount
+    ? `${directLabel} · ${descendantCount} in thread`
+    : directLabel
+}
+
+const toggleCommentId = (ids: ReadonlySet<number>, commentId: number) => {
+  const nextIds = new Set(ids)
+
+  if (!nextIds.delete(commentId)) {
+    nextIds.add(commentId)
+  }
+
+  return nextIds
+}
+
+export const toggleCommentCompaction = (
+  state: CommentDisclosureState,
+  commentId: number,
+): CommentDisclosureState => ({
+  compactedIds: toggleCommentId(state.compactedIds, commentId),
+  hiddenReplyIds: state.hiddenReplyIds,
+})
+
+export const toggleCommentReplies = (
+  state: CommentDisclosureState,
+  commentId: number,
+): CommentDisclosureState => ({
+  compactedIds: state.compactedIds,
+  hiddenReplyIds: toggleCommentId(state.hiddenReplyIds, commentId),
+})
+
+export const getExpandedCommentDisclosure = (): CommentDisclosureState => ({
+  compactedIds: new Set(),
+  hiddenReplyIds: new Set(),
+})
+
+export const getSmartCommentDisclosure = (
+  defaultHiddenReplyIds: ReadonlySet<number>,
+): CommentDisclosureState => ({
+  compactedIds: new Set(),
+  hiddenReplyIds: new Set(defaultHiddenReplyIds),
+})
+
+export const revealCommentPath = (
+  state: CommentDisclosureState,
+  pathIds: readonly number[],
+): CommentDisclosureState => {
+  const compactedIds = new Set(state.compactedIds)
+  const hiddenReplyIds = new Set(state.hiddenReplyIds)
+
+  pathIds.forEach(commentId => compactedIds.delete(commentId))
+  pathIds.slice(0, -1).forEach(commentId => hiddenReplyIds.delete(commentId))
+
+  return {
+    compactedIds,
+    hiddenReplyIds,
   }
 }
 

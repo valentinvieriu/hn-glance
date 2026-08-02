@@ -143,6 +143,8 @@
               :comments="story.children"
               :story-url="story.url"
               :author-comment-counts="authorCommentCounts"
+              :thread-author-palettes="commentThreadAuthorPalettes"
+              :root-comment-ids="rootCommentIds"
               @jump-to-comment="jumpToComment"
             />
           </section>
@@ -163,7 +165,7 @@
             >
               <LucideChevronsUp v-if="areAllCommentsExpanded" class="w-4 h-4" />
               <LucideChevronsDown v-else class="w-4 h-4" />
-              <span>{{ areAllCommentsExpanded ? 'Collapse nested' : 'Expand all' }}</span>
+              <span>{{ areAllCommentsExpanded ? 'Smart collapse' : 'Expand all' }}</span>
             </button>
           </div>
           <div v-if="story.children.length === 0" class="text-gray-500 leading-7">
@@ -176,9 +178,18 @@
               :comment="comment"
               :story-author="story.author"
               :author-comment-counts="authorCommentCounts"
+              :author-palette="getCommentThreadAuthorPaletteForRoot(comment.id)"
+              :comment-authors="commentAuthors"
               :descendant-comment-counts="descendantCommentCounts"
-              :collapsed-ids="collapsedCommentIds"
-              :toggle-collapsed="toggleCommentCollapsed"
+              :parent-comment-ids="parentCommentIds"
+              :root-comment-ids="rootCommentIds"
+              :previous-sibling-ids="previousSiblingIds"
+              :next-sibling-ids="nextSiblingIds"
+              :compacted-ids="compactedCommentIds"
+              :hidden-reply-ids="hiddenReplyIds"
+              :toggle-compacted="toggleCommentCompacted"
+              :toggle-replies-hidden="toggleRepliesHidden"
+              :jump-to-comment="jumpToComment"
             />
           </div>
         </aside>
@@ -225,13 +236,26 @@
 import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue';
 import { LucideExternalLink, LucideTrendingUp, LucideMessageSquare, LucideChevronsDown, LucideChevronsUp, LucideMaximize2, LucideX } from '@lucide/vue';
 import { useSanitizer } from '~/composables/useSanitizer';
-import { getSeedPaletteStyle, getStoryContextPaletteStyle } from '~/composables/useSeedPalette';
+import {
+  getCommentThreadAuthorPalette,
+  getSeedPaletteStyle,
+  getStoryContextPaletteStyle,
+  type CommentThreadAuthorPalette,
+} from '~/composables/useSeedPalette';
 import type {
   RelatedStory,
   StoryContextResponse,
   StoryDetail,
 } from '#shared/types'
-import { getCommentPathIds, summarizeCommentTree } from '#shared/utils/comments'
+import {
+  getCommentPathIds,
+  getExpandedCommentDisclosure,
+  getSmartCommentDisclosure,
+  revealCommentPath,
+  summarizeCommentTree,
+  toggleCommentCompaction,
+  toggleCommentReplies,
+} from '#shared/utils/comments'
 import { formatTimeAgo } from '#shared/utils/date'
 import { getHnItemUrl, getHnUserPath, normalizeHnItemId } from '#shared/utils/hn'
 import { getScreenshotPath } from '#shared/utils/screenshot'
@@ -434,13 +458,13 @@ const getCommentIdFromHash = (hash: string) => {
 }
 
 /**
- * Single source of truth for comment disclosure. The per-comment toggle, the
- * spine, the toolbar, and deep links all resolve to edits on this set. It stays
- * null until something is toggled so the rendered state derives from the summary
- * on both SSR and hydration -- a seeding watcher would miss, because Vue does not
- * re-run watchers on the server once the story request resolves.
+ * Compaction skips a whole comment branch; reply disclosure keeps the current
+ * comment readable and hides only its children. Overrides stay null until the
+ * reader acts so smart reply gates derive from the SSR summary during hydration.
  */
-const collapsedCommentOverride = ref<ReadonlySet<number> | null>(null)
+const EMPTY_COMMENT_IDS: ReadonlySet<number> = new Set()
+const compactedCommentOverride = ref<ReadonlySet<number> | null>(null)
+const hiddenReplyOverride = ref<ReadonlySet<number> | null>(null)
 let commentHighlightTimer: ReturnType<typeof setTimeout> | undefined
 let highlightedComment: HTMLElement | null = null
 
@@ -469,10 +493,14 @@ const jumpToComment = async (commentId: number, updateHash = true) => {
   const pathIds = getCommentPathIds(story.value?.children ?? [], commentId)
 
   if (pathIds) {
-    // Open only the ancestors of the target; the rest of the thread stays as-is.
-    const nextCollapsed = new Set(collapsedCommentIds.value)
-    pathIds.forEach(pathId => nextCollapsed.delete(pathId))
-    collapsedCommentOverride.value = nextCollapsed
+    // Open only what is required to render the target. Its own reply visibility
+    // and every unrelated branch retain their existing state.
+    const nextState = revealCommentPath({
+      compactedIds: compactedCommentIds.value,
+      hiddenReplyIds: hiddenReplyIds.value,
+    }, pathIds)
+    compactedCommentOverride.value = nextState.compactedIds
+    hiddenReplyOverride.value = nextState.hiddenReplyIds
   }
   await nextTick()
 
@@ -480,7 +508,9 @@ const jumpToComment = async (commentId: number, updateHash = true) => {
 
   if (!target) {
     // Safety net: open the whole tree if targeted expansion missed.
-    collapsedCommentOverride.value = new Set()
+    const expandedState = getExpandedCommentDisclosure()
+    compactedCommentOverride.value = expandedState.compactedIds
+    hiddenReplyOverride.value = expandedState.hiddenReplyIds
     await nextTick()
     target = document.getElementById(`comment-${commentId}`)
   }
@@ -490,11 +520,15 @@ const jumpToComment = async (commentId: number, updateHash = true) => {
   }
 
   if (updateHash) {
-    window.history.replaceState(
-      window.history.state,
-      '',
-      `${window.location.pathname}${window.location.search}#comment-${commentId}`,
-    )
+    const nextUrl = `${window.location.pathname}${window.location.search}#comment-${commentId}`
+
+    if (window.location.hash !== `#comment-${commentId}`) {
+      window.history.pushState(
+        window.history.state,
+        '',
+        nextUrl,
+      )
+    }
   }
 
   const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -571,7 +605,8 @@ watch(screenshotSrc, () => {
 
 watch(storyId, () => {
   clearCommentHighlight()
-  collapsedCommentOverride.value = null
+  compactedCommentOverride.value = null
+  hiddenReplyOverride.value = null
   clearStoryContext()
 
   if (isStoryContextNearViewport.value) {
@@ -594,32 +629,76 @@ const sanitizedText = computed(() => sanitize(story.value?.text || '', `story-${
 const commentSummary = computed(() => summarizeCommentTree(story.value?.children || []))
 const commentCount = computed(() => commentSummary.value.total)
 const authorCommentCounts = computed(() => commentSummary.value.authorCounts)
+const commentAuthors = computed(() => commentSummary.value.commentAuthors)
 const descendantCommentCounts = computed(() => commentSummary.value.descendantCounts)
-const defaultCollapsedCommentIds = computed(() => commentSummary.value.defaultCollapsedIds)
+const parentCommentIds = computed(() => commentSummary.value.parentCommentIds)
+const rootCommentIds = computed(() => commentSummary.value.rootCommentIds)
+const previousSiblingIds = computed(() => commentSummary.value.previousSiblingIds)
+const nextSiblingIds = computed(() => commentSummary.value.nextSiblingIds)
+const defaultHiddenReplyIds = computed(() => commentSummary.value.defaultHiddenReplyIds)
+const EMPTY_COMMENT_THREAD_AUTHOR_PALETTE: CommentThreadAuthorPalette = {
+  authorCounts: new Map(),
+  authorStyles: new Map(),
+}
+const commentThreadAuthorPalettes = computed(() => {
+  const palettes = new Map<number, CommentThreadAuthorPalette>()
 
-const collapsedCommentIds = computed<ReadonlySet<number>>(() => {
-  return collapsedCommentOverride.value ?? defaultCollapsedCommentIds.value
+  for (const rootComment of story.value?.children ?? []) {
+    palettes.set(rootComment.id, getCommentThreadAuthorPalette(rootComment))
+  }
+
+  return palettes
+})
+const getCommentThreadAuthorPaletteForRoot = (rootCommentId: number) => {
+  return commentThreadAuthorPalettes.value.get(rootCommentId)
+    ?? EMPTY_COMMENT_THREAD_AUTHOR_PALETTE
+}
+
+const compactedCommentIds = computed<ReadonlySet<number>>(() => {
+  return compactedCommentOverride.value ?? EMPTY_COMMENT_IDS
 })
 
-const areAllCommentsExpanded = computed(() => collapsedCommentIds.value.size === 0)
+const hiddenReplyIds = computed<ReadonlySet<number>>(() => {
+  return hiddenReplyOverride.value ?? defaultHiddenReplyIds.value
+})
+
+const areAllCommentsExpanded = computed(() => {
+  return compactedCommentIds.value.size === 0 && hiddenReplyIds.value.size === 0
+})
+
 const canToggleAllComments = computed(() => {
-  return defaultCollapsedCommentIds.value.size > 0 || collapsedCommentIds.value.size > 0
+  return defaultHiddenReplyIds.value.size > 0
+    || compactedCommentIds.value.size > 0
+    || hiddenReplyIds.value.size > 0
 })
 
 const toggleExpandAllComments = () => {
-  collapsedCommentOverride.value = areAllCommentsExpanded.value
-    ? new Set(defaultCollapsedCommentIds.value)
-    : new Set()
+  const nextState = areAllCommentsExpanded.value
+    ? getSmartCommentDisclosure(defaultHiddenReplyIds.value)
+    : getExpandedCommentDisclosure()
+
+  compactedCommentOverride.value = nextState.compactedIds
+  hiddenReplyOverride.value = nextState.hiddenReplyIds
 }
 
-const toggleCommentCollapsed = (commentId: number) => {
-  const nextCollapsed = new Set(collapsedCommentIds.value)
+const toggleCommentCompacted = (commentId: number) => {
+  const nextState = toggleCommentCompaction({
+    compactedIds: compactedCommentIds.value,
+    hiddenReplyIds: hiddenReplyIds.value,
+  }, commentId)
 
-  if (!nextCollapsed.delete(commentId)) {
-    nextCollapsed.add(commentId)
-  }
+  compactedCommentOverride.value = nextState.compactedIds
+  hiddenReplyOverride.value = nextState.hiddenReplyIds
+}
 
-  collapsedCommentOverride.value = nextCollapsed
+const toggleRepliesHidden = (commentId: number) => {
+  const nextState = toggleCommentReplies({
+    compactedIds: compactedCommentIds.value,
+    hiddenReplyIds: hiddenReplyIds.value,
+  }, commentId)
+
+  compactedCommentOverride.value = nextState.compactedIds
+  hiddenReplyOverride.value = nextState.hiddenReplyIds
 }
 
 const timeAgo = computed(() => {

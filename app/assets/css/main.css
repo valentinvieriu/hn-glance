@@ -150,9 +150,8 @@ button {
   --feed-nav-text: oklch(12% 0.018 var(--feed-hue-a, 30));
 }
 
-/* Chroma is scaled through --seed-chroma so `.seed-palette-neutral` can drain
-   the colour out of a surface with one declaration instead of redeclaring the
-   whole token set. Hue is retained but irrelevant at zero chroma. */
+/* Chroma is scaled through --seed-chroma so author surfaces can be quieted or
+   drained with one declaration instead of redeclaring the whole token set. */
 .seed-palette-surface {
   --seed-chroma: 1;
   --seed-accent: oklch(50% calc(0.115 * var(--seed-chroma, 1)) var(--seed-hue, 30));
@@ -200,9 +199,13 @@ button {
   --seed-overlay-edge: oklch(34% calc(0.085 * var(--seed-chroma, 1)) var(--seed-hue, 30) / 0.44);
 }
 
-/* Applied alongside `.seed-palette-surface` for authors who comment once in a
-   thread, so colour is reserved for voices the reader will meet again. Needs a
-   dark-mode twin to outweigh `.dark .seed-palette-surface`. */
+/* A one-off voice keeps its identity hue, but at lower chroma than a recurring
+   participant. The dark-mode twin outweighs `.dark .seed-palette-surface`. */
+.seed-palette-quiet,
+.dark .seed-palette-quiet {
+  --seed-chroma: 0.42;
+}
+
 .seed-palette-neutral,
 .dark .seed-palette-neutral {
   --seed-chroma: 0;
