@@ -72,7 +72,7 @@
       </div>
       <div
         v-if="!isCollapsed"
-        class="comment-text rich-text break-words"
+        class="comment-text reading-text rich-text break-words"
         v-html="sanitizedText"
       ></div>
     </div>
@@ -191,9 +191,9 @@ const replyHref = computed(() => {
 <style scoped>
 .comment-container {
   --comment-indent: 0.85rem;
-  /* Roughly 70 characters in Inter: wide enough to reduce scroll in long
-     discussions while staying below the 75-80 character readability ceiling.
-     Held in rem so the smaller metadata row shares the body's visual edge. */
+  /* Roughly 60-68 characters in the reading face: wide enough to reduce scroll
+     while staying below the 75-80 character readability ceiling. Held in rem
+     so the smaller metadata row shares the body's visual edge. */
   --comment-measure: 33rem;
   position: relative;
   scroll-margin-top: 6rem;
@@ -265,7 +265,7 @@ const replyHref = computed(() => {
   border-radius: 0.4rem;
   background: var(--seed-accent-soft);
   font-size: 0.8125rem;
-  font-weight: 500;
+  font-weight: 550;
   line-height: 1.3;
   color: rgb(71 85 105);
 }
@@ -355,7 +355,7 @@ const replyHref = computed(() => {
   align-items: center;
   gap: 0.24rem;
   color: var(--seed-author-text);
-  font-weight: 650;
+  font-weight: 600;
   line-height: 1;
   white-space: nowrap;
   opacity: 0.75;
@@ -385,7 +385,7 @@ const replyHref = computed(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-weight: 650;
+  font-weight: 600;
 }
 
 .comment-time {
@@ -399,7 +399,7 @@ const replyHref = computed(() => {
   padding-left: 0.42rem;
   border-left: 1px solid color-mix(in oklch, var(--seed-border-strong) 60%, transparent);
   color: var(--seed-accent-strong);
-  font-weight: 650;
+  font-weight: 600;
   white-space: nowrap;
 }
 
@@ -421,7 +421,7 @@ const replyHref = computed(() => {
   min-height: 1.5rem;
   padding: 0 0.18rem;
   color: inherit;
-  font-weight: 650;
+  font-weight: 600;
   opacity: 0.72;
   transition: opacity 0.15s ease;
 }
@@ -435,9 +435,9 @@ const replyHref = computed(() => {
   margin: 0.55rem 0 0;
   padding-left: 0.3rem;
   max-width: var(--comment-measure);
-  font-size: 1.03125rem;
+  font-size: 1.0625rem;
   font-weight: 400;
-  line-height: 1.66;
+  line-height: 1.65;
   color: rgb(30 41 59);
   overflow-wrap: anywhere;
 }
@@ -507,7 +507,7 @@ const replyHref = computed(() => {
   }
 
   .comment-text {
-    font-size: 1rem;
+    font-size: 1.0625rem;
     line-height: 1.65;
   }
 

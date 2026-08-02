@@ -165,7 +165,7 @@ defineProps<{
 .submission-history-entry-title {
   margin-top: 0.3rem;
   color: rgb(30 41 59);
-  font-family: var(--font-display);
+  font-family: var(--font-ui);
   font-size: 0.96rem;
   font-weight: 650;
   line-height: 1.35;

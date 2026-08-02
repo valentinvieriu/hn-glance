@@ -92,7 +92,7 @@ const handlePreviewLoad = (event: Event) => {
 }
 
 .source-identity-fallback {
-  font-family: var(--font-display);
+  font-family: var(--font-ui);
   font-size: 0.95rem;
   font-weight: 760;
   line-height: 1;

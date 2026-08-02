@@ -103,7 +103,7 @@ watch(
 }
 
 .feed-nav-link {
-  font-family: var(--font-display);
+  font-family: var(--font-ui);
   font-size: 0.8125rem;
   line-height: 1.2;
   color: rgb(71 85 105);

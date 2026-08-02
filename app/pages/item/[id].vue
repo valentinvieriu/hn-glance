@@ -22,7 +22,7 @@
           :style="storyContextPaletteStyle"
         >
           <article class="story-detail-article min-w-0">
-          <h1 class="mb-3 text-3xl font-display font-semibold leading-tight text-gray-900 dark:text-gray-100 md:text-4xl">
+          <h1 class="story-detail-title mb-3 text-3xl font-display leading-tight text-gray-900 dark:text-gray-100 md:text-4xl">
             {{ story.title }}
           </h1>
           <a
@@ -119,7 +119,7 @@
             </span>
           </div>
           <div
-            class="story-detail-text rich-text reading-measure mb-5 text-base leading-7 text-gray-700 dark:text-gray-300"
+            class="story-detail-text reading-text rich-text reading-measure mb-5 text-base leading-7 text-gray-700 dark:text-gray-300"
             v-html="sanitizedText"
           ></div>
           </article>
@@ -676,6 +676,11 @@ useSeoMeta({
 
 .story-detail-article > h1 {
   text-wrap: balance;
+}
+
+.story-detail-title {
+  font-weight: 650;
+  letter-spacing: -0.03em;
 }
 
 .story-detail-comments {

@@ -7,8 +7,9 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        sans: ['Inter', ...defaultTheme.fontFamily.sans],
-        display: ['Sora', 'Inter', ...defaultTheme.fontFamily.sans],
+        sans: ['Source Sans 3', ...defaultTheme.fontFamily.sans],
+        display: ['Source Sans 3', ...defaultTheme.fontFamily.sans],
+        reading: ['Source Serif 4', ...defaultTheme.fontFamily.serif],
       },
       colors: {
         'natural-wood': '#DEB887',

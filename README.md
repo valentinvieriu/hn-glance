@@ -50,10 +50,46 @@ The card model is intentionally simple:
 
 This keeps the browsing flow direct: scan, compare, open, or move on.
 
+The loop has two halves. Screenshots and cards serve the scanning half.
+Typography serves the reading half: once a reader commits to a story page,
+comments and story prose switch to a dedicated reading voice so long
+discussions stay comfortable while the interface keeps its own character.
+
 The responsive layout follows that same split. Visual discovery surfaces use
 available width to show more screenshots at a useful size, while story text,
 comments, profiles, and policy copy retain bounded reading measures. Shared
 fluid gutters align the app shell and keep content away from the viewport edge.
+
+## Look and Feel
+
+HN Glance should feel like a modern reader application: current, calm, and a
+little warm. It is not a newspaper, not a magazine, not a dense text-first HN
+clone, and not a design-forward trend piece chasing interface fashion.
+
+The identity comes from the app shell: light and dark surfaces, seeded color
+palettes, rounded cards, and compact sans-serif chrome. Typography encodes the
+product model with two voices:
+
+- Source Sans 3 is the interface voice. Navigation, titles, metadata, buttons,
+  and everything clickable orients the user quickly.
+- Source Serif 4 is the reading voice. Comment bodies, quoted text, and story
+  prose signal "settle in and read" the way dedicated reader modes do.
+
+The serif appears only at body size inside reading surfaces. It is texture,
+not a statement. These guardrails keep the app out of print and editorial
+territory:
+
+- No serif above body size. Headings, story titles, section titles, and
+  navigation stay sans-serif.
+- No serif in interactive elements.
+- Text stays ragged-right; columns are never justified.
+- Keep the colorful seeded palettes. Monochrome-on-cream is the print look the
+  app must not drift toward.
+- Blockquotes stay small-scale quote styling inside comments; they must not
+  grow into magazine pull quotes.
+
+When adding UI, default to the sans interface voice and reserve the serif for
+content a user reads for more than a moment.
 
 ## Tech Stack
 
@@ -125,6 +161,8 @@ Use `npm run check` as the baseline check before shipping changes.
 - `app/composables/`: shared client logic such as story loading and sanitization.
 - `app/utils/storyScreenshotObserver.ts`: shared feed-card screenshot preload observer.
 - `app/assets/css/main.css`: global typography and rich-text styling.
+- Typography uses Source Sans 3 for the interface and Source Serif 4 for
+  comments, quoted text, and story prose, with self-hosted variable weights.
 - `app/assets/css/main.css` also owns the shared fluid layout frame, page
   gutters, visual-grid gaps, and reading measure used across the app shell.
 - `shared/types/index.ts`: story, comment, user, and activity types shared by the app and server.

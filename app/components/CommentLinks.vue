@@ -310,7 +310,7 @@ const handleJump = (link: CommentLink) => {
 .comment-link-title {
   display: inline;
   color: rgb(15 23 42);
-  font-family: var(--font-display);
+  font-family: var(--font-ui);
   font-size: 0.98rem;
   font-weight: 650;
   line-height: 1.32;

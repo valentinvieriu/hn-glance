@@ -25,7 +25,7 @@
     </div>
 
     <div
-      class="rich-text comment-card-text"
+      class="reading-text rich-text comment-card-text"
       v-html="sanitizedText"
     ></div>
 
@@ -168,11 +168,11 @@ const hnCommentUrl = computed(() => getHnItemUrl(props.comment.objectID))
 }
 
 .comment-card-text {
-  max-width: var(--measure-reading);
+  max-width: 68ch;
   padding: 0.95rem 1.05rem 0.2rem;
   color: rgb(30 41 59);
-  font-size: 0.95rem;
-  line-height: 1.68;
+  font-size: 1.0625rem;
+  line-height: 1.65;
 }
 
 .dark .comment-card-text {

@@ -27,12 +27,13 @@ export default defineNuxtConfig({
   ],
   googleFonts: {
     families: {
-      Inter: {
-        wght: [400, 500, 600, 700],
-        ital: [400, 600],
+      'Source Sans 3': {
+        wght: '400..800',
+        ital: '400..700',
       },
-      Sora: {
-        wght: [400, 500, 600, 700],
+      'Source Serif 4': {
+        wght: '400..700',
+        ital: '400..700',
       },
     },
     display: 'optional',

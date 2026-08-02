@@ -272,7 +272,16 @@ Styling approach:
   reading-heavy sections so wider screens improve scanning without producing
   long, tiring text lines.
 - Dark mode uses `@nuxtjs/color-mode` with class-based Tailwind dark mode.
-- Fonts are Inter for body text and Sora for display headings.
+- Fonts are Source Sans 3 for interface text and Source Serif 4 for reading
+  surfaces such as comments, quoted text, and story prose. Both use downloaded
+  variable weight ranges so intermediate weights remain genuine font instances.
+- Typography is two voices with a hard boundary. The serif reading voice
+  appears only at body size inside reading surfaces; headings, story titles,
+  section titles, navigation, and interactive elements stay sans-serif. Keep
+  text ragged-right, never justified, and keep blockquotes small-scale quote
+  styling rather than magazine pull quotes. HN Glance should read as a modern
+  reader app, never as a newspaper, magazine, or editorial layout; the
+  colorful seeded palettes are part of that anti-print identity.
 - Google Font faces are self-hosted and injected into Nuxt's hashed CSS with `font-display: optional`; do not restore the separate `/css/nuxt-google-fonts.css` render-blocking link.
 - Prefer the existing feed theme and seed palette helpers over one-off color systems.
 

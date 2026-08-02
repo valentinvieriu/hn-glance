@@ -89,7 +89,7 @@
       </div>
       <div class="story-card-content">
         <NuxtLink :to="`/item/${story.objectID}`" class="story-card-title-link">
-          <h2 class="story-card-title font-display text-[1.05rem] md:text-[1.08rem] font-semibold leading-snug line-clamp-3 overflow-hidden">
+          <h2 class="story-card-title font-display text-[1.05rem] md:text-[1.08rem] leading-snug line-clamp-3 overflow-hidden">
             {{ story.title }}
           </h2>
         </NuxtLink>
@@ -663,6 +663,8 @@ onBeforeUnmount(() => {
 .story-card-title {
   margin-bottom: 0;
   color: rgb(15 23 42);
+  font-weight: 650;
+  letter-spacing: -0.015em;
   transition: color 180ms ease;
 }
 

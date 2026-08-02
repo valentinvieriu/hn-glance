@@ -642,7 +642,7 @@ useSeoMeta({
 
 .user-stat-value {
   color: var(--seed-author-text);
-  font-family: var(--font-display);
+  font-family: var(--font-ui);
   font-size: 1.35rem;
   font-weight: 700;
   line-height: 1;

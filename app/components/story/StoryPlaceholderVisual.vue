@@ -269,7 +269,7 @@ const renderModel = computed(() => {
   border-radius: 0.48rem;
   background: var(--wire-focus);
   color: var(--seed-accent-strong);
-  font-family: var(--font-display);
+  font-family: var(--font-ui);
   font-size: 0.58rem;
   font-weight: 700;
   letter-spacing: 0.04em;
