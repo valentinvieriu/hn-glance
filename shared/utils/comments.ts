@@ -9,10 +9,13 @@ export const DEFAULT_COMMENT_DEPTH = 3
  */
 export const HIDDEN_REPLY_SUBTREE_MIN_DESCENDANTS = 4
 
+export type CommentSort = 'hn' | 'discussed' | 'recent'
+
 export type CommentTreeSummary = {
   authorCounts: ReadonlyMap<string, number>
   commentAuthors: ReadonlyMap<number, string>
   descendantCounts: ReadonlyMap<number, number>
+  latestActivityTimestamps: ReadonlyMap<number, number>
   parentCommentIds: ReadonlyMap<number, number | null>
   rootCommentIds: ReadonlyMap<number, number>
   /**
@@ -39,6 +42,7 @@ export const summarizeCommentTree = (
   const authorCounts = new Map<string, number>()
   const commentAuthors = new Map<number, string>()
   const descendantCounts = new Map<number, number>()
+  const latestActivityTimestamps = new Map<number, number>()
   const parentCommentIds = new Map<number, number | null>()
   const rootCommentIds = new Map<number, number>()
   const defaultHiddenReplyIds = new Set<number>()
@@ -65,7 +69,15 @@ export const summarizeCommentTree = (
       const descendantCount = children.reduce((count, child) => {
         return count + 1 + (descendantCounts.get(child.id) ?? 0)
       }, 0)
+      const createdAtTimestamp = Date.parse(comment.created_at)
+      const latestActivityTimestamp = children.reduce((latestTimestamp, child) => {
+        return Math.max(
+          latestTimestamp,
+          latestActivityTimestamps.get(child.id) ?? Number.NEGATIVE_INFINITY,
+        )
+      }, Number.isFinite(createdAtTimestamp) ? createdAtTimestamp : Number.NEGATIVE_INFINITY)
       descendantCounts.set(comment.id, descendantCount)
+      latestActivityTimestamps.set(comment.id, latestActivityTimestamp)
 
       if (
         depth === maximumDepth
@@ -99,11 +111,36 @@ export const summarizeCommentTree = (
     authorCounts,
     commentAuthors,
     descendantCounts,
+    latestActivityTimestamps,
     parentCommentIds,
     rootCommentIds,
     defaultHiddenReplyIds,
     total,
   }
+}
+
+export const sortCommentThreads = (
+  comments: Comment[],
+  sort: CommentSort,
+  summary: Pick<CommentTreeSummary, 'descendantCounts' | 'latestActivityTimestamps'>,
+): Comment[] => {
+  if (sort === 'hn') {
+    return comments
+  }
+
+  const originalIndexes = new Map(comments.map((comment, index) => [comment.id, index]))
+
+  return [...comments].sort((left, right) => {
+    const leftValue = sort === 'discussed'
+      ? summary.descendantCounts.get(left.id) ?? 0
+      : summary.latestActivityTimestamps.get(left.id) ?? Number.NEGATIVE_INFINITY
+    const rightValue = sort === 'discussed'
+      ? summary.descendantCounts.get(right.id) ?? 0
+      : summary.latestActivityTimestamps.get(right.id) ?? Number.NEGATIVE_INFINITY
+
+    return rightValue - leftValue
+      || (originalIndexes.get(left.id) ?? 0) - (originalIndexes.get(right.id) ?? 0)
+  })
 }
 
 export const getCommentReplyCountLabel = (

@@ -157,23 +157,41 @@
                 {{ commentCount }} total
               </span>
             </div>
-            <button
-              v-if="canToggleAllComments"
-              type="button"
-              class="expand-comments-button text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100"
-              @click="toggleExpandAllComments"
-            >
-              <LucideChevronsUp v-if="areAllCommentsExpanded" class="w-4 h-4" />
-              <LucideChevronsDown v-else class="w-4 h-4" />
-              <span>{{ areAllCommentsExpanded ? 'Hide deep replies' : 'Expand all' }}</span>
-            </button>
+            <div v-if="canSortComments || canToggleAllComments" class="comments-actions">
+              <label
+                v-if="canSortComments"
+                class="comments-sort-control text-gray-700 dark:text-gray-300"
+              >
+                <LucideArrowDownUp class="h-4 w-4 shrink-0" aria-hidden="true" />
+                <span class="sr-only">Sort comment threads</span>
+                <select
+                  v-model="commentSort"
+                  class="comments-sort-select"
+                  aria-label="Sort comment threads"
+                >
+                  <option value="hn">HN order</option>
+                  <option value="discussed">Most discussed</option>
+                  <option value="recent">Recent activity</option>
+                </select>
+              </label>
+              <button
+                v-if="canToggleAllComments"
+                type="button"
+                class="expand-comments-button text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100"
+                @click="toggleExpandAllComments"
+              >
+                <LucideChevronsUp v-if="areAllCommentsExpanded" class="w-4 h-4" />
+                <LucideChevronsDown v-else class="w-4 h-4" />
+                <span>{{ areAllCommentsExpanded ? 'Hide deep replies' : 'Expand all' }}</span>
+              </button>
+            </div>
           </div>
           <div v-if="story.children.length === 0" class="text-gray-500 leading-7">
             No comments yet.
           </div>
           <div v-else class="comments-list">
             <CommentThread
-              v-for="comment in story.children"
+              v-for="comment in sortedComments"
               :key="comment.id"
               :comment="comment"
               :story-author="story.author"
@@ -231,7 +249,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue';
-import { LucideExternalLink, LucideTrendingUp, LucideMessageSquare, LucideChevronsDown, LucideChevronsUp, LucideMaximize2, LucideX } from '@lucide/vue';
+import { LucideArrowDownUp, LucideExternalLink, LucideTrendingUp, LucideMessageSquare, LucideChevronsDown, LucideChevronsUp, LucideMaximize2, LucideX } from '@lucide/vue';
 import { useSanitizer } from '~/composables/useSanitizer';
 import {
   getCommentThreadAuthorPalette,
@@ -245,10 +263,12 @@ import type {
   StoryDetail,
 } from '#shared/types'
 import {
+  type CommentSort,
   getCommentPathIds,
   getExpandedCommentDisclosure,
   getSmartCommentDisclosure,
   revealCommentPath,
+  sortCommentThreads,
   summarizeCommentTree,
   toggleCommentReplies,
 } from '#shared/utils/comments'
@@ -258,6 +278,7 @@ import { getScreenshotPath } from '#shared/utils/screenshot'
 import { appendServerTiming } from '#shared/utils/serverTiming'
 
 const route = useRoute();
+const router = useRouter()
 
 const storyId = computed(() => normalizeHnItemId(route.params.id))
 const storyDataKey = computed(() => `story-detail:${storyId.value ?? 'missing'}`)
@@ -614,6 +635,26 @@ const { sanitize } = useSanitizer();
 const sanitizedText = computed(() => sanitize(story.value?.text || '', `story-${storyId.value}`));
 
 const commentSummary = computed(() => summarizeCommentTree(story.value?.children || []))
+const commentSort = computed<CommentSort>({
+  get: () => {
+    const querySort = Array.isArray(route.query.sort) ? route.query.sort[0] : route.query.sort
+
+    return querySort === 'discussed' || querySort === 'recent'
+      ? querySort
+      : 'hn'
+  },
+  set: (sort) => {
+    const query = { ...route.query }
+
+    if (sort === 'hn') {
+      delete query.sort
+    } else {
+      query.sort = sort
+    }
+
+    void router.replace({ query, hash: route.hash })
+  },
+})
 const commentCount = computed(() => commentSummary.value.total)
 const authorCommentCounts = computed(() => commentSummary.value.authorCounts)
 const commentAuthors = computed(() => commentSummary.value.commentAuthors)
@@ -621,6 +662,12 @@ const descendantCommentCounts = computed(() => commentSummary.value.descendantCo
 const parentCommentIds = computed(() => commentSummary.value.parentCommentIds)
 const rootCommentIds = computed(() => commentSummary.value.rootCommentIds)
 const defaultHiddenReplyIds = computed(() => commentSummary.value.defaultHiddenReplyIds)
+const sortedComments = computed(() => sortCommentThreads(
+  story.value?.children ?? [],
+  commentSort.value,
+  commentSummary.value,
+))
+const canSortComments = computed(() => (story.value?.children.length ?? 0) > 1)
 const EMPTY_COMMENT_THREAD_AUTHOR_PALETTE: CommentThreadAuthorPalette = {
   authorCounts: new Map(),
   authorStyles: new Map(),
@@ -1068,12 +1115,17 @@ useSeoMeta({
   line-height: 1;
 }
 
-.expand-comments-button {
-  display: inline-flex;
+.comments-actions {
+  display: flex;
   align-items: center;
-  gap: 0.4rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.comments-sort-control,
+.expand-comments-button {
   min-height: 2rem;
-  padding: 0.35rem 0.7rem;
   border: 1px solid rgb(148 163 184 / 0.24);
   border-radius: 999px;
   background: rgb(148 163 184 / 0.08);
@@ -1083,15 +1135,56 @@ useSeoMeta({
   transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
 }
 
+.comments-sort-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0.55rem;
+}
+
+.comments-sort-select {
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  line-height: 1.2;
+}
+
+.dark .comments-sort-select {
+  color-scheme: dark;
+}
+
+.expand-comments-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.7rem;
+}
+
+.comments-sort-control:hover,
+.comments-sort-control:focus-within,
 .expand-comments-button:hover {
   border-color: rgb(148 163 184 / 0.38);
   background: rgb(148 163 184 / 0.13);
+}
+
+.comments-sort-control:focus-within {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
 }
 
 @media (max-width: 640px) {
   .comments-toolbar {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .comments-actions {
+    width: 100%;
+    justify-content: space-between;
   }
 }
 </style>

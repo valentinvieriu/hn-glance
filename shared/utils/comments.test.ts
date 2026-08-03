@@ -6,6 +6,7 @@ import {
   getExpandedCommentDisclosure,
   getSmartCommentDisclosure,
   revealCommentPath,
+  sortCommentThreads,
   summarizeCommentTree,
   toggleCommentReplies,
 } from './comments'
@@ -46,6 +47,18 @@ describe('comment tree summary', () => {
     expect(summary.authorCounts.get('alice')).toBe(2)
     expect(summary.descendantCounts.get(1)).toBe(3)
     expect(summary.descendantCounts.get(3)).toBe(1)
+    expect(summary.latestActivityTimestamps.get(1)).toBe(Date.parse('2026-07-12T00:00:00Z'))
+  })
+
+  it('records the latest activity anywhere in each subtree', () => {
+    const root = comment(1, 'alice', [comment(2, 'bob'), comment(3, 'carol')])
+    root.created_at = '2026-07-10T00:00:00Z'
+    root.children[0]!.created_at = '2026-07-14T00:00:00Z'
+    root.children[1]!.created_at = '2026-07-13T00:00:00Z'
+
+    const summary = summarizeCommentTree([root])
+
+    expect(summary.latestActivityTimestamps.get(1)).toBe(Date.parse('2026-07-14T00:00:00Z'))
   })
 
   it('arms the hidden-reply gate only at the default depth', () => {
@@ -98,6 +111,31 @@ describe('comment tree summary', () => {
     expect(summary.rootCommentIds.get(3)).toBe(1)
     expect(summary.rootCommentIds.get(4)).toBe(4)
     expect(summary.commentAuthors.get(3)).toBe('carol')
+  })
+})
+
+describe('comment thread sorting', () => {
+  const comments = [
+    comment(1, 'alice', [comment(2, 'bob')]),
+    comment(3, 'carol', [comment(4, 'dave'), comment(5, 'erin')]),
+    comment(6, 'frank', [comment(7, 'grace'), comment(8, 'heidi')]),
+  ]
+  comments[0]!.children[0]!.created_at = '2026-07-16T00:00:00Z'
+  comments[1]!.children[0]!.created_at = '2026-07-14T00:00:00Z'
+  comments[2]!.children[0]!.created_at = '2026-07-15T00:00:00Z'
+  const summary = summarizeCommentTree(comments)
+
+  it('preserves the API order for HN order', () => {
+    expect(sortCommentThreads(comments, 'hn', summary)).toBe(comments)
+  })
+
+  it('sorts complete branches by descendant count with stable ties', () => {
+    expect(sortCommentThreads(comments, 'discussed', summary).map(item => item.id)).toEqual([3, 6, 1])
+    expect(comments.map(item => item.id)).toEqual([1, 3, 6])
+  })
+
+  it('sorts branches by their newest nested activity', () => {
+    expect(sortCommentThreads(comments, 'recent', summary).map(item => item.id)).toEqual([1, 6, 3])
   })
 })
 
