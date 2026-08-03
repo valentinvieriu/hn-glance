@@ -1,6 +1,10 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
 import { defineNuxtConfig } from 'nuxt/config'
+import { resolve } from 'node:path'
 import { SCREENSHOT_RETENTION_DAYS } from './shared/utils/screenshot'
+
+const GOOGLE_FONTS_OUTPUT_DIR = 'node_modules/.cache/nuxt-google-fonts'
+const GOOGLE_FONTS_OUTPUT_PATH = resolve(GOOGLE_FONTS_OUTPUT_DIR)
 
 export default defineNuxtConfig({
   compatibilityDate: '2026-07-11',
@@ -19,6 +23,16 @@ export default defineNuxtConfig({
       nodeCompat: true,
     },
   },
+  hooks: {
+    'nitro:config': (nitroConfig) => {
+      // Vite already emits the imported stylesheet and fonts as hashed assets.
+      // Avoid copying the module cache too, where superseded font families can
+      // survive later builds as unreferenced public files.
+      nitroConfig.publicAssets = nitroConfig.publicAssets?.filter((asset) => {
+        return asset?.dir !== GOOGLE_FONTS_OUTPUT_PATH
+      })
+    },
+  },
   modules: [
     "nitro-cloudflare-dev",
     "@nuxtjs/tailwindcss",
@@ -26,6 +40,7 @@ export default defineNuxtConfig({
     '@nuxtjs/color-mode',
   ],
   googleFonts: {
+    outputDir: GOOGLE_FONTS_OUTPUT_DIR,
     families: {
       'Source Sans 3': {
         wght: '400..800',

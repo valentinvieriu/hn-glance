@@ -320,12 +320,7 @@ const renderModel = computed(() => {
   vector-effect: none;
 }
 
-.story-placeholder-primitive--line.story-placeholder-primitive--surface,
-.story-placeholder-primitive--line.story-placeholder-primitive--raised {
+.story-placeholder-primitive--line.story-placeholder-primitive--surface {
   stroke: color-mix(in oklch, var(--seed-border-strong) 64%, transparent);
-}
-
-.story-placeholder-primitive--line.story-placeholder-primitive--accent-soft {
-  stroke: color-mix(in oklch, var(--seed-accent) 72%, transparent);
 }
 </style>

@@ -9,7 +9,6 @@ export default {
       fontFamily: {
         sans: ['Source Sans 3', ...defaultTheme.fontFamily.sans],
         display: ['Source Sans 3', ...defaultTheme.fontFamily.sans],
-        reading: ['Source Serif 4', ...defaultTheme.fontFamily.serif],
       },
       colors: {
         'natural-wood': '#DEB887',

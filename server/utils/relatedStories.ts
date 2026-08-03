@@ -215,25 +215,6 @@ const canonicalizeUrl = (value?: string | null) => {
   }
 }
 
-export const getUrlTerms = (value?: string | null) => {
-  if (!value) return []
-
-  try {
-    const url = new URL(value)
-    const hostTerms = getHostTerms(value)
-    if (hostTerms.length > 0) return hostTerms
-
-    const pathTerms = tokenize(
-      `${url.pathname.replace(/[/-]/g, ' ')} ${Array.from(url.searchParams.values()).join(' ')}`,
-      6,
-    )
-
-    return pathTerms
-  } catch {
-    return []
-  }
-}
-
 const getAnchorTokens = (sourceTitle: string, sourceUrl?: string | null) => {
   const titleTokens = new Set(tokenize(sourceTitle))
   const anchors = new Set(

@@ -51,7 +51,6 @@ describe('getCommentThreadAuthorPalette', () => {
     )
 
     expect(circularDistance(getHue(palette, 'simonw'), getHue(palette, 'zmmmmm'))).toBeGreaterThanOrEqual(170)
-    expect(palette.authorCounts.get('simonw')).toBe(2)
   })
 
   it('keeps neighbouring branches visually distinct', () => {

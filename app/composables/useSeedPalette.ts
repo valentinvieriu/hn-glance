@@ -3,7 +3,6 @@ import type { Comment } from '#shared/types'
 export type SeedPaletteStyle = Record<string, string>
 
 export type CommentThreadAuthorPalette = {
-  authorCounts: ReadonlyMap<string, number>
   authorStyles: ReadonlyMap<string, SeedPaletteStyle>
 }
 
@@ -74,7 +73,7 @@ export const getCommentThreadAuthorPalette = (
   rootComment: Comment,
   contextSeed: string | number | null | undefined = DEFAULT_CONTEXT_SEED,
 ): CommentThreadAuthorPalette => {
-  const authorCounts = new Map<string, number>()
+  const seenAuthors = new Set<string>()
   const authorOrder: string[] = []
   const constraints = new Map<string, Set<string>>()
   const stack: Array<{ comment: Comment; parentAuthor?: string }> = [{ comment: rootComment }]
@@ -90,10 +89,10 @@ export const getCommentThreadAuthorPalette = (
     const { comment, parentAuthor } = frame
     const children = comment.children ?? []
 
-    if (!authorCounts.has(comment.author)) {
+    if (!seenAuthors.has(comment.author)) {
+      seenAuthors.add(comment.author)
       authorOrder.push(comment.author)
     }
-    authorCounts.set(comment.author, (authorCounts.get(comment.author) ?? 0) + 1)
 
     addAuthorConstraint(constraints, parentAuthor, comment.author)
     addAuthorConstraint(constraints, previousAuthor, comment.author)
@@ -152,7 +151,6 @@ export const getCommentThreadAuthorPalette = (
   }
 
   return {
-    authorCounts,
     authorStyles,
   }
 }

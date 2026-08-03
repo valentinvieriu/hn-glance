@@ -40,8 +40,6 @@ export type ScreenshotCaptureDecision = {
   sourceStrategy: ScreenshotSourceStrategy
 }
 
-export type ScreenshotSourceDecision = ScreenshotCaptureDecision
-
 type ContentProbeResult =
   | { captureUrl: string, policy: 'capture' }
   | { policy: 'skip', skipReason: ScreenshotSkipReason }
@@ -194,7 +192,7 @@ const isObviousPdfUrl = (url: URL) => {
 export const createScreenshotSourceDecision = (
   sourceUrl: string,
   runtimeConfig: ScreenshotRuntimeConfig,
-): ScreenshotSourceDecision => {
+): ScreenshotCaptureDecision => {
   const url = new URL(sourceUrl)
   const xcancelUrl = getXCancelStatusUrl(url, runtimeConfig)
 

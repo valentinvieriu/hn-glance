@@ -74,6 +74,7 @@ Frontend:
 - `app/components/SubmissionHistory.vue`: compact exact-source HN timeline that marks the current submission.
 - `app/components/RelatedStories.vue`: semantic “Similar Stories” list on detail pages.
 - `app/components/CommentLinks.vue`: value-ordered category groups of outbound links extracted from the comment tree, with deep links back to the comments that shared them.
+- `app/components/SourceIdentity.vue`: shared favicon-plus-preview identity block used by related-story and comment-link rows.
 - `app/components/layout/Header.vue` and `app/components/layout/Footer.vue`: shared shell.
 
 Shared client logic:
@@ -84,6 +85,7 @@ Shared client logic:
 - `app/composables/useStoryPlaceholder.ts`: non-semantic, story-seeded wireframe layout generation with bounded SVG geometry.
 - `app/composables/useSanitizer.ts`: safe rich-text rendering and HN comment post-processing.
 - `app/utils/storyScreenshotObserver.ts`: one shared client-side Intersection Observer for card screenshot preloading.
+- `app/utils/sourceFavicon.ts`: safe favicon URL derivation for source identity rows.
 
 Server/API:
 
@@ -107,6 +109,8 @@ Server/API:
 - `server/utils/fetchStories.ts`: common Algolia story normalization.
 - `server/utils/feed.ts`: fetch ordered story IDs from HN Firebase, hydrate them from Algolia, preserve source order, cache the four feed payloads briefly inside each Nitro isolate, and set feed cache headers.
 - `server/plugins/removeInlinedStylesheets.ts`: strip duplicate generated stylesheet links from SSR HTML after Nuxt inlines the same critical CSS, while leaving the client manifest intact.
+- `server/plugins/earlyHints.ts`: promote explicit SSR `preload`/`preconnect` tags to the response `Link` header for Cloudflare Early Hints.
+- `server/plugins/apiServerTiming.ts`: `Server-Timing` diagnostics for `/api/` responses.
 - `server/utils/userActivity.ts`: user activity pagination and mapping.
 
 Types and global styling:
@@ -213,8 +217,10 @@ Current rendering uses `useSanitizer.ts` to:
 - Link inline markers such as `[1]` to matching references in the same comment.
 - Autolink safe bare URLs only when HN/Algolia did not already emit an anchor.
 - Style `Edit:`, `Update:`, and `TL;DR:` as note labels.
+- Convert plain-text conventions HN never marks up: `*emphasis*`, backtick
+  `code` spans, and manual `-`/`1.` lists.
 
-Nested comments render to a limited depth by default. `app/pages/item/[id].vue` analyzes the tree once for totals, author activity, descendant counts, and reply-disclosure defaults; `CommentThread.vue` uses that shared summary to show or hide replies while keeping every comment visible.
+Every comment renders at every depth. `app/pages/item/[id].vue` analyzes the tree once for totals, author activity, descendant counts, latest activity, and reply-disclosure defaults; `CommentThread.vue` uses that shared summary to collapse only deep, large reply subtrees behind disclosure controls while keeping every comment reachable. Top-level threads can be reordered with a persisted `?sort=` control: HN order (default), most discussed, or recent activity.
 
 Story detail pages also extract a bounded set of safe HTTP(S) links from the
 already-loaded comment tree. `CommentLinks.vue` shows all extracted links in
@@ -308,6 +314,9 @@ Styling approach:
   reader app, never as a newspaper, magazine, or editorial layout; the
   colorful seeded palettes are part of that anti-print identity.
 - Google Font faces are self-hosted and injected into Nuxt's hashed CSS with `font-display: optional`; do not restore the separate `/css/nuxt-google-fonts.css` render-blocking link.
+- Keep the `nitro:config` public-asset filter paired with the Google Fonts
+  module. Vite already emits the active faces as hashed assets; copying the
+  module cache would also ship unreferenced files from superseded font families.
 - Prefer the existing feed theme and seed palette helpers over one-off color systems.
 
 Linting and checks:

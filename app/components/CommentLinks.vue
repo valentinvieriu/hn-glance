@@ -25,10 +25,10 @@
       </span>
     </div>
 
-    <div id="comment-links-list" class="comment-link-sections">
+    <div class="comment-link-sections">
       <section
         v-for="section in sections"
-        :key="section.key"
+        :key="section.category"
         class="comment-link-section"
         :aria-labelledby="`comment-links-${section.category}`"
       >
@@ -63,7 +63,7 @@
                 <span v-if="link.domain !== link.title" class="comment-link-domain">{{ link.domain }}</span>
               </div>
               <div class="comment-link-meta meta-text">
-                <span class="comment-link-shared-by">shared by</span>
+                <span>shared by</span>
                 <span
                   class="comment-link-author-chip seed-palette-surface"
                   :class="getAuthorSeedClass(link)"
@@ -172,21 +172,11 @@ const CATEGORY_META = {
   },
 } as const
 
-type LinkSection = {
-  category: CommentLinkCategory
-  key: string
-  links: CommentLink[]
-}
-
 const links = computed(() => extractCommentLinks(props.comments, {
   excludedUrls: [props.storyUrl],
 }))
 const totalLinks = computed(() => links.value.length)
-const sections = computed<LinkSection[]>(() => groupCommentLinks(links.value).map(group => ({
-  category: group.category,
-  key: group.category,
-  links: group.links,
-})))
+const sections = computed(() => groupCommentLinks(links.value))
 
 const activeMentionIndexes = ref(new Map<string, number>())
 
@@ -212,7 +202,6 @@ const getActiveMention = (link: CommentLink): CommentLinkMention => {
   return link.mentions[getActiveMentionIndex(link)] ?? {
     author: 'commenter',
     commentId: 0,
-    depth: 1,
     excerpt: '',
   }
 }
@@ -434,8 +423,7 @@ const handleJump = (link: CommentLink) => {
   color: rgb(203 213 225 / 0.78);
 }
 
-.dark .comment-link-group-title,
-.dark .comment-link-category {
+.dark .comment-link-group-title {
   color: oklch(76% 0.06 var(--comment-link-hue, 245));
 }
 

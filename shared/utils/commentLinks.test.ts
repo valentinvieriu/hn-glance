@@ -43,20 +43,18 @@ describe('comment link extraction', () => {
     expect(wikipedia).toMatchObject({
       domain: 'en.wikipedia.org',
       title: 'Monkey selfie copyright dispute',
-      uniqueAuthorCount: 1,
     })
     expect(wikipedia?.mentions).toEqual([
-      expect.objectContaining({ author: 'alice', commentId: 1, depth: 1 }),
+      expect.objectContaining({ author: 'alice', commentId: 1 }),
     ])
     expect(code).toMatchObject({
       domain: 'github.com',
       title: 'simonw/llm',
-      uniqueAuthorCount: 2,
       url: 'https://github.com/simonw/llm',
     })
     expect(code?.mentions).toEqual([
-      expect.objectContaining({ author: 'bob', commentId: 2, depth: 2 }),
-      expect.objectContaining({ author: 'carol', commentId: 3, depth: 1 }),
+      expect.objectContaining({ author: 'bob', commentId: 2 }),
+      expect.objectContaining({ author: 'carol', commentId: 3 }),
     ])
   })
 
@@ -108,7 +106,6 @@ describe('comment link extraction', () => {
 
     expect(links).toHaveLength(1)
     expect(links[0]?.mentions).toHaveLength(2)
-    expect(links[0]?.uniqueAuthorCount).toBe(2)
   })
 
   it('applies the output limit after category-value ordering', () => {
@@ -149,10 +146,9 @@ describe('comment link extraction', () => {
     const link = (overrides: Partial<CommentLink>): CommentLink => ({
       category: 'other',
       domain: 'example.com',
-      mentions: [{ author: 'alice', commentId: 1, depth: 1, excerpt: '' }],
+      mentions: [{ author: 'alice', commentId: 1, excerpt: '' }],
       order: 0,
       title: 'Example',
-      uniqueAuthorCount: 1,
       url: 'https://example.com',
       ...overrides,
     })

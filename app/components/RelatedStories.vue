@@ -46,9 +46,9 @@
         :style="relatedPaletteStyle(story)"
       >
         <SourceIdentity
-          :url="story.url || getHnStoryUrl(story.objectID)"
+          :url="story.url || getHnItemUrl(story.objectID)"
           :label="story.title"
-          :preview-url="story.url ? getStoryPreviewUrl(story.objectID) : undefined"
+          :preview-url="story.url ? getScreenshotPath(story.objectID) : undefined"
         />
         <div class="related-story-content">
           <h3>
@@ -117,7 +117,8 @@ import { ref } from 'vue'
 import { LucideWaypoints } from '@lucide/vue'
 import type { RelatedStory } from '#shared/types'
 import { formatCompactTimeAgo } from '#shared/utils/date'
-import { getHnUserPath } from '#shared/utils/hn'
+import { getHnItemUrl, getHnUserPath } from '#shared/utils/hn'
+import { getScreenshotPath } from '#shared/utils/screenshot'
 import { getStoryContextPaletteStyle } from '~/composables/useSeedPalette'
 
 const MOBILE_VISIBLE_STORIES = 4
@@ -141,14 +142,6 @@ const getStoryDomain = (story: RelatedStory) => {
 
 const relatedPaletteStyle = (story: RelatedStory) => {
   return getStoryContextPaletteStyle(story.objectID, getStoryDomain(story))
-}
-
-const getHnStoryUrl = (storyId: string) => {
-  return `https://news.ycombinator.com/item?id=${storyId}`
-}
-
-const getStoryPreviewUrl = (storyId: string) => {
-  return `/api/screenshot/${storyId}?profile=v9`
 }
 
 </script>

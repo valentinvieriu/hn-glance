@@ -1,13 +1,13 @@
 import type { Comment } from '#shared/types'
 
-export const DEFAULT_COMMENT_DEPTH = 3
+const DEFAULT_COMMENT_DEPTH = 3
 
 /**
  * A subtree only starts behind a reply gate when hiding it actually saves
  * scanning effort. Below this size the replies are cheaper to read than the
  * disclosure control.
  */
-export const HIDDEN_REPLY_SUBTREE_MIN_DESCENDANTS = 4
+const HIDDEN_REPLY_SUBTREE_MIN_DESCENDANTS = 4
 
 export type CommentSort = 'hn' | 'discussed' | 'recent'
 

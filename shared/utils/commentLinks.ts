@@ -17,7 +17,6 @@ export type CommentLinkCategory = typeof COMMENT_LINK_CATEGORY_ORDER[number]
 export type CommentLinkMention = {
   author: string
   commentId: number
-  depth: number
   excerpt: string
 }
 
@@ -27,7 +26,6 @@ export type CommentLink = {
   mentions: CommentLinkMention[]
   order: number
   title: string
-  uniqueAuthorCount: number
   url: string
 }
 
@@ -450,9 +448,9 @@ export const extractCommentLinks = (
       .filter(Boolean),
   )
   const linksByUrl = new Map<string, CommentLink>()
-  const stack = [...comments].reverse().map(comment => ({ comment, depth: 1 }))
+  const stack = [...comments].reverse()
 
-  const addLink = (rawUrl: string, rawLabel: string, comment: Comment, depth: number) => {
+  const addLink = (rawUrl: string, rawLabel: string, comment: Comment) => {
     const url = normalizeHttpUrl(rawUrl)
 
     if (!url) return
@@ -475,7 +473,6 @@ export const extractCommentLinks = (
         existing.mentions.push({
           author: comment.author,
           commentId: comment.id,
-          depth,
           excerpt: getCommentExcerpt(comment.text ?? ''),
         })
       }
@@ -491,48 +488,41 @@ export const extractCommentLinks = (
       mentions: [{
         author: comment.author,
         commentId: comment.id,
-        depth,
         excerpt: getCommentExcerpt(comment.text ?? ''),
       }],
       order: linksByUrl.size,
       title: getLinkTitle(rawLabel, url, category),
-      uniqueAuthorCount: 1,
       url: url.href,
     })
   }
 
   while (stack.length > 0) {
-    const frame = stack.pop()
+    const comment = stack.pop()
 
-    if (!frame) continue
+    if (!comment) continue
 
-    const { comment, depth } = frame
     const textWithoutAnchors = (comment.text ?? '').replace(
       ANCHOR_PATTERN,
       (_match, attributes: string, label: string) => {
-        addLink(getAttribute(attributes, 'href'), label, comment, depth)
+        addLink(getAttribute(attributes, 'href'), label, comment)
         return ' '
       },
     )
 
     for (const match of textWithoutAnchors.matchAll(BARE_URL_PATTERN)) {
-      addLink(match[0], match[0], comment, depth)
+      addLink(match[0], match[0], comment)
     }
 
     const children = comment.children ?? []
     for (let index = children.length - 1; index >= 0; index -= 1) {
       const child = children[index]
-      if (child) stack.push({ comment: child, depth: depth + 1 })
+      if (child) stack.push(child)
     }
   }
 
-  const links = Array.from(linksByUrl.values())
-
-  for (const link of links) {
-    link.uniqueAuthorCount = new Set(link.mentions.map(mention => mention.author)).size
-  }
-
-  return links.sort(compareCommentLinks).slice(0, maximumLinks)
+  return Array.from(linksByUrl.values())
+    .sort(compareCommentLinks)
+    .slice(0, maximumLinks)
 }
 
 export const groupCommentLinks = (links: CommentLink[]): CommentLinkGroup[] => {

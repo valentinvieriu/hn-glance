@@ -30,7 +30,7 @@ synthesizes an HN discussion permalink to make them eligible for a feed card.
 - Presents each story with a visual page preview, title, source, freshness, author, points, and comment count.
 - Opens an HN Glance story page for the card, with metadata, comments, screenshot, exact-source HN history, similar stories, and value-grouped links shared in the discussion.
 - Opens the original source from the source/domain link.
-- Renders HN comments with safer rich text, nested threads, quote handling, reference links, and expand controls.
+- Renders HN comments with safer rich text, nested threads, quote handling, reference links, expand controls, and thread sorting by HN order, discussion size, or recent activity.
 - Includes user activity pages for posts and comments.
 - Supports responsive layouts and dark mode.
 - Avoids analytics and marketing cookies.

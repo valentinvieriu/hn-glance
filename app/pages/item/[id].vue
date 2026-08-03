@@ -235,7 +235,7 @@
                 v-if="isScreenshotDialogOpen"
                 :alt="`Expanded preview of ${story.title}`"
                 width="1440"
-                :src="originalScreenshotSrc"
+                :src="screenshotSrc"
                 decoding="async"
                 class="source-preview-dialog-image"
               />
@@ -385,7 +385,6 @@ const loadStoryContext = () => {
   }
 }
 const screenshotSrc = computed(() => storyId.value ? getScreenshotPath(storyId.value) : '')
-const originalScreenshotSrc = screenshotSrc
 const storyExternalUrl = computed(() => {
   if (story.value?.url) {
     return story.value.url
@@ -669,7 +668,6 @@ const sortedComments = computed(() => sortCommentThreads(
 ))
 const canSortComments = computed(() => (story.value?.children.length ?? 0) > 1)
 const EMPTY_COMMENT_THREAD_AUTHOR_PALETTE: CommentThreadAuthorPalette = {
-  authorCounts: new Map(),
   authorStyles: new Map(),
 }
 const commentThreadAuthorPalettes = computed(() => {

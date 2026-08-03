@@ -18,7 +18,7 @@ export type SubmissionHistorySource = {
 }
 
 const normalizePercentEncoding = (value: string) => {
-  return value.replace(/%([0-9a-f]{2})/giu, (match, hex: string) => {
+  return value.replace(/%([0-9a-f]{2})/giu, (_match, hex: string) => {
     const character = String.fromCharCode(Number.parseInt(hex, 16))
 
     return /^[a-z0-9\-._~]$/iu.test(character)
