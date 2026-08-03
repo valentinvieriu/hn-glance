@@ -11,18 +11,6 @@
     <div class="comment-body">
       <div class="comment-header">
         <div class="comment-header-primary">
-          <button
-            type="button"
-            class="comment-collapse-toggle"
-            :aria-expanded="!isCompacted"
-            :aria-controls="commentContentElementId"
-            :aria-label="compactionActionLabel"
-            :title="compactionActionLabel"
-            @click="toggleCompacted(comment.id)"
-          >
-            <LucideChevronDown v-if="!isCompacted" class="w-3.5 h-3.5" aria-hidden="true" />
-            <LucideChevronRight v-else class="w-3.5 h-3.5" aria-hidden="true" />
-          </button>
           <span class="author-chip">
             <span class="author-dot" aria-hidden="true"></span>
             <NuxtLink :to="getHnUserPath(comment.author)" class="author-name">
@@ -60,6 +48,18 @@
           <template v-if="isCompacted">
             <span v-if="preview" class="comment-collapsed-preview">{{ preview }}</span>
           </template>
+          <button
+            type="button"
+            class="comment-collapse-toggle"
+            :aria-expanded="!isCompacted"
+            :aria-controls="commentContentElementId"
+            :aria-label="compactionActionLabel"
+            :title="compactionActionLabel"
+            @click="toggleCompacted(comment.id)"
+          >
+            <LucideChevronDown v-if="!isCompacted" class="w-3.5 h-3.5" aria-hidden="true" />
+            <LucideChevronRight v-else class="w-3.5 h-3.5" aria-hidden="true" />
+          </button>
         </div>
         <nav
           v-if="!isCompacted && parentCommentId && parentAuthor"
@@ -91,18 +91,14 @@
           </a>
         </nav>
       </div>
-    </div>
-    <div v-if="!isCompacted" :id="commentContentElementId" class="comment-expanded-content">
-      <div
-        class="comment-text reading-text rich-text break-words"
-        v-html="sanitizedText"
-      ></div>
-      <div
-        class="comment-actions"
-        :class="{ 'comment-actions-with-replies': hasChildren }"
-      >
-        <div v-if="hasChildren" class="comment-reply-actions">
+      <div v-if="!isCompacted" :id="commentContentElementId" class="comment-expanded-content">
+        <div
+          class="comment-text reading-text rich-text break-words"
+          v-html="sanitizedText"
+        ></div>
+        <div class="comment-actions">
           <button
+            v-if="hasChildren"
             type="button"
             class="comment-replies-toggle"
             :aria-expanded="!areRepliesHidden"
@@ -113,32 +109,38 @@
           >
             <LucidePlus v-if="areRepliesHidden" class="w-3 h-3" aria-hidden="true" />
             <LucideMinus v-else class="w-3 h-3" aria-hidden="true" />
+            <span class="comment-reply-summary">
+              {{ areRepliesHidden ? 'Show' : 'Hide' }} {{ replyCountLabel }}
+            </span>
           </button>
-          <span class="comment-reply-summary">{{ replyCountLabel }}</span>
+          <a
+            :href="replyHref"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="comment-reply-link"
+            :aria-label="`Reply to ${comment.author} on Hacker News (opens in a new tab)`"
+          >
+            <span>Reply on HN</span>
+            <LucideExternalLink class="w-3.5 h-3.5" aria-hidden="true" />
+          </a>
         </div>
-        <a
-          :href="replyHref"
-          target="_blank"
-          rel="noopener noreferrer"
-          class="comment-reply-link"
-          :aria-label="`Reply to ${comment.author} on Hacker News (opens in a new tab)`"
-        >
-          <span>Reply on HN</span>
-          <LucideExternalLink class="w-3.5 h-3.5" aria-hidden="true" />
-        </a>
       </div>
-      <div
-        v-if="hasChildren && !areRepliesHidden"
-        :id="childrenElementId"
-        class="comment-children"
-      >
-        <!-- Pointer-only shortcut for reply disclosure. The footer button is
-             the keyboard and assistive-technology equivalent. -->
-        <div class="comment-spine" aria-hidden="true" @click="toggleRepliesHidden(comment.id)"></div>
-        <div class="comment-children-list">
+    </div>
+    <div
+      v-if="!isCompacted && hasChildren && !areRepliesHidden"
+      :id="childrenElementId"
+      class="comment-children"
+    >
+      <!-- Pointer-only shortcut for reply disclosure. The footer button is
+           the keyboard and assistive-technology equivalent. -->
+      <div class="comment-spine" aria-hidden="true" @click="toggleRepliesHidden(comment.id)"></div>
+      <div class="comment-children-list">
+        <div
+          v-for="child in comment.children"
+          :key="child.id"
+          class="comment-child-branch"
+        >
           <CommentThread
-            v-for="child in comment.children"
-            :key="child.id"
             :comment="child"
             :current-depth="currentDepth + 1"
             :story-author="storyAuthor"
@@ -293,8 +295,12 @@ const replyHref = computed(() => {
 <style scoped>
 .comment-container {
   --comment-indent: 0.85rem;
-  --comment-incoming-rail-center: calc(-1 * var(--comment-indent) - 1px);
+  --comment-incoming-rail-center: calc(-1 * var(--comment-indent) - 0.5px);
   --comment-outgoing-rail-left: 0px;
+  --comment-rail-opacity: 0.7;
+  --comment-children-top-gap: 0.65rem;
+  --comment-junction-y: 1.1rem;
+  --comment-sibling-gap: 0.7rem;
   /* Roughly 60-68 characters in the reading face: wide enough to reduce scroll
      while staying below the 75-80 character readability ceiling. Held in rem
      so the smaller metadata row shares the body's visual edge. */
@@ -310,13 +316,13 @@ const replyHref = computed(() => {
 .comment-container:focus-visible > .comment-body {
   outline: 2px solid var(--seed-accent);
   outline-offset: 4px;
-  border-radius: 0.35rem;
+  border-radius: 0.55rem;
 }
 
 /* Added imperatively by the story page after a jump; must live in this scoped
    block so the rule matches the component root's scope attribute. */
 .comment-container.comment-jump-highlight > .comment-body {
-  border-radius: 0.35rem;
+  border-radius: 0.55rem;
   animation: comment-jump-pulse 1.5s ease-out;
 }
 
@@ -337,6 +343,8 @@ const replyHref = computed(() => {
 }
 
 .comment-top-level {
+  box-sizing: border-box;
+  padding-left: 0.25rem;
   content-visibility: auto;
   contain-intrinsic-size: auto 20rem;
 }
@@ -344,20 +352,18 @@ const replyHref = computed(() => {
 .comment-body {
   position: relative;
   z-index: 1;
-}
-
-/* The speaker strip is the boundary between voices. A one-off author receives
-   a quieter version of their thread hue, while recurring voices keep the full
-   accent. Capped to the reading measure so it aligns with the body. */
-.comment-header {
-  position: relative;
   max-width: var(--comment-measure);
   overflow: hidden;
-  border: 1px solid color-mix(in oklch, var(--seed-border-strong) 46%, transparent);
-  border-left-color: var(--seed-rail);
-  border-left-width: 3px;
-  border-radius: 0.4rem;
-  background: var(--seed-accent-soft);
+  border-left: 3px solid var(--seed-rail);
+  border-radius: 0.55rem;
+  background: var(--seed-surface);
+}
+
+/* The complete comment is one quiet object. The existing seed palette stays
+   concentrated in the speaker edge and metadata while the reading surface
+   remains calm. */
+.comment-header {
+  position: relative;
   font-size: 0.8125rem;
   font-weight: 550;
   line-height: 1.3;
@@ -368,9 +374,9 @@ const replyHref = computed(() => {
   display: flex;
   align-items: center;
   gap: 0.32rem 0.42rem;
-  flex-wrap: nowrap;
-  min-height: 2rem;
-  padding: 0.22rem 0.55rem 0.22rem 0.25rem;
+  flex-wrap: wrap;
+  min-height: 2.65rem;
+  padding: 0.35rem 0.45rem 0.12rem 0.75rem;
 }
 
 .dark .comment-header {
@@ -378,12 +384,13 @@ const replyHref = computed(() => {
 }
 
 /* Compacted rows are the summary, so let the preview use the full column. */
-.comment-compacted .comment-header {
+.comment-compacted > .comment-body {
   max-width: none;
 }
 
 .comment-compacted .comment-header-primary {
-  flex-wrap: wrap;
+  min-height: 2.6rem;
+  padding-bottom: 0.35rem;
 }
 
 .comment-collapse-toggle {
@@ -391,18 +398,28 @@ const replyHref = computed(() => {
   align-items: center;
   justify-content: center;
   flex: 0 0 auto;
-  width: 1.65rem;
-  height: 1.65rem;
-  border-radius: 0.35rem;
+  width: 2rem;
+  height: 2rem;
+  margin-left: auto;
+  border: 1px solid color-mix(in oklch, var(--seed-border-strong) 40%, transparent);
+  border-radius: 999px;
+  background: color-mix(in oklch, var(--seed-metric-bg) 58%, transparent);
   color: inherit;
-  opacity: 0.72;
-  transition: background-color 0.15s ease, opacity 0.15s ease;
+  opacity: 0.82;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, opacity 0.15s ease;
 }
 
 .comment-collapse-toggle:hover,
 .comment-collapse-toggle:focus-visible {
+  border-color: var(--seed-border-strong);
   background: var(--seed-metric-bg-hover);
+  color: var(--seed-accent-strong);
   opacity: 1;
+}
+
+.comment-collapse-toggle:focus-visible {
+  outline: 2px solid var(--seed-accent);
+  outline-offset: 2px;
 }
 
 /* Compacted rows behave like the story-context rows: the toggle owns the whole
@@ -482,8 +499,7 @@ const replyHref = computed(() => {
   flex-wrap: wrap;
   gap: 0.12rem 0.8rem;
   min-width: 0;
-  padding: 0.18rem 0.55rem 0.28rem 2.05rem;
-  border-top: 1px solid color-mix(in oklch, var(--seed-border-strong) 34%, transparent);
+  padding: 0.05rem 0.75rem 0.35rem;
   color: rgb(71 85 105);
   font-size: 0.75rem;
   font-weight: 550;
@@ -593,9 +609,8 @@ const replyHref = computed(() => {
 }
 
 .comment-text {
-  margin: 0.75rem 0 0;
-  padding-left: 0.75rem;
-  max-width: var(--comment-measure);
+  margin: 0;
+  padding: 0.55rem 0.8rem 0;
   font-size: 1.0625rem;
   font-weight: 400;
   line-height: 1.65;
@@ -618,33 +633,16 @@ const replyHref = computed(() => {
   align-items: center;
   flex-wrap: wrap;
   gap: 0.3rem 0.65rem;
-  max-width: var(--comment-measure);
-  min-height: 1.5rem;
-  margin-top: 0.8rem;
-  padding-left: 0.75rem;
-}
-
-.comment-actions-with-replies {
-  padding-left: 0;
-}
-
-.comment-reply-actions {
-  display: inline-flex;
-  align-items: center;
-  flex: 0 1 auto;
-  gap: 0.45rem;
-  min-width: 0;
+  min-height: 2rem;
+  margin-top: 0.45rem;
+  padding: 0.05rem 0.65rem 0.6rem 0.55rem;
 }
 
 .comment-reply-summary {
-  color: rgb(71 85 105);
+  color: inherit;
   font-size: 0.8125rem;
   font-weight: 600;
   line-height: 1.35;
-}
-
-.dark .comment-reply-summary {
-  color: rgb(148 163 184);
 }
 
 .comment-replies-toggle {
@@ -652,29 +650,26 @@ const replyHref = computed(() => {
   align-items: center;
   justify-content: center;
   flex: 0 0 auto;
-  width: 1.5rem;
-  height: 1.5rem;
-  /* The 1px correction centers the control over a 2px rail. The shared rail
-     offset moves both together once horizontal indentation is capped. */
-  margin-left: calc(var(--comment-outgoing-rail-left) - 0.6875rem);
-  padding: 0;
-  border: 1px solid var(--seed-rail);
+  gap: 0.38rem;
+  min-height: 2rem;
+  padding: 0.2rem 0.45rem;
+  border: 1px solid transparent;
   border-radius: 999px;
-  background: var(--seed-accent-soft);
+  background: transparent;
   color: var(--seed-accent-strong);
-  box-shadow: 0 0 0 2px rgb(255 255 255 / 0.88);
   transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
-}
-
-.dark .comment-replies-toggle {
-  box-shadow: 0 0 0 2px rgb(17 24 39 / 0.92);
 }
 
 .comment-replies-toggle:hover,
 .comment-replies-toggle:focus-visible {
-  border-color: var(--seed-accent);
+  border-color: color-mix(in oklch, var(--seed-border-strong) 52%, transparent);
   background: var(--seed-metric-bg-hover);
   color: var(--seed-accent);
+}
+
+.comment-replies-toggle:focus-visible {
+  outline: 2px solid var(--seed-accent);
+  outline-offset: 2px;
 }
 
 .comment-children {
@@ -685,11 +680,10 @@ const replyHref = computed(() => {
 
 .comment-spine {
   position: relative;
-  width: 2px;
+  z-index: 0;
+  width: 1px;
   border-radius: 999px;
-  background: var(--seed-rail);
   cursor: pointer;
-  transition: background-color 0.15s ease;
 }
 
 /* The visible rail stays quiet while the hit area is comfortably pointer-sized. */
@@ -699,9 +693,21 @@ const replyHref = computed(() => {
   inset: 0 -0.65rem;
 }
 
-.comment-spine:hover,
-.comment-spine:active {
+.comment-spine::after {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto;
+  height: calc(var(--comment-children-top-gap) + var(--comment-junction-y));
+  border-radius: 999px;
+  background: var(--seed-rail);
+  opacity: var(--comment-rail-opacity);
+  transition: background-color 0.15s ease, opacity 0.15s ease;
+}
+
+.comment-spine:hover::after,
+.comment-spine:active::after {
   background: var(--seed-accent);
+  opacity: 1;
 }
 
 .comment-children:has(> .comment-spine:hover) > .comment-children-list {
@@ -711,69 +717,95 @@ const replyHref = computed(() => {
 }
 
 .comment-children-list {
+  position: relative;
+  z-index: 1;
   min-width: 0;
-  padding-top: 0.85rem;
+  overflow: visible;
+  padding-top: var(--comment-children-top-gap);
   color: var(--seed-rail);
   transition: background-color 0.15s ease;
+}
+
+.comment-child-branch {
+  position: relative;
+  min-width: 0;
+}
+
+/* A parent's rail is made from only the segments its direct replies need.
+   Each non-final branch reaches the next sibling's junction; the final branch
+   has no segment, so the rail ends instead of following that reply's subtree. */
+.comment-child-branch:not(:last-child)::before {
+  content: '';
+  position: absolute;
+  z-index: 0;
+  top: var(--comment-junction-y);
+  left: calc(var(--comment-incoming-rail-center) - 0.5px);
+  width: 1px;
+  height: calc(100% + var(--comment-sibling-gap));
+  background: currentColor;
+  opacity: var(--comment-rail-opacity);
+  pointer-events: none;
 }
 
 /* Every direct reply gets the same branch-coloured arm and node. Multiple
    nodes on one rail already make a fork visible, so the footer and junction do
    not need a second topology vocabulary. The arm inherits the resolved parent
    rail colour instead of recalculating it from the child's author palette. */
-.comment-children-list > .comment-container::before {
+.comment-child-branch > .comment-container::before {
   content: '';
   position: absolute;
   z-index: 0;
-  top: 1.1rem;
+  top: var(--comment-junction-y);
   left: var(--comment-incoming-rail-center);
-  width: calc(var(--comment-indent) + 1px);
-  height: 1.5px;
+  width: calc(var(--comment-indent) + 0.5px);
+  height: 1px;
   background: currentColor;
+  opacity: var(--comment-rail-opacity);
   pointer-events: none;
 }
 
-.comment-children-list > .comment-container::after {
+.comment-child-branch > .comment-container::after {
   content: '';
   position: absolute;
   z-index: 2;
-  top: 0.94rem;
-  left: calc(var(--comment-incoming-rail-center) - 0.17rem);
-  width: 0.34rem;
-  height: 0.34rem;
+  top: calc(var(--comment-junction-y) - 0.16rem);
+  left: calc(var(--comment-incoming-rail-center) - 0.16rem);
+  width: 0.32rem;
+  height: 0.32rem;
   border-radius: 999px;
   background: currentColor;
-  box-shadow: 0 0 0 2px rgb(255 255 255 / 0.86);
+  box-shadow: 0 0 0 1.5px rgb(255 255 255 / 0.86);
+  opacity: 0.9;
   pointer-events: none;
 }
 
-.dark .comment-children-list > .comment-container::after {
-  box-shadow: 0 0 0 2px rgb(17 24 39 / 0.9);
+.dark .comment-child-branch > .comment-container::after {
+  box-shadow: 0 0 0 1.5px rgb(17 24 39 / 0.9);
 }
 
 /* Depth eight is the final horizontal step. Deeper reply lists keep the same
    text edge, while a rail just outside that edge retains ancestry and the
    pointer shortcut without covering selectable comment text. */
-.comment-indent-capped > .comment-expanded-content > .comment-children {
+.comment-indent-capped > .comment-children {
   position: relative;
   display: block;
 }
 
 .comment-indent-capped {
   /* Reuse the incoming rail after deeper comments stop moving their text to
-     the right. The rail's left edge is one pixel before its shared centre. */
-  --comment-outgoing-rail-left: calc(var(--comment-incoming-rail-center) - 1px);
+     the right. The rail keeps its visual centre on that guide. */
+  --comment-outgoing-rail-left: calc(var(--comment-incoming-rail-center) - 0.5px);
 }
 
-.comment-indent-capped > .comment-expanded-content > .comment-children > .comment-spine {
+.comment-indent-capped > .comment-children > .comment-spine {
   position: absolute;
   inset: 0 auto 0 var(--comment-outgoing-rail-left);
 }
 
-/* Must clearly exceed the 1.05rem gap between paragraphs inside one comment,
-   otherwise a change of speaker reads as weaker than a change of paragraph. */
-.comment-children-list > .comment-container + .comment-container {
-  margin-top: 1.6rem;
+/* Card boundaries now carry the change of speaker, so sibling turns can stay
+   close enough for dense HN discussions without reading as one paragraph. */
+.comment-child-branch + .comment-child-branch {
+  margin-top: var(--comment-sibling-gap);
 }
 
 @media (max-width: 640px) {
@@ -781,9 +813,23 @@ const replyHref = computed(() => {
     --comment-indent: 0.8125rem;
   }
 
+  .comment-header-primary {
+    padding-left: 0.65rem;
+  }
+
+  .comment-collapse-toggle {
+    width: 2.25rem;
+    height: 2.25rem;
+  }
+
   .comment-text {
     font-size: 1.0625rem;
     line-height: 1.65;
+    padding-inline: 0.7rem;
+  }
+
+  .comment-actions {
+    padding-inline: 0.45rem 0.55rem;
   }
 
   .comment-ancestry-navigation {

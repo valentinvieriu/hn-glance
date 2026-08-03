@@ -1087,25 +1087,14 @@ useSeoMeta({
   min-width: 0;
 }
 
-/* Leave enough room for the root disclosure node to sit fully inside the
-   reading frame. Descendant indentation remains local to CommentThread, so
-   this shifts the whole diagram without widening every nesting step. */
 .comments-list {
   min-width: 0;
-  padding-inline-start: clamp(1rem, 2.5vw, 1.5rem);
 }
 
-/* Top-level comments lost their card frame, so a hairline carries the break
-   between separate conversations. Only page-scoped roots match, which keeps
-   nested replies out of this rule. */
+/* Cards carry speaker boundaries, so roots need only enough air to separate
+   independent conversations. Nested reply spacing stays local to the thread. */
 .comments-list > .comment-container + .comment-container {
-  margin-top: 1.5rem;
-  padding-top: 1.5rem;
-  border-top: 1px solid rgb(148 163 184 / 0.22);
-}
-
-.dark .comments-list > .comment-container + .comment-container {
-  border-top-color: rgb(148 163 184 / 0.16);
+  margin-top: 1rem;
 }
 
 .comments-count {

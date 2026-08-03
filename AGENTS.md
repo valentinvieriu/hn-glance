@@ -18,6 +18,31 @@ The desired browsing loop is:
 scan -> compare -> open the HN Glance story page, open the source, or move on
 ```
 
+The product journey has two decision stages followed by intentionally
+asymmetric depth:
+
+```text
+Feed discovery: Which linked story deserves attention?
+Story overview: Where is the value: source, discussion, or referenced material?
+Depth: Focus on the HN discussion, or continue outward to sources.
+```
+
+Keep the story overview as the default comparison surface. The source
+screenshot is an inspection aid before leaving for the publisher; it is not a
+hosted article reader. Links extracted from comments are an index into external
+resources and their original discussion context; they are not a parallel
+comments or reference-reading surface. The HN discussion is the sustained
+reading experience HN Glance can provide end to end, so deeper product
+investment should favor discussion readability and navigation.
+
+Do not force equal focus controls onto source, discussion, and references.
+When adding a focused discussion presentation, preserve the reader's comment
+context and disclosure state across entry, exit, and browser history. Reuse the
+existing story/comment data model and do not introduce article extraction,
+content rehosting, duplicated comment excerpts, or a focus-only upstream
+content dependency. This boundary does not forbid future pagination or
+performance work within the existing HN discussion experience.
+
 Preserve these product principles:
 
 - Screenshots are central. They are the main evaluation surface, not decorative thumbnails.

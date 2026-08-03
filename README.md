@@ -50,9 +50,29 @@ The card model is intentionally simple:
 
 This keeps the browsing flow direct: scan, compare, open, or move on.
 
-The loop has two halves. Screenshots and cards serve the scanning half.
-Typography serves the reading half: once a reader commits to a story page,
-comments and story prose switch to a dedicated reading voice so long
+The loop continues through two distinct decisions:
+
+- **Feed discovery:** Which linked story deserves attention?
+- **Story overview:** Where does that story's value appear to be: in the
+  submitted source, the HN discussion, or resources introduced by the
+  discussion?
+
+Those paths are intentionally asymmetric. The source preview is an inspection
+surface that helps a reader decide whether to open the publisher's page. Links
+from the discussion form an index into external resources and the comments that
+introduced them. The HN discussion is the sustained reading surface HN Glance
+can present end to end while preserving HN ordering, authorship, and reply
+context.
+
+The overview remains the default. A deeper presentation should help readers
+focus on the discussion without turning HN Glance into an article-rehosting
+service or a second comments product. It should preserve the reader's place and
+disclosure state, reuse the existing story and comment model, and leave original
+sources clearly reachable. In compact form: **discover visually, evaluate
+together, focus on discussion, and leave for sources.**
+
+Typography supports the same transition: once a reader commits to a story
+page, comments and story prose switch to a dedicated reading voice so long
 discussions stay comfortable while the interface keeps its own character.
 
 The responsive layout follows that same split. Visual discovery surfaces use
