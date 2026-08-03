@@ -237,8 +237,6 @@ useSeoMeta({
     linear-gradient(135deg, var(--seed-highlight), transparent 34%),
     color-mix(in oklch, var(--seed-surface-raised) 58%, white 18%);
   padding: 0.7rem 0.95rem 0.62rem;
-  -webkit-backdrop-filter: blur(18px) saturate(1.35);
-  backdrop-filter: blur(18px) saturate(1.35);
 }
 
 .story-card-skeleton-body {
@@ -251,8 +249,6 @@ useSeoMeta({
       color-mix(in oklch, white 82%, var(--seed-surface-raised) 9%),
       color-mix(in oklch, rgb(248 250 252) 76%, var(--seed-surface-strong) 14%)
     );
-  -webkit-backdrop-filter: blur(12px) saturate(1.08);
-  backdrop-filter: blur(12px) saturate(1.08);
 }
 
 .dark .story-card-skeleton-body {

@@ -458,19 +458,21 @@ onBeforeUnmount(() => {
   gap: 0.75rem;
   min-height: var(--story-card-topbar-height);
   border-bottom: 1px solid color-mix(in oklch, var(--seed-border) 46%, transparent);
+  /* No backdrop-filter here: dozens of live backdrop blurs over the screenshot
+     layers force per-frame re-rasterization of every thumbnail while
+     scrolling, which flickers in Chromium and flashes the page background in
+     Safari. A nearly opaque tinted surface keeps the frosted look instead. */
   background:
     linear-gradient(135deg, color-mix(in oklch, var(--seed-highlight) 72%, transparent), transparent 46%),
-    color-mix(in oklch, var(--seed-surface-raised) 58%, white 18%);
+    color-mix(in oklch, var(--seed-surface-raised) 60%, white 34%);
   padding: 0.68rem 0.95rem 0.6rem;
-  -webkit-backdrop-filter: blur(18px) saturate(1.35);
-  backdrop-filter: blur(18px) saturate(1.35);
   box-shadow: 0 12px 28px rgb(15 23 42 / 0.08);
 }
 
 .dark .story-card-topbar {
   background:
     linear-gradient(135deg, color-mix(in oklch, var(--seed-highlight) 54%, transparent), transparent 46%),
-    color-mix(in oklch, var(--seed-surface-raised) 46%, black 20%);
+    color-mix(in oklch, var(--seed-surface-raised) 52%, black 40%);
   box-shadow: 0 12px 28px rgb(0 0 0 / 0.22);
 }
 
@@ -530,15 +532,15 @@ onBeforeUnmount(() => {
   inset: 0;
   z-index: 1;
   pointer-events: none;
-  -webkit-backdrop-filter: blur(10px) saturate(1.12);
-  backdrop-filter: blur(10px) saturate(1.12);
+  /* No backdrop-filter: the body image underneath is already pre-blurred with
+     a static filter, so live backdrop blurring only added scroll raster cost. */
   background:
     linear-gradient(135deg, oklch(100% 0 var(--seed-hue) / 0.38), transparent 48%),
     radial-gradient(circle at 100% 0%, color-mix(in oklch, var(--seed-ring) 38%, transparent) 0, transparent 42%),
     linear-gradient(
       180deg,
-      oklch(99% 0.004 var(--seed-hue) / 0.78) 0%,
-      oklch(96.8% 0.012 var(--seed-hue) / 0.7) 100%
+      oklch(99% 0.004 var(--seed-hue) / 0.82) 0%,
+      oklch(96.8% 0.012 var(--seed-hue) / 0.74) 100%
     );
 }
 
@@ -556,8 +558,8 @@ onBeforeUnmount(() => {
     radial-gradient(circle at 100% 0%, color-mix(in oklch, var(--seed-ring) 42%, transparent) 0, transparent 48%),
     linear-gradient(
       180deg,
-      oklch(22% 0.024 var(--seed-hue) / 0.82) 0%,
-      oklch(16% 0.028 var(--seed-hue) / 0.86) 100%
+      oklch(22% 0.024 var(--seed-hue) / 0.86) 0%,
+      oklch(16% 0.028 var(--seed-hue) / 0.9) 100%
     );
 }
 
@@ -849,16 +851,6 @@ onBeforeUnmount(() => {
 }
 
 @media (pointer: coarse) {
-  .story-card-topbar {
-    -webkit-backdrop-filter: blur(14px) saturate(1.22);
-    backdrop-filter: blur(14px) saturate(1.22);
-  }
-
-  .story-card-body::before {
-    -webkit-backdrop-filter: blur(6px) saturate(1.06);
-    backdrop-filter: blur(6px) saturate(1.06);
-  }
-
   .story-card-body-image {
     filter: blur(5px) saturate(1.1) contrast(0.96);
   }
