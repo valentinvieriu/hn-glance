@@ -165,7 +165,7 @@
             >
               <LucideChevronsUp v-if="areAllCommentsExpanded" class="w-4 h-4" />
               <LucideChevronsDown v-else class="w-4 h-4" />
-              <span>{{ areAllCommentsExpanded ? 'Smart collapse' : 'Expand all' }}</span>
+              <span>{{ areAllCommentsExpanded ? 'Hide deep replies' : 'Expand all' }}</span>
             </button>
           </div>
           <div v-if="story.children.length === 0" class="text-gray-500 leading-7">
@@ -183,9 +183,8 @@
               :descendant-comment-counts="descendantCommentCounts"
               :parent-comment-ids="parentCommentIds"
               :root-comment-ids="rootCommentIds"
-              :compacted-ids="compactedCommentIds"
               :hidden-reply-ids="hiddenReplyIds"
-              :toggle-compacted="toggleCommentCompacted"
+              :jump-target-comment-id="jumpTargetCommentId"
               :toggle-replies-hidden="toggleRepliesHidden"
               :jump-to-comment="jumpToComment"
             />
@@ -251,7 +250,6 @@ import {
   getSmartCommentDisclosure,
   revealCommentPath,
   summarizeCommentTree,
-  toggleCommentCompaction,
   toggleCommentReplies,
 } from '#shared/utils/comments'
 import { formatTimeAgo } from '#shared/utils/date'
@@ -455,14 +453,10 @@ const getCommentIdFromHash = (hash: string) => {
   return Number.isSafeInteger(commentId) && commentId > 0 ? commentId : null
 }
 
-/**
- * Compaction skips a whole comment branch; reply disclosure keeps the current
- * comment readable and hides only its children. Overrides stay null until the
- * reader acts so smart reply gates derive from the SSR summary during hydration.
- */
-const EMPTY_COMMENT_IDS: ReadonlySet<number> = new Set()
-const compactedCommentOverride = ref<ReadonlySet<number> | null>(null)
+// Overrides stay null until the reader acts so smart reply gates derive from
+// the SSR summary during hydration.
 const hiddenReplyOverride = ref<ReadonlySet<number> | null>(null)
+const jumpTargetCommentId = ref<number | null>(null)
 let commentHighlightTimer: ReturnType<typeof setTimeout> | undefined
 let highlightedComment: HTMLElement | null = null
 
@@ -493,12 +487,7 @@ const jumpToComment = async (commentId: number, updateHash = true) => {
   if (pathIds) {
     // Open only what is required to render the target. Its own reply visibility
     // and every unrelated branch retain their existing state.
-    const nextState = revealCommentPath({
-      compactedIds: compactedCommentIds.value,
-      hiddenReplyIds: hiddenReplyIds.value,
-    }, pathIds)
-    compactedCommentOverride.value = nextState.compactedIds
-    hiddenReplyOverride.value = nextState.hiddenReplyIds
+    hiddenReplyOverride.value = revealCommentPath(hiddenReplyIds.value, pathIds)
   }
   await nextTick()
 
@@ -506,9 +495,7 @@ const jumpToComment = async (commentId: number, updateHash = true) => {
 
   if (!target) {
     // Safety net: open the whole tree if targeted expansion missed.
-    const expandedState = getExpandedCommentDisclosure()
-    compactedCommentOverride.value = expandedState.compactedIds
-    hiddenReplyOverride.value = expandedState.hiddenReplyIds
+    hiddenReplyOverride.value = getExpandedCommentDisclosure()
     await nextTick()
     target = document.getElementById(`comment-${commentId}`)
   }
@@ -516,6 +503,8 @@ const jumpToComment = async (commentId: number, updateHash = true) => {
   if (!target) {
     return
   }
+
+  jumpTargetCommentId.value = commentId
 
   if (updateHash) {
     const nextUrl = `${window.location.pathname}${window.location.search}#comment-${commentId}`
@@ -603,8 +592,8 @@ watch(screenshotSrc, () => {
 
 watch(storyId, () => {
   clearCommentHighlight()
-  compactedCommentOverride.value = null
   hiddenReplyOverride.value = null
+  jumpTargetCommentId.value = null
   clearStoryContext()
 
   if (isStoryContextNearViewport.value) {
@@ -650,51 +639,27 @@ const getCommentThreadAuthorPaletteForRoot = (rootCommentId: number) => {
     ?? EMPTY_COMMENT_THREAD_AUTHOR_PALETTE
 }
 
-const compactedCommentIds = computed<ReadonlySet<number>>(() => {
-  return compactedCommentOverride.value ?? EMPTY_COMMENT_IDS
-})
-
 const hiddenReplyIds = computed<ReadonlySet<number>>(() => {
   return hiddenReplyOverride.value ?? defaultHiddenReplyIds.value
 })
 
 const areAllCommentsExpanded = computed(() => {
-  return compactedCommentIds.value.size === 0 && hiddenReplyIds.value.size === 0
+  return hiddenReplyIds.value.size === 0
 })
 
 const canToggleAllComments = computed(() => {
   return defaultHiddenReplyIds.value.size > 0
-    || compactedCommentIds.value.size > 0
     || hiddenReplyIds.value.size > 0
 })
 
 const toggleExpandAllComments = () => {
-  const nextState = areAllCommentsExpanded.value
+  hiddenReplyOverride.value = areAllCommentsExpanded.value
     ? getSmartCommentDisclosure(defaultHiddenReplyIds.value)
     : getExpandedCommentDisclosure()
-
-  compactedCommentOverride.value = nextState.compactedIds
-  hiddenReplyOverride.value = nextState.hiddenReplyIds
-}
-
-const toggleCommentCompacted = (commentId: number) => {
-  const nextState = toggleCommentCompaction({
-    compactedIds: compactedCommentIds.value,
-    hiddenReplyIds: hiddenReplyIds.value,
-  }, commentId)
-
-  compactedCommentOverride.value = nextState.compactedIds
-  hiddenReplyOverride.value = nextState.hiddenReplyIds
 }
 
 const toggleRepliesHidden = (commentId: number) => {
-  const nextState = toggleCommentReplies({
-    compactedIds: compactedCommentIds.value,
-    hiddenReplyIds: hiddenReplyIds.value,
-  }, commentId)
-
-  compactedCommentOverride.value = nextState.compactedIds
-  hiddenReplyOverride.value = nextState.hiddenReplyIds
+  hiddenReplyOverride.value = toggleCommentReplies(hiddenReplyIds.value, commentId)
 }
 
 const timeAgo = computed(() => {

@@ -9,13 +9,6 @@ export const DEFAULT_COMMENT_DEPTH = 3
  */
 export const HIDDEN_REPLY_SUBTREE_MIN_DESCENDANTS = 4
 
-export const COMMENT_PREVIEW_LENGTH = 100
-
-export type CommentDisclosureState = {
-  compactedIds: ReadonlySet<number>
-  hiddenReplyIds: ReadonlySet<number>
-}
-
 export type CommentTreeSummary = {
   authorCounts: ReadonlyMap<string, number>
   commentAuthors: ReadonlyMap<number, string>
@@ -134,91 +127,24 @@ const toggleCommentId = (ids: ReadonlySet<number>, commentId: number) => {
   return nextIds
 }
 
-export const toggleCommentCompaction = (
-  state: CommentDisclosureState,
-  commentId: number,
-): CommentDisclosureState => ({
-  compactedIds: toggleCommentId(state.compactedIds, commentId),
-  hiddenReplyIds: state.hiddenReplyIds,
-})
-
 export const toggleCommentReplies = (
-  state: CommentDisclosureState,
+  hiddenReplyIds: ReadonlySet<number>,
   commentId: number,
-): CommentDisclosureState => ({
-  compactedIds: state.compactedIds,
-  hiddenReplyIds: toggleCommentId(state.hiddenReplyIds, commentId),
-})
+): ReadonlySet<number> => toggleCommentId(hiddenReplyIds, commentId)
 
-export const getExpandedCommentDisclosure = (): CommentDisclosureState => ({
-  compactedIds: new Set(),
-  hiddenReplyIds: new Set(),
-})
+export const getExpandedCommentDisclosure = (): ReadonlySet<number> => new Set()
 
 export const getSmartCommentDisclosure = (
   defaultHiddenReplyIds: ReadonlySet<number>,
-): CommentDisclosureState => ({
-  compactedIds: new Set(),
-  hiddenReplyIds: new Set(defaultHiddenReplyIds),
-})
+): ReadonlySet<number> => new Set(defaultHiddenReplyIds)
 
 export const revealCommentPath = (
-  state: CommentDisclosureState,
+  hiddenReplyIds: ReadonlySet<number>,
   pathIds: readonly number[],
-): CommentDisclosureState => {
-  const compactedIds = new Set(state.compactedIds)
-  const hiddenReplyIds = new Set(state.hiddenReplyIds)
-
-  pathIds.forEach(commentId => compactedIds.delete(commentId))
-  pathIds.slice(0, -1).forEach(commentId => hiddenReplyIds.delete(commentId))
-
-  return {
-    compactedIds,
-    hiddenReplyIds,
-  }
-}
-
-const PLAIN_TEXT_ENTITIES: Record<string, string> = {
-  '&lt;': '<',
-  '&gt;': '>',
-  '&quot;': '"',
-  '&nbsp;': ' ',
-  '&#x27;': "'",
-  '&#39;': "'",
-  '&#x2f;': '/',
-  '&#47;': '/',
-}
-
-/**
- * Flattens HN comment markup into a one-line summary for collapsed rows.
- * The result is plain text rendered through interpolation, never `v-html`, so
- * decoding entities here cannot reintroduce markup the sanitizer would strip.
- */
-export const getCommentPreview = (
-  text: string | null | undefined,
-  maxLength = COMMENT_PREVIEW_LENGTH,
-): string => {
-  const plain = (text ?? '')
-    .replace(/<[^>]*>/g, ' ')
-    .replace(
-      /&(?:lt|gt|quot|nbsp|#x27|#39|#x2F|#47);/gi,
-      match => PLAIN_TEXT_ENTITIES[match.toLowerCase()] ?? match,
-    )
-    // Ampersands decode last so `&amp;lt;` stays literal instead of becoming `<`.
-    .replace(/&amp;/gi, '&')
-    .replace(/\s+/g, ' ')
-    .trim()
-
-  if (plain.length <= maxLength) {
-    return plain
-  }
-
-  const clipped = plain.slice(0, maxLength)
-  const lastSpace = clipped.lastIndexOf(' ')
-  // Fall back to a hard cut when the tail is one very long token (a bare URL).
-  const truncated = lastSpace > maxLength * 0.6 ? clipped.slice(0, lastSpace) : clipped
-
-  return `${truncated.trimEnd()}…`
+): ReadonlySet<number> => {
+  const revealedReplyIds = new Set(hiddenReplyIds)
+  pathIds.slice(0, -1).forEach(commentId => revealedReplyIds.delete(commentId))
+  return revealedReplyIds
 }
 
 export const getCommentPathIds = (

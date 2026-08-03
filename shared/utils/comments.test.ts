@@ -2,13 +2,11 @@ import { describe, expect, it } from 'vitest'
 import type { Comment } from '#shared/types'
 import {
   getCommentPathIds,
-  getCommentPreview,
   getCommentReplyCountLabel,
   getExpandedCommentDisclosure,
   getSmartCommentDisclosure,
   revealCommentPath,
   summarizeCommentTree,
-  toggleCommentCompaction,
   toggleCommentReplies,
 } from './comments'
 
@@ -103,40 +101,6 @@ describe('comment tree summary', () => {
   })
 })
 
-describe('collapsed comment preview', () => {
-  it('strips markup and collapses whitespace', () => {
-    expect(getCommentPreview('<p>Hello   <a href="https://x.test">world</a></p>')).toBe(
-      'Hello world',
-    )
-  })
-
-  it('decodes the entities HN emits', () => {
-    expect(getCommentPreview('&gt; quoted &amp; &quot;cited&quot; &#x27;text&#x27;')).toBe(
-      '> quoted & "cited" \'text\'',
-    )
-  })
-
-  it('does not double-decode escaped ampersands into markup', () => {
-    expect(getCommentPreview('&amp;lt;script&amp;gt;')).toBe('&lt;script&gt;')
-  })
-
-  it('truncates on a word boundary', () => {
-    const preview = getCommentPreview('alpha beta gamma delta epsilon', 20)
-
-    expect(preview).toBe('alpha beta gamma…')
-  })
-
-  it('hard-cuts a single oversized token', () => {
-    const preview = getCommentPreview(`a ${'x'.repeat(40)}`, 20)
-
-    expect(preview).toBe(`a ${'x'.repeat(18)}…`)
-  })
-
-  it('returns an empty string for missing text', () => {
-    expect(getCommentPreview(null)).toBe('')
-  })
-})
-
 describe('comment ancestor path lookup', () => {
   const comments = [
     comment(1, 'alice', [
@@ -160,41 +124,31 @@ describe('comment ancestor path lookup', () => {
   })
 })
 
-describe('comment disclosure state', () => {
-  it('keeps compaction and reply disclosure independent', () => {
-    const initial = getExpandedCommentDisclosure()
-    const repliesHidden = toggleCommentReplies(initial, 2)
-    const compacted = toggleCommentCompaction(repliesHidden, 2)
-    const expandedAgain = toggleCommentCompaction(compacted, 2)
+describe('comment reply disclosure state', () => {
+  it('toggles a comment reply gate independently', () => {
+    const expanded = getExpandedCommentDisclosure()
+    const repliesHidden = toggleCommentReplies(expanded, 2)
+    const repliesShownAgain = toggleCommentReplies(repliesHidden, 2)
 
-    expect([...compacted.compactedIds]).toEqual([2])
-    expect([...compacted.hiddenReplyIds]).toEqual([2])
-    expect(expandedAgain.compactedIds.size).toBe(0)
-    expect([...expandedAgain.hiddenReplyIds]).toEqual([2])
+    expect([...repliesHidden]).toEqual([2])
+    expect(repliesShownAgain.size).toBe(0)
   })
 
   it('expands all comments and restores smart defaults predictably', () => {
     const smart = getSmartCommentDisclosure(new Set([3, 8]))
-    const modified = toggleCommentCompaction(toggleCommentReplies(smart, 3), 4)
+    const modified = toggleCommentReplies(smart, 3)
     const expanded = getExpandedCommentDisclosure()
     const restored = getSmartCommentDisclosure(new Set([3, 8]))
 
-    expect([...modified.compactedIds]).toEqual([4])
-    expect([...modified.hiddenReplyIds]).toEqual([8])
-    expect(expanded.compactedIds.size).toBe(0)
-    expect(expanded.hiddenReplyIds.size).toBe(0)
-    expect(restored.compactedIds.size).toBe(0)
-    expect([...restored.hiddenReplyIds]).toEqual([3, 8])
+    expect([...modified]).toEqual([8])
+    expect(expanded.size).toBe(0)
+    expect([...restored]).toEqual([3, 8])
   })
 
   it('reveals only the target path and preserves unrelated branch state', () => {
-    const revealed = revealCommentPath({
-      compactedIds: new Set([1, 2, 3, 9]),
-      hiddenReplyIds: new Set([1, 2, 3, 9]),
-    }, [1, 2, 3])
+    const revealed = revealCommentPath(new Set([1, 2, 3, 9]), [1, 2, 3])
 
-    expect([...revealed.compactedIds]).toEqual([9])
-    expect([...revealed.hiddenReplyIds]).toEqual([3, 9])
+    expect([...revealed]).toEqual([3, 9])
   })
 })
 

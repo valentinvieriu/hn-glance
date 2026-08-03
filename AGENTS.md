@@ -214,7 +214,7 @@ Current rendering uses `useSanitizer.ts` to:
 - Autolink safe bare URLs only when HN/Algolia did not already emit an anchor.
 - Style `Edit:`, `Update:`, and `TL;DR:` as note labels.
 
-Nested comments render to a limited depth by default. `app/pages/item/[id].vue` analyzes the tree once for totals, author activity, descendant counts, and collapsed-state; `CommentThread.vue` uses that shared summary for local reply disclosure.
+Nested comments render to a limited depth by default. `app/pages/item/[id].vue` analyzes the tree once for totals, author activity, descendant counts, and reply-disclosure defaults; `CommentThread.vue` uses that shared summary to show or hide replies while keeping every comment visible.
 
 Story detail pages also extract a bounded set of safe HTTP(S) links from the
 already-loaded comment tree. `CommentLinks.vue` shows all extracted links in

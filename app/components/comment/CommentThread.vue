@@ -37,61 +37,37 @@
           >
             {{ timeAgo }}
           </a>
-          <span
-            v-if="isCompacted && hasChildren"
-            class="comment-thread-stat"
-            :aria-label="replyCountLabel"
-            :title="replyCountLabel"
+          <nav
+            v-if="showAncestryNavigation"
+            class="comment-ancestry-navigation"
+            :aria-label="`Ancestry for ${comment.author}'s comment`"
           >
-            {{ threadSizeLabel }}
-          </span>
-          <template v-if="isCompacted">
-            <span v-if="preview" class="comment-collapsed-preview">{{ preview }}</span>
-          </template>
-          <button
-            type="button"
-            class="comment-collapse-toggle"
-            :aria-expanded="!isCompacted"
-            :aria-controls="commentContentElementId"
-            :aria-label="compactionActionLabel"
-            :title="compactionActionLabel"
-            @click="toggleCompacted(comment.id)"
-          >
-            <LucideChevronDown v-if="!isCompacted" class="w-3.5 h-3.5" aria-hidden="true" />
-            <LucideChevronRight v-else class="w-3.5 h-3.5" aria-hidden="true" />
-          </button>
+            <a
+              v-if="showParentLink"
+              :href="parentPermalink"
+              class="comment-ancestry-link comment-ancestry-link-parent"
+              :aria-label="`Jump to parent comment by ${parentAuthor}`"
+              :title="`Parent comment by ${parentAuthor}`"
+              @click.prevent="jumpToParent"
+            >
+              <LucideCornerDownRight class="comment-ancestry-icon" aria-hidden="true" />
+              <span class="comment-ancestry-author">{{ parentAuthor }}</span>
+            </a>
+            <a
+              v-if="showRootLink"
+              :href="rootPermalink"
+              class="comment-ancestry-link comment-ancestry-link-root"
+              :aria-label="`Jump to thread start by ${rootAuthor}`"
+              :title="`Thread start by ${rootAuthor}`"
+              @click.prevent="jumpToRoot"
+            >
+              <LucideArrowUpToLine class="comment-ancestry-icon" aria-hidden="true" />
+              <span class="comment-ancestry-author">{{ rootAuthor }}</span>
+            </a>
+          </nav>
         </div>
-        <nav
-          v-if="!isCompacted && parentCommentId && parentAuthor"
-          class="comment-ancestry-navigation"
-          :aria-label="`Ancestry for ${comment.author}'s comment`"
-        >
-          <a
-            :href="parentPermalink"
-            class="comment-ancestry-link"
-            :aria-label="`Jump to parent comment by ${parentAuthor}`"
-            :title="`Jump to parent comment by ${parentAuthor}`"
-            @click.prevent="jumpToParent"
-          >
-            <LucideCornerDownRight class="comment-ancestry-icon" aria-hidden="true" />
-            <span class="comment-ancestry-label">Parent comment:</span>
-            <span class="comment-ancestry-author">{{ parentAuthor }}</span>
-          </a>
-          <a
-            v-if="showRootLink && rootAuthor"
-            :href="rootPermalink"
-            class="comment-ancestry-link"
-            :aria-label="`Jump to thread start by ${rootAuthor}`"
-            :title="`Jump to thread start by ${rootAuthor}`"
-            @click.prevent="jumpToRoot"
-          >
-            <LucideArrowUpToLine class="comment-ancestry-icon" aria-hidden="true" />
-            <span class="comment-ancestry-label">Thread start:</span>
-            <span class="comment-ancestry-author">{{ rootAuthor }}</span>
-          </a>
-        </nav>
       </div>
-      <div v-if="!isCompacted" :id="commentContentElementId" class="comment-expanded-content">
+      <div class="comment-expanded-content">
         <div
           class="comment-text reading-text rich-text break-words"
           v-html="sanitizedText"
@@ -127,7 +103,7 @@
       </div>
     </div>
     <div
-      v-if="!isCompacted && hasChildren && !areRepliesHidden"
+      v-if="hasChildren && !areRepliesHidden"
       :id="childrenElementId"
       class="comment-children"
     >
@@ -136,13 +112,14 @@
       <div class="comment-spine" aria-hidden="true" @click="toggleRepliesHidden(comment.id)"></div>
       <div class="comment-children-list">
         <div
-          v-for="child in comment.children"
+          v-for="(child, childIndex) in comment.children"
           :key="child.id"
           class="comment-child-branch"
         >
           <CommentThread
             :comment="child"
             :current-depth="currentDepth + 1"
+            :sibling-index="childIndex"
             :story-author="storyAuthor"
             :author-comment-counts="authorCommentCounts"
             :author-palette="authorPalette"
@@ -150,9 +127,8 @@
             :descendant-comment-counts="descendantCommentCounts"
             :parent-comment-ids="parentCommentIds"
             :root-comment-ids="rootCommentIds"
-            :compacted-ids="compactedIds"
             :hidden-reply-ids="hiddenReplyIds"
-            :toggle-compacted="toggleCompacted"
+            :jump-target-comment-id="jumpTargetCommentId"
             :toggle-replies-hidden="toggleRepliesHidden"
             :jump-to-comment="jumpToComment"
           />
@@ -166,8 +142,6 @@
 import { computed } from 'vue'
 import {
   LucideArrowUpToLine,
-  LucideChevronDown,
-  LucideChevronRight,
   LucideCornerDownRight,
   LucideExternalLink,
   LucideMessageSquare,
@@ -175,7 +149,7 @@ import {
   LucidePlus,
 } from '@lucide/vue'
 import type { Comment } from '#shared/types'
-import { getCommentPreview, getCommentReplyCountLabel } from '#shared/utils/comments'
+import { getCommentReplyCountLabel } from '#shared/utils/comments'
 import { formatTimeAgo } from '#shared/utils/date'
 import { getHnUserPath } from '#shared/utils/hn'
 import { useSanitizer } from '~/composables/useSanitizer'
@@ -189,6 +163,7 @@ const COMMENT_INDENT_CAP_DEPTH = 8
 const props = defineProps<{
   comment: Comment
   currentDepth?: number
+  siblingIndex?: number
   storyAuthor?: string
   authorCommentCounts: ReadonlyMap<string, number>
   authorPalette: CommentThreadAuthorPalette
@@ -196,9 +171,8 @@ const props = defineProps<{
   descendantCommentCounts: ReadonlyMap<number, number>
   parentCommentIds: ReadonlyMap<number, number | null>
   rootCommentIds: ReadonlyMap<number, number>
-  compactedIds: ReadonlySet<number>
   hiddenReplyIds: ReadonlySet<number>
-  toggleCompacted: (commentId: number) => void
+  jumpTargetCommentId?: number | null
   toggleRepliesHidden: (commentId: number) => void
   jumpToComment: (commentId: number) => void | Promise<void>
 }>()
@@ -207,6 +181,7 @@ const { sanitize } = useSanitizer()
 const sanitizedText = computed(() => sanitize(props.comment.text || '', `comment-${props.comment.id}`))
 
 const currentDepth = computed(() => props.currentDepth ?? 1)
+const siblingIndex = computed(() => props.siblingIndex ?? 0)
 const authorCommentCount = computed(() => props.authorCommentCounts.get(props.comment.author) ?? 1)
 const commentPaletteStyle = computed(() => {
   return props.authorPalette.authorStyles.get(props.comment.author)
@@ -214,14 +189,12 @@ const commentPaletteStyle = computed(() => {
 })
 const timeAgo = computed(() => formatTimeAgo(props.comment.created_at))
 
-const isCompacted = computed(() => props.compactedIds.has(props.comment.id))
 const areRepliesHidden = computed(() => props.hiddenReplyIds.has(props.comment.id))
 const childReplies = computed(() => props.comment.children ?? [])
 const hasChildren = computed(() => childReplies.value.length > 0)
 const subtreeCount = computed(() => props.descendantCommentCounts.get(props.comment.id) ?? 0)
 const parentCommentId = computed(() => props.parentCommentIds.get(props.comment.id) ?? null)
 const rootCommentId = computed(() => props.rootCommentIds.get(props.comment.id) ?? props.comment.id)
-const commentContentElementId = computed(() => `comment-content-${props.comment.id}`)
 const childrenElementId = computed(() => `comment-children-${props.comment.id}`)
 
 const isOriginalPoster = computed(() => {
@@ -232,8 +205,21 @@ const parentAuthor = computed(() => {
   return parentCommentId.value ? props.commentAuthors.get(parentCommentId.value) ?? '' : ''
 })
 const rootAuthor = computed(() => props.commentAuthors.get(rootCommentId.value) ?? '')
+const isJumpTarget = computed(() => props.jumpTargetCommentId === props.comment.id)
+const showParentLink = computed(() => {
+  return Boolean(parentCommentId.value)
+    && (siblingIndex.value > 0
+      || currentDepth.value >= COMMENT_INDENT_CAP_DEPTH
+      || isJumpTarget.value)
+})
 const showRootLink = computed(() => {
-  return Boolean(parentCommentId.value) && rootCommentId.value !== parentCommentId.value
+  return Boolean(parentCommentId.value)
+    && rootCommentId.value !== parentCommentId.value
+    && Boolean(rootAuthor.value)
+    && (currentDepth.value >= 4 || isJumpTarget.value)
+})
+const showAncestryNavigation = computed(() => {
+  return (showParentLink.value && Boolean(parentAuthor.value)) || showRootLink.value
 })
 
 // One-off voices keep a quieter version of their thread-assigned hue; repeat
@@ -244,7 +230,6 @@ const commentContainerClasses = computed(() => {
   return {
     'comment-top-level': currentDepth.value === 1,
     'comment-indent-capped': currentDepth.value >= COMMENT_INDENT_CAP_DEPTH,
-    'comment-compacted': isCompacted.value,
     'comment-replies-hidden': areRepliesHidden.value,
     'seed-palette-quiet': !isRecurringAuthor.value,
   }
@@ -254,25 +239,12 @@ const replyCountLabel = computed(() => {
   return getCommentReplyCountLabel(childReplies.value.length, subtreeCount.value)
 })
 
-const threadSizeLabel = computed(() => {
-  const count = subtreeCount.value
-
-  return `${count} ${count === 1 ? 'reply' : 'replies'}`
-})
-
-const compactionActionLabel = computed(() => {
-  return isCompacted.value
-    ? `Expand ${props.comment.author}'s compacted comment`
-    : `Compact ${props.comment.author}'s comment and its replies`
-})
-
 const replyDisclosureLabel = computed(() => {
   return areRepliesHidden.value
     ? `Show ${replyCountLabel.value} from ${props.comment.author}`
     : `Hide ${replyCountLabel.value} from ${props.comment.author}`
 })
 
-const preview = computed(() => getCommentPreview(props.comment.text))
 const commentPermalink = computed(() => `#comment-${props.comment.id}`)
 const parentPermalink = computed(() => `#comment-${parentCommentId.value}`)
 const rootPermalink = computed(() => `#comment-${rootCommentId.value}`)
@@ -298,9 +270,9 @@ const replyHref = computed(() => {
   --comment-incoming-rail-center: calc(-1 * var(--comment-indent) - 0.5px);
   --comment-outgoing-rail-left: 0px;
   --comment-rail-opacity: 0.7;
-  --comment-children-top-gap: 0.65rem;
+  --comment-children-top-gap: 0.75rem;
   --comment-junction-y: 1.1rem;
-  --comment-sibling-gap: 0.7rem;
+  --comment-sibling-gap: 0.85rem;
   /* Roughly 60-68 characters in the reading face: wide enough to reduce scroll
      while staying below the 75-80 character readability ceiling. Held in rem
      so the smaller metadata row shares the body's visual edge. */
@@ -376,58 +348,11 @@ const replyHref = computed(() => {
   gap: 0.32rem 0.42rem;
   flex-wrap: wrap;
   min-height: 2.65rem;
-  padding: 0.35rem 0.45rem 0.12rem 0.75rem;
+  padding: 0.35rem 0.75rem 0.12rem;
 }
 
 .dark .comment-header {
   color: rgb(148 163 184);
-}
-
-/* Compacted rows are the summary, so let the preview use the full column. */
-.comment-compacted > .comment-body {
-  max-width: none;
-}
-
-.comment-compacted .comment-header-primary {
-  min-height: 2.6rem;
-  padding-bottom: 0.35rem;
-}
-
-.comment-collapse-toggle {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex: 0 0 auto;
-  width: 2rem;
-  height: 2rem;
-  margin-left: auto;
-  border: 1px solid color-mix(in oklch, var(--seed-border-strong) 40%, transparent);
-  border-radius: 999px;
-  background: color-mix(in oklch, var(--seed-metric-bg) 58%, transparent);
-  color: inherit;
-  opacity: 0.82;
-  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, opacity 0.15s ease;
-}
-
-.comment-collapse-toggle:hover,
-.comment-collapse-toggle:focus-visible {
-  border-color: var(--seed-border-strong);
-  background: var(--seed-metric-bg-hover);
-  color: var(--seed-accent-strong);
-  opacity: 1;
-}
-
-.comment-collapse-toggle:focus-visible {
-  outline: 2px solid var(--seed-accent);
-  outline-offset: 2px;
-}
-
-/* Compacted rows behave like the story-context rows: the toggle owns the whole
-   line and the author link lifts above the overlay. */
-.comment-compacted .comment-collapse-toggle::after {
-  content: '';
-  position: absolute;
-  inset: 0;
 }
 
 .author-chip {
@@ -494,16 +419,16 @@ const replyHref = computed(() => {
 }
 
 .comment-ancestry-navigation {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 0.12rem 0.8rem;
+  flex: 0 1 auto;
+  gap: 0.22rem;
   min-width: 0;
-  padding: 0.05rem 0.75rem 0.35rem;
+  max-width: min(100%, 17rem);
   color: rgb(71 85 105);
-  font-size: 0.75rem;
-  font-weight: 550;
-  line-height: 1.35;
+  font-size: 0.7rem;
+  font-weight: 600;
+  line-height: 1;
 }
 
 .dark .comment-ancestry-navigation {
@@ -513,29 +438,31 @@ const replyHref = computed(() => {
 .comment-ancestry-link {
   display: inline-flex;
   align-items: center;
-  gap: 0.2rem;
+  flex: 0 1 auto;
+  gap: 0.18rem;
   min-width: 0;
-  max-width: min(100%, 18rem);
-  min-height: 1.75rem;
-  opacity: 0.82;
-  transition: color 0.15s ease, opacity 0.15s ease;
+  max-width: 8.25rem;
+  min-height: 1.45rem;
+  padding: 0.08rem 0.34rem;
+  border: 1px solid color-mix(in oklch, var(--seed-border-strong) 34%, transparent);
+  border-radius: 999px;
+  background: color-mix(in oklch, var(--seed-metric-bg) 54%, transparent);
+  opacity: 0.74;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, opacity 0.15s ease;
 }
 
 .comment-ancestry-link:hover,
 .comment-ancestry-link:focus-visible {
+  border-color: color-mix(in oklch, var(--seed-border-strong) 68%, transparent);
+  background: var(--seed-metric-bg-hover);
   color: var(--seed-accent-strong);
   opacity: 1;
 }
 
 .comment-ancestry-icon {
   flex: 0 0 auto;
-  width: 0.875rem;
-  height: 0.875rem;
-}
-
-.comment-ancestry-label {
-  flex: 0 0 auto;
-  opacity: 0.76;
+  width: 0.75rem;
+  height: 0.75rem;
 }
 
 .comment-ancestry-author {
@@ -559,28 +486,6 @@ const replyHref = computed(() => {
 .comment-time:focus-visible {
   text-decoration: underline;
   opacity: 1;
-}
-
-.comment-compacted .comment-time {
-  z-index: 1;
-}
-
-.comment-thread-stat {
-  flex: 0 0 auto;
-  padding-left: 0.42rem;
-  border-left: 1px solid color-mix(in oklch, var(--seed-border-strong) 60%, transparent);
-  color: var(--seed-accent-strong);
-  font-weight: 600;
-  white-space: nowrap;
-}
-
-.comment-collapsed-preview {
-  flex: 1 1 12rem;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  opacity: 0.72;
 }
 
 .comment-reply-link {
@@ -623,9 +528,13 @@ const replyHref = computed(() => {
 }
 
 .comment-text :deep(blockquote) {
-  border-left-color: var(--seed-accent);
-  background: color-mix(in oklch, var(--seed-accent-soft) 72%, transparent);
-  opacity: 0.92;
+  margin-top: 0.85rem;
+  padding: 0.08rem 0 0.08rem 0.9rem;
+  border-left-width: 1px;
+  border-left-color: color-mix(in oklch, var(--seed-accent) 44%, transparent);
+  border-radius: 0;
+  background: transparent;
+  opacity: 0.8;
 }
 
 .comment-actions {
@@ -817,11 +726,6 @@ const replyHref = computed(() => {
     padding-left: 0.65rem;
   }
 
-  .comment-collapse-toggle {
-    width: 2.25rem;
-    height: 2.25rem;
-  }
-
   .comment-text {
     font-size: 1.0625rem;
     line-height: 1.65;
@@ -833,11 +737,11 @@ const replyHref = computed(() => {
   }
 
   .comment-ancestry-navigation {
-    gap: 0.08rem 0.55rem;
+    gap: 0.18rem;
   }
 
   .comment-ancestry-link {
-    max-width: 100%;
+    max-width: min(7.5rem, 38vw);
   }
 }
 </style>
