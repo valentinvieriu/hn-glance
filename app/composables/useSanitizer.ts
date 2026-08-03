@@ -27,10 +27,28 @@ const ALLOWED_TAGS = new Set([
 const VOID_TAGS = new Set(['br'])
 const HN_BASE_URL = 'https://news.ycombinator.com/'
 const BLOCK_LEVEL_PATTERN = /^<(?:blockquote|ol|pre|ul)\b/i
+const TOP_LEVEL_BLOCK_PATTERN = /<(blockquote|ol|pre|ul)\b[^>]*>[\s\S]*?<\/\1>/gi
 const INLINE_OPENING_TAGS_PATTERN = /^(?:\s*<(?:b|code|em|i|strong)>)+/i
 const QUOTE_MARKER_PATTERN = /(^|<br>|\n)(\s*(?:<(?:b|code|em|i|strong)>)*\s*)(?:&gt;|>)\s?/gi
 const REFERENCE_LINE_PATTERN = /^\[(\d+)\](?:\s*[-:]\s*|\s+)(?:<a\b|https?:\/\/)/i
 const URL_PATTERN = /https?:\/\/[^\s<]+/gi
+const ASTERISK_EMPHASIS_PATTERN = /(^|[^\p{L}\p{N}_*])\*([^\s*](?:[^*\n]*?[^\s*])?)\*(?=$|[^\p{L}\p{N}_*])/gu
+const INLINE_CODE_PATTERN = /(^|[^`])`([^\s`\n](?:[^`\n]*?[^\s`\n])?)`(?!`)/g
+const EMPHASIS_IGNORED_TAGS = new Set(['a', 'b', 'code', 'em', 'i', 'pre', 'strong'])
+
+type ManualListItem = {
+  content: string
+  marker: string
+  type: 'ol' | 'ul'
+  value?: number
+}
+
+type ManualListBuffer = {
+  items: Array<ManualListItem & { original: string }>
+  marker: string
+  nextValue?: number
+  type: 'ol' | 'ul'
+}
 
 const decodeHtmlEntities = (value: string) => value.replace(
   /&(#\d+|#x[\da-f]+|[a-z]+);/gi,
@@ -229,6 +247,24 @@ const linkBareUrls = (html: string) => {
   }))
 }
 
+const formatInlineCode = (html: string) => {
+  return mapTextOutsideTags(html, (text) => text.replace(
+    INLINE_CODE_PATTERN,
+    '$1<code>$2</code>',
+  ))
+}
+
+const formatAsteriskEmphasis = (html: string) => {
+  return mapTextOutsideTags(
+    html,
+    (text) => text.replace(
+      ASTERISK_EMPHASIS_PATTERN,
+      '$1<em>$2</em>',
+    ),
+    EMPHASIS_IGNORED_TAGS,
+  )
+}
+
 const linkFootnoteMarkers = (html: string, referenceNumbers: Set<string>, scopeId: string) => {
   if (referenceNumbers.size === 0) return html
 
@@ -246,7 +282,11 @@ const styleNotePrefix = (html: string) => {
 }
 
 const formatInlineConventions = (html: string, referenceNumbers: Set<string>, scopeId: string) => {
-  return styleNotePrefix(linkFootnoteMarkers(linkBareUrls(html), referenceNumbers, scopeId))
+  const formattedCode = formatInlineCode(html)
+  const formattedEmphasis = formatAsteriskEmphasis(formattedCode)
+  const linkedText = linkFootnoteMarkers(linkBareUrls(formattedEmphasis), referenceNumbers, scopeId)
+
+  return styleNotePrefix(linkedText)
 }
 
 const formatReferenceLine = (html: string, referenceNumber: string, scopeId: string) => {
@@ -258,12 +298,59 @@ const formatReferenceLine = (html: string, referenceNumber: string, scopeId: str
   return `<p id="${escapeAttribute(getReferenceId(scopeId, referenceNumber))}" class="reference-line">${formattedLine}</p>`
 }
 
+const getManualListItem = (html: string): ManualListItem | null => {
+  const unorderedMatch = html.match(/^([-*+])\s+([\s\S]+)$/)
+
+  if (unorderedMatch?.[1] && unorderedMatch[2]) {
+    return {
+      content: unorderedMatch[2],
+      marker: unorderedMatch[1],
+      type: 'ul',
+    }
+  }
+
+  const orderedMatch = html.match(/^(\d{1,3})([.)])\s+([\s\S]+)$/)
+  const value = Number.parseInt(orderedMatch?.[1] ?? '', 10)
+
+  if (orderedMatch?.[2] && orderedMatch[3] && Number.isFinite(value)) {
+    return {
+      content: orderedMatch[3],
+      marker: orderedMatch[2],
+      type: 'ol',
+      value,
+    }
+  }
+
+  return null
+}
+
+const splitTextBlocks = (html: string) => {
+  const blocks: string[] = []
+  let lastIndex = 0
+
+  const appendParagraphs = (fragment: string) => {
+    blocks.push(...fragment
+      .replace(/<\/p>/gi, '')
+      .split(/<p>/i)
+      .map((paragraph) => paragraph.trim())
+      .filter(Boolean))
+  }
+
+  for (const match of html.matchAll(TOP_LEVEL_BLOCK_PATTERN)) {
+    const index = match.index ?? 0
+
+    appendParagraphs(html.slice(lastIndex, index))
+    blocks.push(match[0])
+    lastIndex = index + match[0].length
+  }
+
+  appendParagraphs(html.slice(lastIndex))
+
+  return blocks
+}
+
 const formatTextConventions = (html: string, rawScopeId?: string | number | null) => {
-  const paragraphs = html
-    .replace(/<\/p>/gi, '')
-    .split(/<p>/i)
-    .map((paragraph) => paragraph.trim())
-    .filter(Boolean)
+  const paragraphs = splitTextBlocks(html)
 
   if (paragraphs.length === 0) return ''
 
@@ -271,6 +358,11 @@ const formatTextConventions = (html: string, rawScopeId?: string | number | null
   const referenceNumbers = new Set(paragraphs.map(getReferenceNumber).filter(Boolean))
   const formatted: string[] = []
   const quoteBuffer: string[] = []
+  let listBuffer: ManualListBuffer | null = null
+
+  const formatParagraph = (paragraph: string) => {
+    return `<p>${formatInlineConventions(paragraph, referenceNumbers, scopeId)}</p>`
+  }
 
   const flushQuoteBuffer = () => {
     if (quoteBuffer.length === 0) return
@@ -279,14 +371,67 @@ const formatTextConventions = (html: string, rawScopeId?: string | number | null
     quoteBuffer.length = 0
   }
 
+  const flushListBuffer = () => {
+    if (!listBuffer) return
+
+    const bufferedList = listBuffer
+    listBuffer = null
+
+    if (bufferedList.items.length < 2) {
+      formatted.push(...bufferedList.items.map((item) => formatParagraph(item.original)))
+      return
+    }
+
+    const items = bufferedList.items
+      .map((item) => `<li>${formatInlineConventions(item.content, referenceNumbers, scopeId)}</li>`)
+      .join('')
+
+    formatted.push(`<${bufferedList.type}>${items}</${bufferedList.type}>`)
+  }
+
+  const appendManualListItem = (item: ManualListItem, original: string) => {
+    if (listBuffer) {
+      const isCompatible = listBuffer.type === item.type
+        && listBuffer.marker === item.marker
+        && (item.type === 'ul' || item.value === listBuffer.nextValue)
+
+      if (!isCompatible) {
+        flushListBuffer()
+      }
+    }
+
+    if (!listBuffer) {
+      if (item.type === 'ol' && item.value !== 1) {
+        return false
+      }
+
+      listBuffer = {
+        items: [{ ...item, original }],
+        marker: item.marker,
+        nextValue: item.type === 'ol' ? 2 : undefined,
+        type: item.type,
+      }
+      return true
+    }
+
+    listBuffer.items.push({ ...item, original })
+    if (item.type === 'ol') {
+      listBuffer.nextValue = (item.value ?? 0) + 1
+    }
+
+    return true
+  }
+
   for (const paragraph of paragraphs) {
     if (BLOCK_LEVEL_PATTERN.test(paragraph)) {
+      flushListBuffer()
       flushQuoteBuffer()
       formatted.push(paragraph)
       continue
     }
 
     if (isQuoteBlock(paragraph)) {
+      flushListBuffer()
       quoteBuffer.push(cleanQuoteBlock(paragraph))
       continue
     }
@@ -296,13 +441,22 @@ const formatTextConventions = (html: string, rawScopeId?: string | number | null
     const referenceNumber = getReferenceNumber(paragraph)
 
     if (referenceNumber) {
+      flushListBuffer()
       formatted.push(formatReferenceLine(paragraph, referenceNumber, scopeId))
       continue
     }
 
-    formatted.push(`<p>${formatInlineConventions(paragraph, referenceNumbers, scopeId)}</p>`)
+    const manualListItem = getManualListItem(paragraph)
+
+    if (manualListItem && appendManualListItem(manualListItem, paragraph)) {
+      continue
+    }
+
+    flushListBuffer()
+    formatted.push(formatParagraph(paragraph))
   }
 
+  flushListBuffer()
   flushQuoteBuffer()
 
   return formatted.join('')
