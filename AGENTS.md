@@ -37,9 +37,9 @@ investment should favor discussion readability and navigation.
 
 Do not force equal focus controls onto source, discussion, and references.
 The recursive comment tree remains the default story-overview presentation.
-The optional full-size discussion presentation may project the same loaded tree
-as sibling columns plus a selected-comment reader, with compact plain-text row
-excerpts used only as navigation labels. Preserve the selected comment and the
+The optional discussion-focus presentation may project the same loaded tree
+as sibling columns plus a current-comment reader, with compact plain-text row
+excerpts used only as navigation labels. Preserve the current comment and the
 overview's disclosure state across entry, exit, deep links, and browser history.
 Do not introduce a second comment dataset, a focus-only upstream dependency,
 article extraction, or content rehosting. This boundary does not forbid future
@@ -72,7 +72,7 @@ Frontend:
 - `app/components/story/StoryCard.vue`: visual story card, source link, screenshot preview, title, and status row.
 - `app/components/story/StoryPlaceholderVisual.vue`: shared deterministic wireframe fallback for queued and unavailable screenshots.
 - `app/components/comment/CommentThread.vue`: nested comment renderer.
-- `app/components/comment/ConversationBrowser.vue`: full-size discussion projection with horizontally expanding sibling columns and a fixed rich comment reader; its supporting column, row, reader, and shared rich-content components live in the same directory.
+- `app/components/comment/ConversationBrowser.vue`: discussion-focus projection with horizontally expanding sibling columns and a fixed rich comment reader; its supporting column, row, reader, and shared rich-content components live in the same directory.
 - `app/components/user/UserCommentCard.vue`: user activity comment card.
 - `app/components/SubmissionHistory.vue`: compact exact-source HN timeline that marks the current submission.
 - `app/components/RelatedStories.vue`: semantic “Similar Stories” list on detail pages.
@@ -120,6 +120,7 @@ Types and global styling:
 
 - `shared/types/index.ts`: shared story, comment, user, and activity types used by the Vue app and Nitro server.
 - `shared/utils/comments.ts`, `date.ts`, and `hn.ts`: framework-neutral comment analysis, date formatting, and HN identifier/path helpers.
+- `shared/utils/productLanguage.ts`: typed, framework-neutral semantic UI language for canonical discussion terms, actions, states, accessibility, and dynamic labels.
 - `shared/utils/commentLinks.ts`: bounded, framework-neutral extraction, deduplication, and value-ordered source categorization for outbound links shared in comments.
 - `app/assets/css/main.css`: base typography, rich-text rendering, quote/code/reference styles.
 - `tailwind.config.ts`: Tailwind app content path, fonts, dark mode, and extended color tokens.
@@ -206,6 +207,139 @@ For visual work:
 - Keep UI text compact and functional.
 - Avoid turning HN Glance into a marketing page or a text-only HN clone.
 
+## Interface Language And Mode Conventions
+
+Use one canonical vocabulary for the comment hierarchy everywhere: visible
+copy, accessible labels, tooltips, documentation, tests, and new identifiers.
+Architectural metaphors and legacy component names do not define product copy.
+
+| Canonical term | Exact meaning | Copy rules |
+| --- | --- | --- |
+| Discussion | The complete comment tree for one story | Use for the whole HN discussion, never for one root subtree. |
+| Root comment | A comment with no parent | Use **Root comments** for the first column and breadcrumb origin. Use **Root comment** for a navigation target. |
+| Reply | A direct child of another comment | Say **direct reply** when distinguishing children from all descendants. |
+| Branch | A comment plus its descendants | Counts must state whether they count replies or include the branch's starting comment. |
+| Reading path | The ordered root-comment-to-current sequence, inclusive | A count is a number of comments, not replies or depth unless labeled as such. |
+| Current comment | The selected comment rendered in the comment reader | Use **Current** only as a compact badge when the surrounding context already says comment. |
+| Parent comment | The current comment's direct parent | Interactive labels use the full term rather than an isolated **Parent**. |
+| Sibling replies | Replies sharing the same parent | Prefer **Previous reply** and **Next reply** in UI; “sibling” is mainly an implementation term. |
+
+Do not introduce **conversation**, **thread**, **top-level thread**, and **root
+comment** as alternative names for the same entity. “Conversation Browser” and
+`ConversationBrowser.vue` may remain architecture names for the Miller-column
+pattern, but user-facing copy names discussion entities. Use **branch** rather
+than **thread** for an arbitrary comment subtree. Legacy component and type
+names do not need broad renaming solely to satisfy copy changes.
+
+The discussion UI applies these canonical mappings. Preserve them in new and
+changed surfaces:
+
+| Existing or ambiguous copy | Canonical copy |
+| --- | --- |
+| All conversations / Conversations / top-level threads | Root comments |
+| Parent | Parent comment |
+| Root | Root comment |
+| Comment, when it is a reader-mode option | Current comment |
+| Start, when it jumps to the beginning of a reading path | Go to root comment |
+| Current, when it jumps within a reading path | Go to current comment |
+| Full size, when it enters the focused discussion presentation | Focus discussion |
+| Previous / Next | Previous or next reply; at depth one, previous or next root comment |
+| `N in thread` for a nested subtree | `N replies in branch` |
+| A naked path-count badge such as `3` | `3 comments`, or omit it when **Depth 3** already communicates the same fact |
+
+Keep the presentation hierarchy distinct from the comment hierarchy:
+
+- **Story overview** is the default comparison surface.
+- **Discussion focus** is the full-viewport presentation of the same loaded
+  discussion. The entry action is **Focus discussion** and the return target is
+  **Overview**.
+- **Comment reader** is the reading surface next to or below the columns.
+- **Reading mode** is the visible category label for switching between
+  **Current comment** and **Reading path**.
+
+Mode switches use parallel noun phrases, a visible group label, a strong
+selected treatment, and semantic state such as `aria-pressed`. Do not make a
+mode switch look like passive metadata. Controls name destinations or outcomes;
+badges may use shorter status words only when their context is unambiguous.
+Avoid repeating equivalent metrics—reading-path length and comment depth are
+the same number under the current root-at-depth-one model.
+
+### Product-language system
+
+`shared/utils/productLanguage.ts` is the central, typed, key-based catalog for
+discussion product language. Translation is not the present requirement. The
+reason to use the i18n catalog pattern is to make product language a shared
+decision: one term can change across visible copy, accessible copy, counts,
+tooltips, documentation, and tests without relying on a search for inline text.
+
+The future system must preserve these strategic boundaries:
+
+- keys represent semantic concepts and actions, never component position or
+  visual layout;
+- repeated headings, controls, modes, navigation, counts, tooltips, and
+  accessible names share the catalog;
+- complete contextual phrases and pluralization come from the same language
+  source rather than being assembled independently in components;
+- visible and accessible variants remain connected to one concept even when
+  the visible context permits shorter copy;
+- one-off explanatory prose, legal copy, story content, authors, and HN comment
+  content do not need keys; and
+- a terminology change migrates one complete interaction, including tests and
+  documentation, so temporary variants do not become new conventions.
+
+This is an English-first consistency system with a path to future localization,
+not a claim of current multilingual support and not a reason to abstract every
+string. Import the shared catalog rather than introducing component-local
+variants for concepts it already owns.
+
+## Browser State Direction
+
+Choose state ownership from user expectations before choosing an API. Do not
+put state in `localStorage` merely because persistence is convenient.
+This section records the reasons and boundaries for later state-management
+work; it does not select concrete keys, schemas, modules, or migration steps,
+and it does not authorize opportunistic persistence changes while editing
+related UI.
+
+| State class | Canonical home | Lifetime and examples |
+| --- | --- | --- |
+| Shareable navigation | URL query or hash | Story sort, discussion focus, explicit reading mode, current comment. Survives copied links and browser history. |
+| Per-entry presentation | Vue memory or `history.state` | Scroll geometry, column position, and transient disclosure for the current page/history entry. |
+| Same-tab session state | `sessionStorage` | Feed payload cache and per-feed return context. Ends with the browser tab session. |
+| Durable preferences | A versioned preferences object in `localStorage` | Color-independent UI choices such as the preferred reading mode. |
+| Durable revisit history | A separate bounded and expiring `localStorage` store | Seen comment identities and story revisit timestamps. Never an unbounded activity log. |
+
+Resolution precedence is **explicit URL state → stored preference → product
+default**. Once reading mode becomes a durable preference, discussion-focus
+URLs must encode both `reader=comment` and `reader=path`; absence cannot mean an
+explicit mode because it would allow the same shared URL to resolve differently
+for different readers. Leaving discussion focus may remove focus-only query
+parameters while retaining the preference for the next entry.
+
+Keep these domains separate because they express different user promises and
+require different retention, privacy, and failure behavior:
+
+- discussion preferences own the durable reader-mode preference;
+- the route owns explicit discussion focus, current-comment identity, sorting,
+  and reader mode;
+- feed-return state owns same-session story and scroll orientation; and
+- discussion-visit state owns bounded comment identities and revisit times.
+
+Future implementation must keep app-owned state versioned, purpose-namespaced,
+validated, bounded where it can grow, safe across SSR and hydration, and able
+to fall back to stateless behavior when browser storage is unavailable or
+invalid. Browser Back and Forward must restore their entry rather than being
+overwritten by the latest preference.
+
+Durable revisit state contains only the minimum public identities and
+timestamps needed for comparison—never comment bodies, author histories,
+external URLs, or a general browsing log. Comment-change detection must be
+identity-based; a previous total alone cannot distinguish additions from
+deletion or reordering. When revisit memory ships, update the privacy page and
+treat cleared, malformed, disabled, and quota-limited storage as expected
+fallback cases. The later implementation design will choose the common storage
+boundary and domain APIs that enforce these rules.
+
 ## Comment Rendering
 
 HN/Algolia item text arrives as a small HTML subset plus plain-text conventions. Do not flatten comments to plain text unless there is a concrete safety reason; links, paragraphs, emphasis, quotes, and code carry meaning.
@@ -223,18 +357,19 @@ Current rendering uses `useSanitizer.ts` to:
 - Convert plain-text conventions HN never marks up: `*emphasis*`, backtick
   `code` spans, and manual `-`/`1.` lists.
 
-Every comment renders at every depth. `app/pages/item/[id].vue` analyzes the tree once for totals, author activity, descendant counts, latest activity, and reply-disclosure defaults; `CommentThread.vue` uses that shared summary to collapse only deep, large reply subtrees behind disclosure controls while keeping every comment reachable. Top-level threads can be reordered with a persisted `?sort=` control: HN order (default), most discussed, or recent activity.
+Every comment renders at every depth. `app/pages/item/[id].vue` analyzes the tree once for totals, author activity, descendant counts, latest activity, and reply-disclosure defaults; `CommentThread.vue` uses that shared summary to collapse only deep, large reply branches behind disclosure controls while keeping every comment reachable. Root comments can be reordered with a URL-backed `?sort=` control: HN order (default), most discussed, or recent activity.
 
-The normal story overview keeps that recursive tree unchanged. Its `Full size`
-control adds `?view=discussion` and opens `ConversationBrowser.vue`, which uses
-the same analysis index and already-loaded comments. Column 1 contains all
-sorted roots; every later column contains the direct children of the selected
-comment in the preceding column. The selected path stays highlighted, the URL
-focus query identifies the selected comment, and the shared `ReaderComment.vue`
-renderer owns its complete sanitized body. `ReaderPane.vue` switches between
-that focused view and `?reader=path`, which projects the full root-to-current
-ancestry as one rich-text transcript. That mode opens at the current comment,
-offers Start and Current jumps, and reuses
+The normal story overview keeps that recursive tree unchanged. Its discussion
+focus entry control adds `?view=discussion` and opens
+`ConversationBrowser.vue`, which uses the same analysis index and already
+loaded comments. Column 1 contains all sorted root comments; every later column
+contains the direct replies to the current comment in the preceding column.
+The reading path stays highlighted, the URL focus query identifies the current
+comment, and the shared `ReaderComment.vue` renderer owns its complete sanitized
+body. `ReaderPane.vue` switches between the Current comment and Reading path
+reader modes; the latter projects the full root-comment-to-current ancestry as
+one rich-text transcript. That mode opens at the current comment, offers Go to
+root comment and Go to current comment jumps, and reuses
 `CommentLinks.vue` plus `SourceIdentity.vue` for compact link previews; do not
 add a second link extractor, favicon implementation, or upstream metadata
 request. Reader previews must set non-recursive extraction so each entry shows
@@ -247,7 +382,7 @@ nested horizontal gestures.
 Story detail pages also extract a bounded set of safe HTTP(S) links from the
 already-loaded comment tree. `CommentLinks.vue` shows all extracted links in
 stable category groups ordered by source value: documentation, papers, code,
-reference, news, video, discussion, social, then other links. Each link carries
+reference, news, video, community, social, then other links. Each link carries
 its sharing author's seed color and jumps back to the sharing comment, cycling
 through comments for multi-mention links. A jump expands only the target's ancestor replies before
 focusing and briefly highlighting the comment; do not add a second upstream

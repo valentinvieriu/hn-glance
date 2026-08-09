@@ -1,6 +1,9 @@
 <template>
   <footer class="comment-reader-actions">
-    <div class="comment-reader-actions-navigation" aria-label="Comment navigation">
+    <div
+      class="comment-reader-actions-navigation"
+      :aria-label="discussionLanguage.accessibility.commentNavigation"
+    >
       <button
         v-if="node.parentId"
         type="button"
@@ -8,7 +11,7 @@
         @click="emitParent"
       >
         <LucideCornerDownRight class="h-3.5 w-3.5" aria-hidden="true" />
-        Parent
+        {{ discussionLanguage.terms.parentComment }}
       </button>
       <button
         v-if="node.rootId !== node.comment.id"
@@ -17,29 +20,27 @@
         @click="emit('select', node.rootId)"
       >
         <LucideArrowUpToLine class="h-3.5 w-3.5" aria-hidden="true" />
-        Root
+        {{ discussionLanguage.terms.rootComment }}
       </button>
       <button
         v-if="node.previousSiblingId"
         type="button"
         class="comment-reader-action"
-        aria-label="Previous sibling comment"
         @click="emit('select', node.previousSiblingId)"
       >
         <LucideArrowLeft class="h-3.5 w-3.5" aria-hidden="true" />
-        Previous
+        {{ previousLabel }}
       </button>
       <span v-if="node.siblingCount > 1" class="comment-reader-position">
-        {{ node.siblingIndex + 1 }} of {{ node.siblingCount }}
+        {{ positionLabel }}
       </span>
       <button
         v-if="node.nextSiblingId"
         type="button"
         class="comment-reader-action"
-        aria-label="Next sibling comment"
         @click="emit('select', node.nextSiblingId)"
       >
-        Next
+        {{ nextLabel }}
         <LucideArrowRight class="h-3.5 w-3.5" aria-hidden="true" />
       </button>
     </div>
@@ -52,9 +53,9 @@
         target="_blank"
         rel="noopener noreferrer"
         class="comment-reader-reply-link"
-        :aria-label="`Reply to ${node.comment.author} on Hacker News (opens in a new tab)`"
+        :aria-label="discussionLanguage.format.replyOnHackerNews(node.comment.author)"
       >
-        Reply on HN
+        {{ discussionLanguage.actions.replyOnHackerNews }}
         <LucideExternalLink class="h-3.5 w-3.5" aria-hidden="true" />
       </a>
     </div>
@@ -71,7 +72,10 @@ import {
   LucideExternalLink,
 } from '@lucide/vue'
 import type { CommentNavigationNode } from '#shared/utils/comments'
-import { getCommentReplyCountLabel } from '#shared/utils/comments'
+import {
+  discussionLanguage,
+  type DiscussionSiblingKind,
+} from '#shared/utils/productLanguage'
 
 const props = defineProps<{
   descendantCount: number
@@ -86,8 +90,24 @@ const replyCountLabel = computed(() => {
   const directReplyCount = props.node.comment.children?.length ?? 0
 
   return directReplyCount > 0
-    ? getCommentReplyCountLabel(directReplyCount, props.descendantCount)
+    ? discussionLanguage.format.replySummary(directReplyCount, props.descendantCount)
     : ''
+})
+const siblingKind = computed<DiscussionSiblingKind>(() => {
+  return props.node.parentId ? 'reply' : 'root-comment'
+})
+const previousLabel = computed(() => {
+  return discussionLanguage.format.previousSibling(siblingKind.value)
+})
+const nextLabel = computed(() => {
+  return discussionLanguage.format.nextSibling(siblingKind.value)
+})
+const positionLabel = computed(() => {
+  return discussionLanguage.format.replyPosition(
+    props.node.siblingIndex + 1,
+    props.node.siblingCount,
+    siblingKind.value,
+  )
 })
 const replyHref = computed(() => {
   const comment = props.node.comment

@@ -30,8 +30,8 @@ synthesizes an HN discussion permalink to make them eligible for a feed card.
 - Presents each story with a visual page preview, title, source, freshness, author, points, and comment count.
 - Opens an HN Glance story page for the card, with metadata, comments, screenshot, exact-source HN history, similar stories, and value-grouped links shared in the discussion.
 - Opens the original source from the source/domain link.
-- Renders HN comments with safer rich text, nested threads, quote handling, reference links, expand controls, and thread sorting by HN order, discussion size, or recent activity.
-- Offers an optional full-size Conversation Browser for deep threads: each column is a sibling set along the selected reply path, while the reader can show either the complete selected comment or the full root-to-current reading path.
+- Renders HN comments with safer rich text, nested branches, quote handling, reference links, expand controls, and root-comment sorting by HN order, discussion size, or recent activity.
+- Offers an optional discussion focus for deep branches: each column is a sibling set along the selected reading path, while the comment reader can show either the current comment or the complete root-comment-to-current reading path.
 - Includes user activity pages for posts and comments.
 - Supports responsive layouts and dark mode.
 - Avoids analytics and marketing cookies.
@@ -67,17 +67,17 @@ context.
 
 The overview remains the default, including its familiar nested comment tree.
 When a discussion becomes too deep to scan comfortably through indentation,
-the optional full-size Conversation Browser projects that same already-loaded
-tree into Miller columns: top-level conversations first, then one sibling set
-for each selected reply level, with the complete selected comment in a fixed
-reader. Its optional Reading path mode renders every ancestor in full, opens
-at the current comment so the argument can be read upward, and provides Start
-and Current jumps. Compact source previews reuse the same extracted-link and
-favicon identity used by From the Discussion; they do not fetch page metadata.
+the optional discussion focus projects that same already-loaded tree into
+Miller columns: root comments first, then one sibling set for each selected
+reply level, with the complete current comment in a fixed comment reader. Its
+optional Reading path mode renders every ancestor in full, opens at the current
+comment so the argument can be read upward, and provides Go to root comment and
+Go to current comment jumps. Compact source previews reuse the same extracted-link
+and favicon identity used by From the Discussion; they do not fetch page metadata.
 Each reader entry shows only links in that exact comment, while the overview's
 From the Discussion index remains the story-wide aggregate.
 Compact row excerpts are navigation labels, not a second comment dataset.
-Entry, exit, deep links, and browser history retain both the selected comment
+Entry, exit, deep links, and browser history retain both the current comment
 and reader mode while the overview preserves its own disclosure state.
 
 This deeper presentation helps readers focus on the discussion without turning
@@ -94,6 +94,111 @@ The responsive layout follows that same split. Visual discovery surfaces use
 available width to show more screenshots at a useful size, while story text,
 comments, profiles, and policy copy retain bounded reading measures. Shared
 fluid gutters align the app shell and keep content away from the viewport edge.
+
+## Product Language System
+
+HN Glance should sound like one product across the overview, discussion focus,
+columns, breadcrumbs, comment reader, and accessible labels. The user's mental
+model comes before the control: name the entity, the action, and the resulting
+state consistently. A term keeps the same meaning wherever it appears, and two
+different concepts do not share a convenient but ambiguous label.
+
+The canonical discussion vocabulary is:
+
+- **Discussion:** the complete comment tree for one story.
+- **Root comment:** a comment with no parent. The first column and the start of
+  every reading path contain root comments.
+- **Reply:** a direct child of another comment. Use **direct reply** when the
+  distinction from all descendants matters.
+- **Branch:** a comment and its descendants. Branch counts should say whether
+  they count replies or include the branch's starting comment.
+- **Reading path:** the ordered sequence from one root comment to the current
+  comment, inclusive.
+- **Current comment:** the comment selected in the columns and displayed in the
+  comment reader.
+- **Parent comment:** the current comment's direct parent.
+
+Do not use **conversation**, **thread**, **top-level thread**, and **root
+comment** as interchangeable UI labels. “Conversation Browser” may describe
+the internal Miller-column pattern, but the interface should name the actual
+discussion entities. Interactive labels use the complete entity name—such as
+**Root comments**, **Parent comment**, and **Root comment**—instead of relying
+on an isolated **Root** or **Parent** to change meaning by location.
+
+Presentation terms form a separate hierarchy:
+
+- **Story overview:** the default comparison surface.
+- **Discussion focus:** the full-viewport presentation of the same loaded
+  discussion.
+- **Comment reader:** the reading surface beside or below the columns.
+- **Reading mode:** the comment reader's presentation choice between **Current
+  comment** and **Reading path**.
+
+Mode switches must have a visible category label, parallel option labels, a
+clear selected state, and matching accessible state. Counts must name what they
+count and should not repeat another visible metric without adding meaning.
+Navigation labels should also name their target: **Previous reply** and **Next
+reply** within a reply set, or **Previous root comment** and **Next root
+comment** in the root-comment set.
+
+Repeated product terms, mode names, navigation actions, counts, and their
+accessible equivalents belong to one central, key-based product-language
+catalog. Its immediate purpose is consistency: change a product term once and
+apply that decision across every surface without hunting for inline variants.
+This adopts the useful part of an i18n system before translation is a product
+need; it does not claim that HN Glance is localized today.
+
+Keys are semantic—based on concepts such as root comment, reading path, and
+focus discussion—not visual locations such as left button or first tab.
+Dynamic labels use shared formatters so pluralization and context cannot drift
+between components. Long-form page prose and story content remain ordinary
+content; the catalog governs reusable interface language rather than forcing
+every sentence into a key-value system.
+
+The English-first typed catalog lives in
+`shared/utils/productLanguage.ts`. Discussion components consume its semantic
+terms, actions, states, accessible labels, and complete dynamic formatters
+directly; they do not maintain parallel inline variants.
+
+Language changes are whole-interaction changes. When a term changes, update its
+visible label, accessible name, tooltip, count formatter, tests, and product
+documentation together.
+
+## State Experience Strategy
+
+Remembered state should help a reader resume without making the interface
+surprising. The product contract is:
+
+- A copied discussion link opens the same comment and reading mode for every
+  reader.
+- An explicitly chosen reading-mode preference carries to the next discussion
+  and browser restart unless an opened link specifies another mode.
+- Back and Forward restore the state of that history entry instead of applying
+  a newer choice retroactively.
+- Returning to a feed in the same tab restores browsing context without
+  creating a permanent browsing history.
+- Revisit awareness may survive browser restarts, but remains bounded,
+  expiring, transparent, and separate from interface preferences.
+- Missing, blocked, corrupt, or full browser storage never prevents reading.
+
+State is classified by that expected lifetime before an implementation API is
+chosen:
+
+| User expectation | State class | Lifetime |
+| --- | --- | --- |
+| “This link opens what I see” | Shareable navigation | Copied links and browser history |
+| “Back returns this page to how it was” | Per-entry presentation | One history entry |
+| “Take me back to my place in this feed” | Session continuity | Current browser-tab session |
+| “Use my chosen reading mode next time” | Durable preference | Across stories and browser restarts |
+| “Show what changed since my last visit” | Bounded revisit memory | Across visits, never indefinitely |
+
+An explicit URL value overrides a stored preference, which overrides the
+product default. Focused discussion URLs must therefore encode both reading
+modes explicitly before a reading-mode preference becomes durable; otherwise
+the same shared URL could open differently for different readers. The
+engineering constraints that preserve this strategy are defined in
+`AGENTS.md`; concrete state APIs and storage schemas are intentionally deferred
+to implementation design.
 
 ## Look and Feel
 
@@ -182,7 +287,8 @@ Use `npm run check` as the baseline check before shipping changes.
 
 - `app/pages/`: feed pages, story detail pages, and user activity pages.
 - `app/components/story/`: story grid, visual story card UI, and the shared generated screenshot fallback.
-- `app/components/comment/`: the default nested comment tree, shared rich comment content, and the full-size column-based Conversation Browser.
+- `app/components/comment/`: the default nested comment tree, shared rich comment content, and the discussion-focus Miller-column projection.
+- `shared/utils/productLanguage.ts`: typed semantic UI language shared by discussion surfaces, including contextual labels and pluralized counts.
 - `server/api/`: feed, item, related-story, user, and screenshot APIs.
 - `server/api/internal/screenshot-jobs/`: authenticated capture-agent API.
 - `server/utils/screenshot/`: HN source policy, R2 state, result validation, and agent authentication.

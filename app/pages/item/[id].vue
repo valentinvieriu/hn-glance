@@ -58,7 +58,7 @@
             </span>
             <a
               href="#comments"
-              aria-label="Jump to comments"
+              :aria-label="discussionLanguage.accessibility.jumpToDiscussion"
               class="flex items-center gap-1 text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200"
             >
               <LucideMessageSquare class="w-4 h-4" aria-hidden="true" />
@@ -157,9 +157,11 @@
         <aside id="comments" class="story-detail-comments min-w-0 scroll-mt-24">
           <div class="comments-toolbar">
             <div class="comments-title-group">
-              <h2 class="section-title mb-0 text-2xl font-semibold text-gray-900 dark:text-gray-100">Comments</h2>
+              <h2 class="section-title mb-0 text-2xl font-semibold text-gray-900 dark:text-gray-100">
+                {{ discussionLanguage.terms.discussion }}
+              </h2>
               <span v-if="commentCount > 0" class="comments-count text-gray-600 dark:text-gray-400">
-                {{ commentCount }} total
+                {{ discussionLanguage.format.commentCount(commentCount) }}
               </span>
             </div>
             <div v-if="commentCount > 0 || canSortComments || canToggleAllComments" class="comments-actions">
@@ -168,15 +170,15 @@
                 class="comments-sort-control text-gray-700 dark:text-gray-300"
               >
                 <LucideArrowDownUp class="h-4 w-4 shrink-0" aria-hidden="true" />
-                <span class="sr-only">Sort comment threads</span>
+                <span class="sr-only">{{ discussionLanguage.sort.rootComments }}</span>
                 <select
                   v-model="commentSort"
                   class="comments-sort-select"
-                  aria-label="Sort comment threads"
+                  :aria-label="discussionLanguage.sort.rootComments"
                 >
-                  <option value="hn">HN order</option>
-                  <option value="discussed">Most discussed</option>
-                  <option value="recent">Recent activity</option>
+                  <option value="hn">{{ discussionLanguage.sort.hn }}</option>
+                  <option value="discussed">{{ discussionLanguage.sort.discussed }}</option>
+                  <option value="recent">{{ discussionLanguage.sort.recent }}</option>
                 </select>
               </label>
               <button
@@ -187,22 +189,26 @@
               >
                 <LucideChevronsUp v-if="areAllCommentsExpanded" class="w-4 h-4" />
                 <LucideChevronsDown v-else class="w-4 h-4" />
-                <span>{{ areAllCommentsExpanded ? 'Hide deep replies' : 'Expand all' }}</span>
+                <span>
+                  {{ areAllCommentsExpanded
+                    ? discussionLanguage.actions.hideDeepReplies
+                    : discussionLanguage.actions.expandAllReplies }}
+                </span>
               </button>
               <button
                 v-if="commentCount > 0"
                 type="button"
                 class="focus-comments-button text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100"
-                aria-label="Open comments at full size"
+                :aria-label="discussionLanguage.actions.focusDiscussion"
                 @click="enterDiscussionFocus"
               >
                 <LucideMaximize2 class="h-4 w-4" aria-hidden="true" />
-                <span>Full size</span>
+                <span>{{ discussionLanguage.actions.focusDiscussion }}</span>
               </button>
             </div>
           </div>
           <div v-if="story.children.length === 0" class="text-gray-500 leading-7">
-            No comments yet.
+            {{ discussionLanguage.messages.noCommentsYet }}
           </div>
           <div v-else class="comments-list">
             <CommentThread
@@ -309,6 +315,7 @@ import {
 } from '#shared/utils/comments'
 import { formatTimeAgo } from '#shared/utils/date'
 import { getHnItemUrl, getHnUserPath, normalizeHnItemId } from '#shared/utils/hn'
+import { discussionLanguage } from '#shared/utils/productLanguage'
 import { getScreenshotPath } from '#shared/utils/screenshot'
 import { appendServerTiming } from '#shared/utils/serverTiming'
 import ConversationBrowser from '~/components/comment/ConversationBrowser.vue'

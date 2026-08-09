@@ -14,12 +14,12 @@
           id="comment-links-title"
           class="section-title mb-0 text-xl font-semibold text-gray-900 dark:text-gray-100"
         >
-          From the Discussion
+          {{ discussionLanguage.sections.fromDiscussion }}
         </h2>
       </div>
       <span
         class="story-context-section-count"
-        :aria-label="`${totalLinks} ${totalLinks === 1 ? 'link' : 'links'} shared in comments`"
+        :aria-label="discussionLanguage.format.linkCountSharedInComments(totalLinks)"
       >
         {{ totalLinks }}
       </span>
@@ -89,9 +89,11 @@
   <aside
     v-else-if="totalLinks > 0"
     class="comment-links-reader"
-    aria-label="Links in this comment"
+    :aria-label="discussionLanguage.sections.linksInComment"
   >
-    <p class="comment-links-reader-label">Links in this comment</p>
+    <p class="comment-links-reader-label">
+      {{ discussionLanguage.sections.linksInComment }}
+    </p>
     <ul class="comment-links-reader-list">
       <li v-for="link in links" :key="link.url" class="comment-links-reader-row">
         <CommentLinkSource :link="link" presentation="reader" />
@@ -115,6 +117,7 @@ import {
   type CommentLinkMention,
 } from '#shared/utils/commentLinks'
 import { getHnUserPath } from '#shared/utils/hn'
+import { discussionLanguage } from '#shared/utils/productLanguage'
 import {
   getSeedPaletteStyle,
   type CommentThreadAuthorPalette,
@@ -167,7 +170,7 @@ const CATEGORY_META = {
   },
   discussion: {
     hue: 228,
-    label: 'Discussion',
+    label: 'Community',
   },
   other: {
     hue: 88,

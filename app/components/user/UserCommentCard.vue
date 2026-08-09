@@ -40,7 +40,7 @@
         class="comment-card-link"
       >
         <LucideMessageSquare class="h-3.5 w-3.5" aria-hidden="true" />
-        <span>Thread</span>
+        <span>{{ discussionLanguage.terms.discussion }}</span>
       </NuxtLink>
       <a
         :href="hnCommentUrl"
@@ -61,6 +61,7 @@ import { LucideClock, LucideExternalLink, LucideMessageSquare, LucideTrendingUp 
 import type { UserComment } from '#shared/types'
 import { formatTimeAgo } from '#shared/utils/date'
 import { getHnItemUrl } from '#shared/utils/hn'
+import { discussionLanguage } from '#shared/utils/productLanguage'
 import { useSanitizer } from '~/composables/useSanitizer'
 import { getSeedPaletteStyle } from '~/composables/useSeedPalette'
 

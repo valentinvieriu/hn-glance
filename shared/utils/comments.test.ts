@@ -3,7 +3,6 @@ import type { Comment } from '#shared/types'
 import {
   getCommentPathFromIndex,
   getCommentPreview,
-  getCommentReplyCountLabel,
   getExpandedCommentDisclosure,
   getSmartCommentDisclosure,
   revealCommentPath,
@@ -217,15 +216,5 @@ describe('comment reply disclosure state', () => {
     const revealed = revealCommentPath(new Set([1, 2, 3, 9]), [1, 2, 3])
 
     expect([...revealed]).toEqual([3, 9])
-  })
-})
-
-describe('comment reply count label', () => {
-  it('distinguishes direct replies from the full descendant count', () => {
-    expect(getCommentReplyCountLabel(3, 10)).toBe('3 replies · 10 in thread')
-  })
-
-  it('uses a singular direct reply without a redundant thread total', () => {
-    expect(getCommentReplyCountLabel(1, 1)).toBe('1 reply')
   })
 })

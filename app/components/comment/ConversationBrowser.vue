@@ -4,7 +4,7 @@
     :style="storyPaletteStyle"
     role="dialog"
     aria-modal="true"
-    aria-label="Full-size discussion"
+    :aria-label="discussionLanguage.accessibility.discussionFocus"
     @keydown.esc="emit('exit')"
     @keydown.tab="trapFocus"
   >
@@ -16,7 +16,7 @@
         @click="emit('exit')"
       >
         <LucideArrowLeft class="h-4 w-4" aria-hidden="true" />
-        <span>Overview</span>
+        <span>{{ discussionLanguage.actions.overview }}</span>
       </button>
       <div class="conversation-browser-story-identity">
         <h1 class="conversation-browser-story-title">{{ storyTitle }}</h1>
@@ -34,30 +34,33 @@
           </a>
           <span class="conversation-browser-count">
             <LucideMessageSquare class="h-3.5 w-3.5" aria-hidden="true" />
-            {{ commentCount }} comments
+            {{ discussionLanguage.format.commentCount(commentCount) }}
           </span>
         </div>
       </div>
       <button
         type="button"
         class="conversation-browser-close"
-        aria-label="Exit full-size discussion"
-        title="Exit full size"
+        :aria-label="discussionLanguage.actions.returnToOverview"
+        :title="discussionLanguage.actions.returnToOverview"
         @click="emit('exit')"
       >
         <LucideMinimize2 class="h-4.5 w-4.5" aria-hidden="true" />
       </button>
     </header>
 
-    <nav class="conversation-browser-path" aria-label="Selected comment path">
+    <nav
+      class="conversation-browser-path"
+      :aria-label="discussionLanguage.accessibility.readingPath"
+    >
       <button
         type="button"
         class="conversation-browser-path-root"
-        title="Return to the top-level conversations"
+        :title="discussionLanguage.actions.showRootComments"
         @click="openConversationIndex"
       >
         <LucidePanelLeft class="h-3.5 w-3.5" aria-hidden="true" />
-        <span>All conversations</span>
+        <span>{{ discussionLanguage.terms.rootComments }}</span>
       </button>
       <div ref="pathBar" class="conversation-browser-path-trail">
         <template v-for="commentId in pathIds" :key="commentId">
@@ -125,7 +128,9 @@
           @select="selectComment"
         />
         <div v-else class="conversation-browser-empty-reader">
-          {{ rootComments.length ? 'Select a conversation to read it.' : 'No comments yet.' }}
+          {{ rootComments.length
+            ? discussionLanguage.messages.selectRootComment
+            : discussionLanguage.messages.noCommentsYet }}
         </div>
       </div>
     </div>
@@ -140,8 +145,8 @@
       <div v-if="showMobileRootIndex" class="conversation-browser-mobile-index">
         <header class="conversation-browser-mobile-section-header">
           <div>
-            <h2>Conversations</h2>
-            <p>{{ rootComments.length }} top-level threads</p>
+            <h2>{{ discussionLanguage.terms.rootComments }}</h2>
+            <p>{{ discussionLanguage.format.rootCommentCount(rootComments.length) }}</p>
           </div>
         </header>
         <ConversationList
@@ -180,7 +185,11 @@
               @click="navigateMobileBack"
             >
               <LucideArrowLeft class="h-4 w-4" aria-hidden="true" />
-              <span>{{ selectedNode.parentId ? `Back to ${parentAuthor}` : 'All conversations' }}</span>
+              <span>
+                {{ selectedNode.parentId
+                  ? discussionLanguage.format.parentCommentBy(parentAuthor)
+                  : discussionLanguage.terms.rootComments }}
+              </span>
             </button>
           </template>
         </ReaderPane>
@@ -192,8 +201,10 @@
         >
           <header class="conversation-browser-mobile-section-header">
             <div>
-              <h2 :id="mobileRepliesHeadingId">Replies</h2>
-              <p>{{ selectedNode.comment.children?.length ?? 0 }} direct</p>
+              <h2 :id="mobileRepliesHeadingId">
+                {{ discussionLanguage.format.repliesTo(selectedNode.comment.author) }}
+              </h2>
+              <p>{{ discussionLanguage.format.directReplyCount(selectedChildren.length) }}</p>
             </div>
           </header>
           <ConversationList
@@ -208,11 +219,13 @@
             :story-author="storyAuthor"
             @select="selectMobileComment"
           />
-          <p v-else class="conversation-browser-terminal">End of this branch.</p>
+          <p v-else class="conversation-browser-terminal">
+            {{ discussionLanguage.messages.endOfBranch }}
+          </p>
         </section>
       </template>
       <p v-else class="conversation-browser-mobile-empty">
-        No comments yet.
+        {{ discussionLanguage.messages.noCommentsYet }}
       </p>
     </div>
   </section>
@@ -233,6 +246,7 @@ import {
   getCommentPathFromIndex,
   type CommentNavigationNode,
 } from '#shared/utils/comments'
+import { discussionLanguage } from '#shared/utils/productLanguage'
 import type {
   CommentThreadAuthorPalette,
   SeedPaletteStyle,
@@ -341,8 +355,8 @@ const columns = computed<ConversationColumnModel[]>(() => {
     comments: props.rootComments,
     key: 'roots',
     selectedId: pathIds.value[0] ?? null,
-    subtitle: `${props.rootComments.length} top-level threads`,
-    title: 'Conversations',
+    subtitle: discussionLanguage.format.rootCommentCount(props.rootComments.length),
+    title: discussionLanguage.terms.rootComments,
   }]
 
   pathIds.value.forEach((commentId, pathIndex) => {
@@ -358,8 +372,8 @@ const columns = computed<ConversationColumnModel[]>(() => {
       comments,
       key: `children:${commentId}`,
       selectedId: pathIds.value[pathIndex + 1] ?? null,
-      subtitle: `${comments.length} direct ${comments.length === 1 ? 'reply' : 'replies'}`,
-      title: `Replies to ${node.comment.author}`,
+      subtitle: discussionLanguage.format.directReplyCount(comments.length),
+      title: discussionLanguage.format.repliesTo(node.comment.author),
     })
   })
 
@@ -378,22 +392,24 @@ const selectComment = (commentId: number) => {
   emit('select', commentId)
 }
 
+const resetMobileScroll = () => {
+  nextTick(() => {
+    mobileScroll.value?.scrollTo({ top: 0, behavior: 'auto' })
+  })
+}
+
 const selectMobileComment = (commentId: number) => {
   selectComment(commentId)
 
   if (props.readerMode === 'comment') {
-    nextTick(() => {
-      mobileScroll.value?.scrollTo({ top: 0, behavior: 'auto' })
-    })
+    resetMobileScroll()
   }
 }
 
 const openConversationIndex = () => {
   if (window.matchMedia('(max-width: 1023px)').matches) {
     showMobileRootIndex.value = true
-    nextTick(() => {
-      mobileScroll.value?.scrollTo({ top: 0, behavior: 'auto' })
-    })
+    resetMobileScroll()
     return
   }
 
@@ -647,6 +663,7 @@ watch(() => props.readerMode, (mode) => {
     void revealReadingPathTarget('current', 'auto')
   } else {
     void restoreReaderScroll()
+    resetMobileScroll()
   }
 })
 

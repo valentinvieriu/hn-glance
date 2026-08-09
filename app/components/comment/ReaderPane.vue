@@ -2,7 +2,6 @@
   <ReaderToolbar
     :depth="node.depth"
     :mode="mode"
-    :path-length="pathNodes.length"
     @current="emit('jump', 'current')"
     @mode="emit('mode', $event)"
     @start="emit('jump', 'start')"

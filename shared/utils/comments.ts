@@ -234,17 +234,6 @@ export const sortCommentThreads = (
   })
 }
 
-export const getCommentReplyCountLabel = (
-  directReplyCount: number,
-  descendantCount: number,
-) => {
-  const directLabel = `${directReplyCount} ${directReplyCount === 1 ? 'reply' : 'replies'}`
-
-  return descendantCount > directReplyCount
-    ? `${directLabel} · ${descendantCount} in thread`
-    : directLabel
-}
-
 const toggleCommentId = (ids: ReadonlySet<number>, commentId: number) => {
   const nextIds = new Set(ids)
 

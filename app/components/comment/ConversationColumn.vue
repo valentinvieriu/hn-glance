@@ -9,7 +9,10 @@
         <h2 :id="headingId" class="conversation-column-title">{{ title }}</h2>
         <p class="conversation-column-subtitle">{{ subtitle }}</p>
       </div>
-      <span class="conversation-column-depth">{{ columnIndex + 1 }}</span>
+      <span class="conversation-column-depth">
+        <span aria-hidden="true">{{ columnIndex + 1 }}</span>
+        <span class="sr-only">{{ discussionLanguage.format.depth(columnIndex + 1) }}</span>
+      </span>
     </header>
     <div
       ref="scrollElement"
@@ -34,6 +37,7 @@
 <script setup lang="ts">
 import { nextTick, onMounted, ref, watch } from 'vue'
 import type { Comment } from '#shared/types'
+import { discussionLanguage } from '#shared/utils/productLanguage'
 import type { SeedPaletteStyle } from '~/composables/useSeedPalette'
 import ConversationList from './ConversationList.vue'
 

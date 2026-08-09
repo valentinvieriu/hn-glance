@@ -1,5 +1,5 @@
 <template>
-  <ol class="reading-path" aria-label="Complete comment reading path">
+  <ol class="reading-path" :aria-label="discussionLanguage.accessibility.completeReadingPath">
     <li
       v-for="(node, index) in nodes"
       :key="node.comment.id"
@@ -45,6 +45,7 @@
 
 <script setup lang="ts">
 import type { CommentNavigationNode } from '#shared/utils/comments'
+import { discussionLanguage } from '#shared/utils/productLanguage'
 import type { SeedPaletteStyle } from '~/composables/useSeedPalette'
 import ReaderActions from './ReaderActions.vue'
 import ReaderComment from './ReaderComment.vue'
@@ -64,11 +65,10 @@ const emit = defineEmits<{
 }>()
 
 const getStepLabel = (index: number, commentId: number) => {
-  if (commentId === props.selectedCommentId) {
-    return 'Current'
-  }
-
-  return index === 0 ? 'Root' : `Reply ${index + 1}`
+  return discussionLanguage.format.pathStep(
+    index,
+    commentId === props.selectedCommentId,
+  )
 }
 </script>
 

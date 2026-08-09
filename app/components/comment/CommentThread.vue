@@ -17,13 +17,19 @@
               {{ comment.author }}
             </NuxtLink>
           </span>
-          <span v-if="isOriginalPoster" class="comment-badge" title="Submitted this story">OP</span>
+          <span
+            v-if="isOriginalPoster"
+            class="comment-badge"
+            :title="discussionLanguage.accessibility.originalPoster"
+          >
+            {{ discussionLanguage.states.originalPoster }}
+          </span>
           <span
             v-if="authorCommentCount > 1"
             class="author-activity-stat"
             :class="{ 'author-activity-stat-strong': authorCommentCount >= 5 }"
-            :aria-label="`${comment.author} has made ${authorCommentCount} comments on this story`"
-            :title="`${comment.author} has made ${authorCommentCount} comments on this story`"
+            :aria-label="discussionLanguage.format.authorActivity(comment.author, authorCommentCount)"
+            :title="discussionLanguage.format.authorActivity(comment.author, authorCommentCount)"
           >
             <LucideMessageSquare class="w-3.5 h-3.5" aria-hidden="true" />
             <span>{{ authorCommentCount }}</span>
@@ -31,8 +37,8 @@
           <a
             :href="commentPermalink"
             class="comment-time"
-            :aria-label="`Permalink to ${comment.author}'s comment from ${timeAgo}`"
-            title="Comment permalink"
+            :aria-label="discussionLanguage.format.commentPermalink(comment.author, timeAgo)"
+            :title="discussionLanguage.accessibility.commentPermalink"
             @click.prevent="jumpToComment(comment.id)"
           >
             {{ timeAgo }}
@@ -40,14 +46,14 @@
           <nav
             v-if="showAncestryNavigation"
             class="comment-ancestry-navigation"
-            :aria-label="`Ancestry for ${comment.author}'s comment`"
+            :aria-label="discussionLanguage.accessibility.ancestry(comment.author)"
           >
             <a
               v-if="showParentLink"
               :href="parentPermalink"
               class="comment-ancestry-link comment-ancestry-link-parent"
-              :aria-label="`Jump to parent comment by ${parentAuthor}`"
-              :title="`Parent comment by ${parentAuthor}`"
+              :aria-label="discussionLanguage.accessibility.jumpToParentComment(parentAuthor)"
+              :title="discussionLanguage.format.parentCommentBy(parentAuthor)"
               @click.prevent="jumpToParent"
             >
               <LucideCornerDownRight class="comment-ancestry-icon" aria-hidden="true" />
@@ -57,8 +63,8 @@
               v-if="showRootLink"
               :href="rootPermalink"
               class="comment-ancestry-link comment-ancestry-link-root"
-              :aria-label="`Jump to thread start by ${rootAuthor}`"
-              :title="`Thread start by ${rootAuthor}`"
+              :aria-label="discussionLanguage.accessibility.jumpToRootComment(rootAuthor)"
+              :title="discussionLanguage.format.rootCommentBy(rootAuthor)"
               @click.prevent="jumpToRoot"
             >
               <LucideArrowUpToLine class="comment-ancestry-icon" aria-hidden="true" />
@@ -87,7 +93,7 @@
             <LucidePlus v-if="areRepliesHidden" class="w-3 h-3" aria-hidden="true" />
             <LucideMinus v-else class="w-3 h-3" aria-hidden="true" />
             <span class="comment-reply-summary">
-              {{ areRepliesHidden ? 'Show' : 'Hide' }} {{ replyCountLabel }}
+              {{ replyDisclosureActionLabel }}
             </span>
           </button>
           <a
@@ -95,9 +101,9 @@
             target="_blank"
             rel="noopener noreferrer"
             class="comment-reply-link"
-            :aria-label="`Reply to ${comment.author} on Hacker News (opens in a new tab)`"
+            :aria-label="discussionLanguage.format.replyOnHackerNews(comment.author)"
           >
-            <span>Reply on HN</span>
+            <span>{{ discussionLanguage.actions.replyOnHackerNews }}</span>
             <LucideExternalLink class="w-3.5 h-3.5" aria-hidden="true" />
           </a>
         </div>
@@ -150,9 +156,9 @@ import {
   LucidePlus,
 } from '@lucide/vue'
 import type { Comment } from '#shared/types'
-import { getCommentReplyCountLabel } from '#shared/utils/comments'
 import { formatTimeAgo } from '#shared/utils/date'
 import { getHnUserPath } from '#shared/utils/hn'
+import { discussionLanguage } from '#shared/utils/productLanguage'
 import CommentRichContent from './RichContent.vue'
 import {
   getSeedPaletteStyle,
@@ -234,13 +240,21 @@ const commentContainerClasses = computed(() => {
 })
 
 const replyCountLabel = computed(() => {
-  return getCommentReplyCountLabel(childReplies.value.length, subtreeCount.value)
+  return discussionLanguage.format.replySummary(childReplies.value.length, subtreeCount.value)
 })
 
 const replyDisclosureLabel = computed(() => {
-  return areRepliesHidden.value
-    ? `Show ${replyCountLabel.value} from ${props.comment.author}`
-    : `Hide ${replyCountLabel.value} from ${props.comment.author}`
+  return discussionLanguage.format.replyDisclosure(
+    areRepliesHidden.value,
+    replyCountLabel.value,
+    props.comment.author,
+  )
+})
+const replyDisclosureActionLabel = computed(() => {
+  return discussionLanguage.format.replyDisclosureAction(
+    areRepliesHidden.value,
+    replyCountLabel.value,
+  )
 })
 
 const commentPermalink = computed(() => `#comment-${props.comment.id}`)

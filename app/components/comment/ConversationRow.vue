@@ -19,16 +19,22 @@
         <span class="conversation-row-author-dot" aria-hidden="true"></span>
         <span class="truncate">{{ comment.author }}</span>
       </span>
-      <span v-if="isOriginalPoster" class="conversation-row-badge">OP</span>
+      <span v-if="isOriginalPoster" class="conversation-row-badge">
+        {{ discussionLanguage.states.originalPoster }}
+      </span>
       <span v-if="selected" class="conversation-row-path-badge">
-        Reading
+        {{ current ? discussionLanguage.states.current : discussionLanguage.states.readingPath }}
       </span>
       <span class="conversation-row-age">{{ timeAgo }}</span>
     </span>
-    <span class="conversation-row-excerpt">{{ preview || 'Comment has no text.' }}</span>
+    <span class="conversation-row-excerpt">
+      {{ preview || discussionLanguage.messages.commentHasNoText }}
+    </span>
     <span class="conversation-row-footer">
       <span v-if="replyLabel" class="conversation-row-count">{{ replyLabel }}</span>
-      <span v-else class="conversation-row-count">End of branch</span>
+      <span v-else class="conversation-row-count">
+        {{ discussionLanguage.messages.endOfBranch }}
+      </span>
       <span v-if="contentMarkers.length" class="conversation-row-markers" aria-hidden="true">
         <component
           :is="marker"
@@ -51,8 +57,12 @@ import {
   LucideQuote,
 } from '@lucide/vue'
 import type { Comment } from '#shared/types'
-import { getCommentPreview, getCommentReplyCountLabel } from '#shared/utils/comments'
+import { getCommentPreview } from '#shared/utils/comments'
 import { formatTimeAgo } from '#shared/utils/date'
+import {
+  discussionLanguage,
+  type DiscussionRowState,
+} from '#shared/utils/productLanguage'
 import type { SeedPaletteStyle } from '~/composables/useSeedPalette'
 
 const props = defineProps<{
@@ -75,7 +85,7 @@ const isOriginalPoster = computed(() => {
 })
 const preview = computed(() => getCommentPreview(props.comment.text))
 const replyLabel = computed(() => directReplyCount.value > 0
-  ? getCommentReplyCountLabel(directReplyCount.value, props.descendantCount)
+  ? discussionLanguage.format.replySummary(directReplyCount.value, props.descendantCount)
   : '')
 const timeAgo = computed(() => formatTimeAgo(props.comment.created_at))
 const contentMarkers = computed(() => {
@@ -95,14 +105,19 @@ const contentMarkers = computed(() => {
   return markers
 })
 const rowLabel = computed(() => {
-  const continuation = replyLabel.value ? `, ${replyLabel.value}` : ', end of branch'
-  const pathState = props.current
-    ? ', currently reading'
+  const state: DiscussionRowState = props.current
+    ? 'current'
     : props.selected
-      ? ', on reading path'
-      : ''
+      ? 'reading-path'
+      : null
+  const continuation = replyLabel.value || discussionLanguage.accessibility.endOfBranch
 
-  return `${props.comment.author}, ${timeAgo.value}${pathState}${continuation}`
+  return discussionLanguage.format.rowLabel(
+    props.comment.author,
+    timeAgo.value,
+    state,
+    continuation,
+  )
 })
 </script>
 

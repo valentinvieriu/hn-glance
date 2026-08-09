@@ -19,11 +19,13 @@
             {{ node.comment.author }}
           </NuxtLink>
         </h2>
-        <span v-if="isOriginalPoster" class="comment-reader-comment-badge">OP</span>
+        <span v-if="isOriginalPoster" class="comment-reader-comment-badge">
+          {{ discussionLanguage.states.originalPoster }}
+        </span>
         <span
           v-if="authorCommentCount > 1"
           class="comment-reader-comment-activity"
-          :aria-label="`${node.comment.author} has made ${authorCommentCount} comments on this story`"
+          :aria-label="discussionLanguage.format.authorActivity(node.comment.author, authorCommentCount)"
         >
           <LucideMessageSquare class="h-3.5 w-3.5" aria-hidden="true" />
           {{ authorCommentCount }}
@@ -35,8 +37,8 @@
           v-if="presentation === 'focused'"
           :href="permalink"
           class="comment-reader-comment-time"
-          aria-label="Permalink to selected comment"
-          title="Comment permalink"
+          :aria-label="discussionLanguage.format.commentPermalink(node.comment.author, timeAgo)"
+          :title="discussionLanguage.accessibility.commentPermalink"
           @click.prevent="emit('select', node.comment.id)"
         >
           {{ timeAgo }}
@@ -46,7 +48,7 @@
     </header>
 
     <p v-if="parentAuthor" class="comment-reader-comment-context">
-      Replying to
+      {{ discussionLanguage.context.replyingTo }}
       <button type="button" @click="emitParent">
         {{ parentAuthor }}
       </button>
@@ -72,6 +74,7 @@ import { LucideMessageSquare } from '@lucide/vue'
 import type { CommentNavigationNode } from '#shared/utils/comments'
 import { formatTimeAgo } from '#shared/utils/date'
 import { getHnUserPath } from '#shared/utils/hn'
+import { discussionLanguage } from '#shared/utils/productLanguage'
 import CommentLinks from '~/components/CommentLinks.vue'
 import CommentRichContent from './RichContent.vue'
 
