@@ -2,7 +2,7 @@
   <div class="max-w-3xl mx-auto py-16 px-4 sm:px-6 lg:px-8">
     <h1 class="text-3xl font-display font-semibold mb-8">Privacy Policy</h1>
     <p class="mb-8 leading-7 text-slate-600 dark:text-slate-400">
-      Last updated: July 31, 2026
+      Last updated: August 9, 2026
     </p>
 
     <p class="mb-5 leading-7">
@@ -22,10 +22,11 @@
 
     <p class="mb-5 leading-7">
       HN Glance does not keep a visitor account database. It uses browser storage
-      only for app preferences and performance: your color theme may be stored in
-      localStorage, and recently loaded feed data may be stored temporarily in
-      sessionStorage. These values stay in your browser and can be cleared in
-      your browser settings.
+      only for app preferences and performance: your color theme, discussion
+      reading mode, and root-comment order may be stored in localStorage, and
+      recently loaded feed data may be stored temporarily in sessionStorage.
+      These values stay in your browser and can be cleared in your browser
+      settings.
     </p>
 
     <h2 class="text-2xl font-display font-semibold mt-8 mb-4">Cookies, Analytics, and Tracking</h2>

@@ -171,8 +171,9 @@ surprising. The product contract is:
 
 - A copied discussion link opens the same comment and reading mode for every
   reader.
-- An explicitly chosen reading-mode preference carries to the next discussion
-  and browser restart unless an opened link specifies another mode.
+- Explicitly chosen reading-mode and root-comment-order preferences carry to
+  the next discussion and browser restart unless an opened link specifies a
+  different value.
 - Back and Forward restore the state of that history entry instead of applying
   a newer choice retroactively.
 - Returning to a feed in the same tab restores browsing context without
@@ -189,16 +190,23 @@ chosen:
 | “This link opens what I see” | Shareable navigation | Copied links and browser history |
 | “Back returns this page to how it was” | Per-entry presentation | One history entry |
 | “Take me back to my place in this feed” | Session continuity | Current browser-tab session |
-| “Use my chosen reading mode next time” | Durable preference | Across stories and browser restarts |
+| “Use my chosen discussion presentation next time” | Durable preference | Across stories and browser restarts |
 | “Show what changed since my last visit” | Bounded revisit memory | Across visits, never indefinitely |
 
 An explicit URL value overrides a stored preference, which overrides the
-product default. Focused discussion URLs must therefore encode both reading
-modes explicitly before a reading-mode preference becomes durable; otherwise
-the same shared URL could open differently for different readers. The
-engineering constraints that preserve this strategy are defined in
-`AGENTS.md`; concrete state APIs and storage schemas are intentionally deferred
-to implementation design.
+product default. Focused discussion URLs therefore encode both reading modes
+explicitly, and story-detail URLs resolve root-comment order to an explicit
+`sort=hn`, `sort=discussed`, or `sort=recent` value. The same shared URL then
+opens the same presentation for every reader, while a new story without an
+explicit choice can inherit the reader's preference.
+
+The app-wide preference boundary lives in `app/composables/useAppPreferences.ts`.
+It stores one validated, versioned `hn-glance:preferences` object rather than
+scattering feature-specific localStorage keys through components. The first
+durable discussion preferences are reading mode and root-comment order. A
+client plugin hydrates the shared state after mount so server rendering remains
+deterministic; unavailable or malformed storage falls back to in-memory
+defaults without blocking the discussion.
 
 ## Look and Feel
 

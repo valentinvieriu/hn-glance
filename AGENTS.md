@@ -296,40 +296,50 @@ variants for concepts it already owns.
 
 Choose state ownership from user expectations before choosing an API. Do not
 put state in `localStorage` merely because persistence is convenient.
-This section records the reasons and boundaries for later state-management
-work; it does not select concrete keys, schemas, modules, or migration steps,
-and it does not authorize opportunistic persistence changes while editing
-related UI.
+This section records the reasons, boundaries, and shared implementation for
+state management. New state must join the correct lifetime domain rather than
+introducing a component-local storage path.
 
 | State class | Canonical home | Lifetime and examples |
 | --- | --- | --- |
 | Shareable navigation | URL query or hash | Story sort, discussion focus, explicit reading mode, current comment. Survives copied links and browser history. |
 | Per-entry presentation | Vue memory or `history.state` | Scroll geometry, column position, and transient disclosure for the current page/history entry. |
 | Same-tab session state | `sessionStorage` | Feed payload cache and per-feed return context. Ends with the browser tab session. |
-| Durable preferences | A versioned preferences object in `localStorage` | Color-independent UI choices such as the preferred reading mode. |
+| Durable preferences | The versioned `hn-glance:preferences` object in `localStorage` | Color-independent UI choices such as reading mode and root-comment order. |
 | Durable revisit history | A separate bounded and expiring `localStorage` store | Seen comment identities and story revisit timestamps. Never an unbounded activity log. |
 
 Resolution precedence is **explicit URL state → stored preference → product
-default**. Once reading mode becomes a durable preference, discussion-focus
-URLs must encode both `reader=comment` and `reader=path`; absence cannot mean an
-explicit mode because it would allow the same shared URL to resolve differently
-for different readers. Leaving discussion focus may remove focus-only query
+default**. Discussion-focus URLs encode both `reader=comment` and `reader=path`,
+and story-detail URLs resolve root-comment order to `sort=hn`,
+`sort=discussed`, or `sort=recent`. Absence cannot represent an explicit mode
+or order because the same shared URL could otherwise resolve differently for
+different readers. Leaving discussion focus may remove focus-only query
 parameters while retaining the preference for the next entry.
 
 Keep these domains separate because they express different user promises and
 require different retention, privacy, and failure behavior:
 
-- discussion preferences own the durable reader-mode preference;
+- app preferences own the durable discussion reader-mode and root-comment-order
+  preferences;
 - the route owns explicit discussion focus, current-comment identity, sorting,
   and reader mode;
 - feed-return state owns same-session story and scroll orientation; and
 - discussion-visit state owns bounded comment identities and revisit times.
 
-Future implementation must keep app-owned state versioned, purpose-namespaced,
-validated, bounded where it can grow, safe across SSR and hydration, and able
-to fall back to stateless behavior when browser storage is unavailable or
-invalid. Browser Back and Forward must restore their entry rather than being
-overwritten by the latest preference.
+`shared/utils/appPreferences.ts` owns the versioned schema, defaults,
+validation, and serialization. `app/composables/useAppPreferences.ts` is the
+only app-owned localStorage boundary and exposes the shared reactive state plus
+domain setters. `app/plugins/appPreferences.client.ts` hydrates that state
+after mount and accepts same-key storage events. Components must use the
+composable rather than reading or writing the storage key directly.
+
+Keep app-owned state versioned, purpose-namespaced, validated, bounded where it
+can grow, safe across SSR and hydration, and able to fall back to in-memory
+behavior when browser storage is unavailable or invalid. Explicit route state
+must not silently overwrite a durable preference merely because a shared link
+was opened. Only a user action in the corresponding control changes the
+preference. Browser Back and Forward must restore their explicit entry rather
+than being overwritten by the latest preference.
 
 Durable revisit state contains only the minimum public identities and
 timestamps needed for comparison—never comment bodies, author histories,
@@ -337,8 +347,10 @@ external URLs, or a general browsing log. Comment-change detection must be
 identity-based; a previous total alone cannot distinguish additions from
 deletion or reordering. When revisit memory ships, update the privacy page and
 treat cleared, malformed, disabled, and quota-limited storage as expected
-fallback cases. The later implementation design will choose the common storage
-boundary and domain APIs that enforce these rules.
+fallback cases. Future durable preference fields belong in the same schema and
+composable when they share this lifetime and privacy contract; revisit memory
+remains a separate bounded store because it has different retention and
+data-shape requirements.
 
 ## Comment Rendering
 
@@ -357,7 +369,7 @@ Current rendering uses `useSanitizer.ts` to:
 - Convert plain-text conventions HN never marks up: `*emphasis*`, backtick
   `code` spans, and manual `-`/`1.` lists.
 
-Every comment renders at every depth. `app/pages/item/[id].vue` analyzes the tree once for totals, author activity, descendant counts, latest activity, and reply-disclosure defaults; `CommentThread.vue` uses that shared summary to collapse only deep, large reply branches behind disclosure controls while keeping every comment reachable. Root comments can be reordered with a URL-backed `?sort=` control: HN order (default), most discussed, or recent activity.
+Every comment renders at every depth. `app/pages/item/[id].vue` analyzes the tree once for totals, author activity, descendant counts, latest activity, and reply-disclosure defaults; `CommentThread.vue` uses that shared summary to collapse only deep, large reply branches behind disclosure controls while keeping every comment reachable. Root comments can be reordered with a URL-backed `?sort=` control: HN order (default), most discussed, or recent activity. The selected order is also the durable preference for story-detail pages opened without explicit sort state.
 
 The normal story overview keeps that recursive tree unchanged. Its discussion
 focus entry control adds `?view=discussion` and opens

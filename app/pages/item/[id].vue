@@ -292,6 +292,7 @@
 import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue';
 import { LucideArrowDownUp, LucideExternalLink, LucideTrendingUp, LucideMessageSquare, LucideChevronsDown, LucideChevronsUp, LucideMaximize2, LucideX } from '@lucide/vue';
 import { useSanitizer } from '~/composables/useSanitizer';
+import { useAppPreferences } from '~/composables/useAppPreferences'
 import {
   getCommentThreadAuthorPalette,
   getSeedPaletteStyle,
@@ -304,7 +305,6 @@ import type {
   StoryDetail,
 } from '#shared/types'
 import {
-  type CommentSort,
   getCommentPathFromIndex,
   getExpandedCommentDisclosure,
   getSmartCommentDisclosure,
@@ -313,21 +313,31 @@ import {
   summarizeCommentTree,
   toggleCommentReplies,
 } from '#shared/utils/comments'
+import {
+  DEFAULT_COMMENT_READER_MODE,
+  DEFAULT_ROOT_COMMENT_ORDER,
+  parseCommentReaderMode,
+  parseRootCommentOrder,
+  type CommentReaderMode,
+  type RootCommentOrder,
+} from '#shared/utils/appPreferences'
 import { formatTimeAgo } from '#shared/utils/date'
 import { getHnItemUrl, getHnUserPath, normalizeHnItemId } from '#shared/utils/hn'
 import { discussionLanguage } from '#shared/utils/productLanguage'
 import { getScreenshotPath } from '#shared/utils/screenshot'
 import { appendServerTiming } from '#shared/utils/serverTiming'
 import ConversationBrowser from '~/components/comment/ConversationBrowser.vue'
-import {
-  getCommentReaderMode,
-  type CommentReaderMode,
-} from '~/components/comment/reader'
 
 const route = useRoute();
 const router = useRouter()
 const isClientReady = ref(false)
-const discussionReaderMode = ref<CommentReaderMode>('comment')
+const {
+  discussionReaderMode: preferredDiscussionReaderMode,
+  isHydrated: arePreferencesHydrated,
+  rootCommentOrder: preferredRootCommentOrder,
+  setDiscussionReaderMode: setPreferredDiscussionReaderMode,
+  setRootCommentOrder: setPreferredRootCommentOrder,
+} = useAppPreferences()
 const getFirstQueryValue = (value: unknown): string | undefined => {
   const firstValue = Array.isArray(value) ? value[0] : value
 
@@ -337,7 +347,21 @@ const getFirstQueryValue = (value: unknown): string | undefined => {
 const isDiscussionFocus = computed(() => {
   return getFirstQueryValue(route.query.view) === 'discussion'
 })
-const isDiscussionFocusActive = computed(() => isDiscussionFocus.value && isClientReady.value)
+const explicitDiscussionReaderMode = computed(() => {
+  return parseCommentReaderMode(route.query.reader)
+})
+const discussionReaderMode = computed<CommentReaderMode>(() => {
+  if (isDiscussionFocus.value && explicitDiscussionReaderMode.value) {
+    return explicitDiscussionReaderMode.value
+  }
+
+  return DEFAULT_COMMENT_READER_MODE
+})
+const isDiscussionFocusActive = computed(() => {
+  return isDiscussionFocus.value
+    && isClientReady.value
+    && explicitDiscussionReaderMode.value !== null
+})
 
 const storyId = computed(() => normalizeHnItemId(route.params.id))
 const storyDataKey = computed(() => `story-detail:${storyId.value ?? 'missing'}`)
@@ -707,23 +731,13 @@ const { sanitize } = useSanitizer();
 const sanitizedText = computed(() => sanitize(story.value?.text || '', `story-${storyId.value}`));
 
 const commentSummary = computed(() => summarizeCommentTree(story.value?.children || []))
-const commentSort = computed<CommentSort>({
-  get: () => {
-    const querySort = getFirstQueryValue(route.query.sort)
-
-    return querySort === 'discussed' || querySort === 'recent'
-      ? querySort
-      : 'hn'
-  },
+const explicitRootCommentOrder = computed(() => parseRootCommentOrder(route.query.sort))
+const commentSort = computed<RootCommentOrder>({
+  get: () => explicitRootCommentOrder.value ?? DEFAULT_ROOT_COMMENT_ORDER,
   set: (sort) => {
-    const query = { ...route.query }
+    setPreferredRootCommentOrder(sort)
 
-    if (sort === 'hn') {
-      delete query.sort
-    } else {
-      query.sort = sort
-    }
-
+    const query = { ...route.query, sort }
     void router.replace({ query, hash: route.hash })
   },
 })
@@ -769,7 +783,7 @@ const enterDiscussionFocus = () => {
     ...route.query,
     view: 'discussion',
     ...(commentId ? { comment: String(commentId) } : {}),
-    reader: discussionReaderMode.value === 'path' ? 'path' : undefined,
+    reader: preferredDiscussionReaderMode.value,
   }
 
   void router.push({ query, hash: '' })
@@ -809,30 +823,50 @@ const selectFocusedComment = (commentId: number) => {
 }
 
 const setDiscussionReaderMode = (mode: CommentReaderMode) => {
-  discussionReaderMode.value = mode
+  setPreferredDiscussionReaderMode(mode)
 
   if (!isDiscussionFocus.value) {
     return
   }
 
-  const query = { ...route.query }
-
-  if (mode === 'path') {
-    query.reader = 'path'
-  } else {
-    delete query.reader
-  }
+  const query = { ...route.query, reader: mode }
 
   void router.replace({ query, hash: '' })
 }
 
-watch([isDiscussionFocus, () => route.query.reader], ([isFocused, queryReader]) => {
-  if (!isFocused) {
-    return
-  }
+watch(
+  [
+    arePreferencesHydrated,
+    isDiscussionFocus,
+    () => route.query.reader,
+    () => route.query.sort,
+  ],
+  ([preferencesHydrated, isFocused, queryReader, querySort]) => {
+    if (import.meta.server || !preferencesHydrated) {
+      return
+    }
 
-  discussionReaderMode.value = getCommentReaderMode(queryReader)
-}, { immediate: true })
+    const query = { ...route.query }
+    let shouldReplace = false
+
+    if (!parseRootCommentOrder(querySort)) {
+      query.sort = preferredRootCommentOrder.value
+      shouldReplace = true
+    }
+
+    if (isFocused && !parseCommentReaderMode(queryReader)) {
+      query.reader = preferredDiscussionReaderMode.value
+      shouldReplace = true
+    }
+
+    if (!shouldReplace) {
+      return
+    }
+
+    void router.replace({ query, hash: route.hash })
+  },
+  { immediate: true },
+)
 
 watch([isDiscussionFocus, focusedCommentId], ([isFocused, commentId]) => {
   const queryComment = getFirstQueryValue(route.query.comment)
