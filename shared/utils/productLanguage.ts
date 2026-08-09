@@ -27,7 +27,10 @@ const actions = {
   goToCurrentComment: 'Go to current comment',
   goToRootComment: 'Go to root comment',
   hideDeepReplies: 'Hide deep replies',
+  markAllSeen: 'Mark all seen',
+  nextNewComment: 'Next new comment',
   overview: 'Overview',
+  previousNewComment: 'Previous new comment',
   replyOnHackerNews: 'Reply on HN',
   returnToOverview: 'Return to overview',
   showRootComments: 'Show root comments',
@@ -35,6 +38,7 @@ const actions = {
 
 const states = {
   current: 'Current',
+  new: 'New',
   originalPoster: 'OP',
   readingPath: terms.readingPath,
 } as const
@@ -103,6 +107,13 @@ export const discussionLanguage = {
     linkCountSharedInComments: (count: number) => {
       return `${pluralize(count, 'link')} shared in comments`
     },
+    newCommentCount: (count: number) => pluralize(count, 'new comment'),
+    newCommentCompactCount: (count: number) => `${count} new`,
+    newCommentCompactPosition: (index: number, total: number) => `${index} / ${total} new`,
+    newCommentPosition: (index: number, total: number) => {
+      return `${index} of ${total} new comments`
+    },
+    newReplyCount: (count: number) => pluralize(count, 'new reply', 'new replies'),
     nextSibling: (siblingKind: DiscussionSiblingKind) => siblingLabel('Next', siblingKind),
     parentCommentBy: (author: string) => `Parent comment by ${author}`,
     pathStep: (index: number, isCurrent: boolean) => {
@@ -142,6 +153,7 @@ export const discussionLanguage = {
       timeAgo: string,
       state: DiscussionRowState,
       continuation: string,
+      isNew = false,
     ) => {
       const stateLabel = state === 'current'
         ? 'current comment'
@@ -149,7 +161,13 @@ export const discussionLanguage = {
           ? 'on reading path'
           : ''
 
-      return [author, timeAgo, stateLabel, continuation].filter(Boolean).join(', ')
+      return [
+        author,
+        timeAgo,
+        isNew ? 'new comment' : '',
+        stateLabel,
+        continuation,
+      ].filter(Boolean).join(', ')
     },
   },
   accessibility: {
@@ -162,6 +180,8 @@ export const discussionLanguage = {
     jumpToDiscussion: 'Jump to discussion',
     jumpToParentComment: (author: string) => `Jump to parent comment by ${author}`,
     jumpToRootComment: (author: string) => `Jump to root comment by ${author}`,
+    newComment: 'New comment since your previous visit',
+    newCommentsNavigation: 'New comment navigation',
     originalPoster: 'Submitted this story',
     readingPath: terms.readingPath,
   },

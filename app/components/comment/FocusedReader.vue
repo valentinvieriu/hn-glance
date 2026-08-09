@@ -3,6 +3,7 @@
     class="focused-comment-reader seed-palette-surface"
     :style="paletteStyle"
     :author-comment-count="authorCommentCount"
+    :is-new="isNew"
     :node="node"
     :parent-author="parentAuthor"
     presentation="focused"
@@ -28,6 +29,7 @@ import ReaderComment from './ReaderComment.vue'
 defineProps<{
   authorCommentCount: number
   descendantCount: number
+  isNew: boolean
   node: CommentNavigationNode
   paletteStyle: SeedPaletteStyle
   parentAuthor?: string

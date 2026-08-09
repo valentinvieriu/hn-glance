@@ -25,6 +25,13 @@
             {{ discussionLanguage.states.originalPoster }}
           </span>
           <span
+            v-if="isNew"
+            class="comment-new-badge discussion-new-indicator"
+            :title="discussionLanguage.accessibility.newComment"
+          >
+            {{ discussionLanguage.states.new }}
+          </span>
+          <span
             v-if="authorCommentCount > 1"
             class="author-activity-stat"
             :class="{ 'author-activity-stat-strong': authorCommentCount >= 5 }"
@@ -95,6 +102,12 @@
             <span class="comment-reply-summary">
               {{ replyDisclosureActionLabel }}
             </span>
+            <span
+              v-if="newDescendantCount > 0"
+              class="comment-new-replies discussion-new-indicator"
+            >
+              {{ discussionLanguage.format.newReplyCount(newDescendantCount) }}
+            </span>
           </button>
           <a
             :href="replyHref"
@@ -136,6 +149,8 @@
             :root-comment-ids="rootCommentIds"
             :hidden-reply-ids="hiddenReplyIds"
             :jump-target-comment-id="jumpTargetCommentId"
+            :new-comment-ids="newCommentIds"
+            :new-descendant-counts="newDescendantCounts"
             :toggle-replies-hidden="toggleRepliesHidden"
             :jump-to-comment="jumpToComment"
           />
@@ -180,6 +195,8 @@ const props = defineProps<{
   rootCommentIds: ReadonlyMap<number, number>
   hiddenReplyIds: ReadonlySet<number>
   jumpTargetCommentId?: number | null
+  newCommentIds: ReadonlySet<number>
+  newDescendantCounts: ReadonlyMap<number, number>
   toggleRepliesHidden: (commentId: number) => void
   jumpToComment: (commentId: number) => void | Promise<void>
 }>()
@@ -210,6 +227,8 @@ const parentAuthor = computed(() => {
 })
 const rootAuthor = computed(() => props.commentAuthors.get(rootCommentId.value) ?? '')
 const isJumpTarget = computed(() => props.jumpTargetCommentId === props.comment.id)
+const isNew = computed(() => props.newCommentIds.has(props.comment.id))
+const newDescendantCount = computed(() => props.newDescendantCounts.get(props.comment.id) ?? 0)
 const showParentLink = computed(() => {
   return Boolean(parentCommentId.value)
     && (siblingIndex.value > 0
@@ -235,6 +254,7 @@ const commentContainerClasses = computed(() => {
     'comment-top-level': currentDepth.value === 1,
     'comment-indent-capped': currentDepth.value >= COMMENT_INDENT_CAP_DEPTH,
     'comment-replies-hidden': areRepliesHidden.value,
+    'comment-new': isNew.value,
     'seed-palette-quiet': !isRecurringAuthor.value,
   }
 })
@@ -412,6 +432,26 @@ const replyHref = computed(() => {
   font-weight: 700;
   letter-spacing: 0.03em;
   line-height: 1.5;
+}
+
+.comment-new-badge,
+.comment-new-replies {
+  font-size: 0.66rem;
+}
+
+.comment-new-badge {
+  padding: 0.08rem 0.36rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.comment-new-replies {
+  padding: 0.1rem 0.38rem;
+  text-transform: none;
+}
+
+.comment-new > .comment-body {
+  box-shadow: inset 0 0 0 1px rgb(14 165 233 / 0.24);
 }
 
 .author-activity-stat {

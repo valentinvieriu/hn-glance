@@ -155,7 +155,7 @@
           </section>
         </div>
         <aside id="comments" class="story-detail-comments min-w-0 scroll-mt-24">
-          <div class="comments-toolbar">
+          <div ref="discussionEngagementTarget" class="comments-toolbar">
             <div class="comments-title-group">
               <h2 class="section-title mb-0 text-2xl font-semibold text-gray-900 dark:text-gray-100">
                 {{ discussionLanguage.terms.discussion }}
@@ -165,6 +165,13 @@
               </span>
             </div>
             <div v-if="commentCount > 0 || canSortComments || canToggleAllComments" class="comments-actions">
+              <NewCommentsNavigation
+                :count="newCommentCount"
+                :position="newCommentPosition"
+                @mark-seen="markAllNewCommentsSeen"
+                @next="navigateToNextNewComment"
+                @previous="navigateToPreviousNewComment"
+              />
               <label
                 v-if="canSortComments"
                 class="comments-sort-control text-gray-700 dark:text-gray-300"
@@ -224,6 +231,8 @@
               :root-comment-ids="rootCommentIds"
               :hidden-reply-ids="hiddenReplyIds"
               :jump-target-comment-id="jumpTargetCommentId"
+              :new-comment-ids="newCommentIds"
+              :new-descendant-counts="newDescendantCounts"
               :toggle-replies-hidden="toggleRepliesHidden"
               :jump-to-comment="jumpToComment"
             />
@@ -270,6 +279,10 @@
         :comment-count="commentCount"
         :descendant-counts="descendantCommentCounts"
         :navigation-nodes="commentNavigationNodes"
+        :new-comment-count="newCommentCount"
+        :new-comment-ids="newCommentIds"
+        :new-comment-position="newCommentPosition"
+        :new-descendant-counts="newDescendantCounts"
         :reader-mode="discussionReaderMode"
         :root-comments="sortedComments"
         :selected-comment-id="focusedCommentId"
@@ -280,6 +293,9 @@
         :story-title="story.title"
         :thread-author-palettes="commentThreadAuthorPalettes"
         @exit="exitDiscussionFocus"
+        @mark-new-seen="markAllNewCommentsSeen"
+        @next-new="navigateToNextNewComment"
+        @previous-new="navigateToPreviousNewComment"
         @reader-mode="setDiscussionReaderMode"
         @select="selectFocusedComment"
       />
@@ -293,6 +309,7 @@ import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { LucideArrowDownUp, LucideExternalLink, LucideTrendingUp, LucideMessageSquare, LucideChevronsDown, LucideChevronsUp, LucideMaximize2, LucideX } from '@lucide/vue';
 import { useSanitizer } from '~/composables/useSanitizer';
 import { useAppPreferences } from '~/composables/useAppPreferences'
+import { useDiscussionVisits } from '~/composables/useDiscussionVisits'
 import {
   getCommentThreadAuthorPalette,
   getSeedPaletteStyle,
@@ -321,12 +338,17 @@ import {
   type CommentReaderMode,
   type RootCommentOrder,
 } from '#shared/utils/appPreferences'
+import {
+  countMatchingDescendants,
+  getCommentIdsInTreeOrder,
+} from '#shared/utils/discussionVisits'
 import { formatTimeAgo } from '#shared/utils/date'
 import { getHnItemUrl, getHnUserPath, normalizeHnItemId } from '#shared/utils/hn'
 import { discussionLanguage } from '#shared/utils/productLanguage'
 import { getScreenshotPath } from '#shared/utils/screenshot'
 import { appendServerTiming } from '#shared/utils/serverTiming'
 import ConversationBrowser from '~/components/comment/ConversationBrowser.vue'
+import NewCommentsNavigation from '~/components/comment/NewCommentsNavigation.vue'
 
 const route = useRoute();
 const router = useRouter()
@@ -338,6 +360,10 @@ const {
   setDiscussionReaderMode: setPreferredDiscussionReaderMode,
   setRootCommentOrder: setPreferredRootCommentOrder,
 } = useAppPreferences()
+const {
+  acknowledgeVisit: acknowledgeDiscussionVisit,
+  beginVisit: beginDiscussionVisit,
+} = useDiscussionVisits()
 const getFirstQueryValue = (value: unknown): string | undefined => {
   const firstValue = Array.isArray(value) ? value[0] : value
 
@@ -428,8 +454,11 @@ const error = computed(() => {
 })
 const isLoading = computed(() => pending.value)
 const storyContextRoot = ref<HTMLElement | null>(null)
+const discussionEngagementTarget = ref<HTMLElement | null>(null)
 const isStoryContextNearViewport = ref(false)
 let storyContextObserver: IntersectionObserver | null = null
+let discussionEngagementObserver: IntersectionObserver | null = null
+let discussionEngagementTimer: ReturnType<typeof setTimeout> | undefined
 type StoryContextPayload = StoryContextResponse | RelatedStory[]
 const {
   data: storyContextData,
@@ -492,6 +521,10 @@ onBeforeUnmount(() => {
   }
 
   clearCommentHighlight()
+  if (discussionEngagementTimer) {
+    clearTimeout(discussionEngagementTimer)
+  }
+  discussionEngagementObserver?.disconnect()
   storyContextObserver?.disconnect()
   screenshotDialog.value?.close()
 })
@@ -697,6 +730,12 @@ watch(screenshotSrc, () => {
 
 watch(storyId, () => {
   clearCommentHighlight()
+  clearDiscussionEngagementTimer()
+  discussionEngagementObserver?.disconnect()
+  discussionEngagementObserver = null
+  initializedDiscussionVisitStoryId.value = null
+  hasAcknowledgedNewComments.value = false
+  newCommentIds.value = new Set()
   hiddenReplyOverride.value = null
   jumpTargetCommentId.value = null
   clearStoryContext()
@@ -715,7 +754,15 @@ watch(() => route.hash, (hash) => {
 })
 
 watch(isDiscussionFocus, (isFocused, wasFocused) => {
-  if (isFocused || !wasFocused) {
+  if (isFocused) {
+    clearDiscussionEngagementTimer()
+    discussionEngagementObserver?.disconnect()
+    discussionEngagementObserver = null
+    persistNewCommentsAsSeen()
+    return
+  }
+
+  if (!wasFocused) {
     return
   }
 
@@ -754,6 +801,20 @@ const sortedComments = computed(() => sortCommentThreads(
   commentSort.value,
   commentSummary.value,
 ))
+const currentCommentIds = computed(() => {
+  return getCommentIdsInTreeOrder(story.value?.children ?? [])
+})
+const newCommentIds = ref<ReadonlySet<number>>(new Set())
+const initializedDiscussionVisitStoryId = ref<string | null>(null)
+const hasAcknowledgedNewComments = ref(false)
+const newCommentIdsInDisplayOrder = computed(() => {
+  return getCommentIdsInTreeOrder(sortedComments.value)
+    .filter(commentId => newCommentIds.value.has(commentId))
+})
+const newCommentCount = computed(() => newCommentIdsInDisplayOrder.value.length)
+const newDescendantCounts = computed(() => {
+  return countMatchingDescendants(commentNavigationNodes.value, newCommentIds.value)
+})
 const focusedCommentId = computed(() => {
   const queryComment = getFirstQueryValue(route.query.comment)
   const queryCommentId = queryComment && /^\d+$/.test(queryComment)
@@ -771,8 +832,154 @@ const focusedCommentId = computed(() => {
 
   return sortedComments.value[0]?.id ?? null
 })
+const activeNewCommentId = computed(() => {
+  return isDiscussionFocus.value
+    ? focusedCommentId.value
+    : jumpTargetCommentId.value
+})
+const newCommentPosition = computed(() => {
+  if (!activeNewCommentId.value) {
+    return 0
+  }
+
+  const index = newCommentIdsInDisplayOrder.value.indexOf(activeNewCommentId.value)
+
+  return index >= 0 ? index + 1 : 0
+})
+
+const persistNewCommentsAsSeen = (dismissImmediately = false) => {
+  const id = storyId.value
+
+  if (!id || newCommentIds.value.size === 0) {
+    return
+  }
+
+  if (!hasAcknowledgedNewComments.value) {
+    acknowledgeDiscussionVisit(id, currentCommentIds.value)
+    hasAcknowledgedNewComments.value = true
+    clearDiscussionEngagementTimer()
+    discussionEngagementObserver?.disconnect()
+    discussionEngagementObserver = null
+  }
+
+  if (dismissImmediately) {
+    newCommentIds.value = new Set()
+  }
+}
+
+const clearDiscussionEngagementTimer = () => {
+  if (discussionEngagementTimer) {
+    clearTimeout(discussionEngagementTimer)
+    discussionEngagementTimer = undefined
+  }
+}
+
+const observeMeaningfulDiscussionReading = async () => {
+  discussionEngagementObserver?.disconnect()
+  discussionEngagementObserver = null
+  clearDiscussionEngagementTimer()
+
+  if (
+    !import.meta.client
+    || newCommentIds.value.size === 0
+    || !('IntersectionObserver' in window)
+  ) {
+    return
+  }
+
+  await nextTick()
+
+  if (!discussionEngagementTarget.value) {
+    return
+  }
+
+  discussionEngagementObserver = new IntersectionObserver((entries) => {
+    const isReadingDiscussion = entries.some((entry) => {
+      return entry.isIntersecting && entry.intersectionRatio >= 0.6
+    })
+
+    if (!isReadingDiscussion) {
+      clearDiscussionEngagementTimer()
+      return
+    }
+
+    if (discussionEngagementTimer || hasAcknowledgedNewComments.value) {
+      return
+    }
+
+    discussionEngagementTimer = setTimeout(() => {
+      discussionEngagementTimer = undefined
+      persistNewCommentsAsSeen()
+      discussionEngagementObserver?.disconnect()
+      discussionEngagementObserver = null
+    }, 1_200)
+  }, { threshold: [0.6] })
+  discussionEngagementObserver.observe(discussionEngagementTarget.value)
+}
+
+const initializeDiscussionVisit = () => {
+  const id = storyId.value
+
+  if (
+    !import.meta.client
+    || !isClientReady.value
+    || !id
+    || !story.value
+    || isLoading.value
+    || initializedDiscussionVisitStoryId.value === id
+  ) {
+    return
+  }
+
+  const visit = beginDiscussionVisit(id, currentCommentIds.value)
+
+  initializedDiscussionVisitStoryId.value = id
+  hasAcknowledgedNewComments.value = false
+  newCommentIds.value = visit.isTracked
+    ? visit.newCommentIds
+    : new Set()
+
+  if (isDiscussionFocus.value) {
+    persistNewCommentsAsSeen()
+  } else {
+    void observeMeaningfulDiscussionReading()
+  }
+}
+
+const navigateToNewComment = (direction: 1 | -1) => {
+  const ids = newCommentIdsInDisplayOrder.value
+
+  if (ids.length === 0) {
+    return
+  }
+
+  const currentIndex = activeNewCommentId.value
+    ? ids.indexOf(activeNewCommentId.value)
+    : -1
+  const nextIndex = currentIndex < 0
+    ? (direction > 0 ? 0 : ids.length - 1)
+    : (currentIndex + direction + ids.length) % ids.length
+  const nextCommentId = ids[nextIndex]
+
+  if (!nextCommentId) {
+    return
+  }
+
+  persistNewCommentsAsSeen()
+
+  if (isDiscussionFocus.value) {
+    selectFocusedComment(nextCommentId)
+  } else {
+    void jumpToComment(nextCommentId)
+  }
+}
+
+const navigateToNextNewComment = () => navigateToNewComment(1)
+const navigateToPreviousNewComment = () => navigateToNewComment(-1)
+const markAllNewCommentsSeen = () => persistNewCommentsAsSeen(true)
 
 const enterDiscussionFocus = () => {
+  persistNewCommentsAsSeen()
   const windowHashCommentId = import.meta.client
     ? getCommentIdFromHash(window.location.hash)
     : null
@@ -833,6 +1040,12 @@ const setDiscussionReaderMode = (mode: CommentReaderMode) => {
 
   void router.replace({ query, hash: '' })
 }
+
+watch(
+  [isClientReady, storyId, story, isLoading],
+  initializeDiscussionVisit,
+  { flush: 'post', immediate: true },
+)
 
 watch(
   [

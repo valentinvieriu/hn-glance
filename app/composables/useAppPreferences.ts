@@ -9,6 +9,7 @@ import {
   type CommentReaderMode,
   type RootCommentOrder,
 } from '#shared/utils/appPreferences'
+import { readBrowserStorage, writeBrowserStorage } from '~/utils/browserStorage'
 
 const PREFERENCES_STATE_KEY = 'hn-glance:app-preferences'
 const PREFERENCES_HYDRATED_STATE_KEY = 'hn-glance:app-preferences-hydrated'
@@ -25,15 +26,10 @@ export const useAppPreferences = () => {
       return
     }
 
-    try {
-      window.localStorage.setItem(
-        APP_PREFERENCES_STORAGE_KEY,
-        serializeAppPreferences(nextPreferences),
-      )
-    } catch {
-      // Storage can be unavailable, blocked, or full. The in-memory preference
-      // remains useful for the current app session.
-    }
+    writeBrowserStorage(
+      APP_PREFERENCES_STORAGE_KEY,
+      serializeAppPreferences(nextPreferences),
+    )
   }
 
   const replacePreferences = (nextPreferences: AppPreferences, shouldPersist: boolean) => {
@@ -49,15 +45,9 @@ export const useAppPreferences = () => {
       return
     }
 
-    let storedPreferences = createDefaultAppPreferences()
-
-    try {
-      storedPreferences = deserializeAppPreferences(
-        window.localStorage.getItem(APP_PREFERENCES_STORAGE_KEY),
-      )
-    } catch {
-      // Falling back to defaults is an expected stateless mode.
-    }
+    const storedPreferences = deserializeAppPreferences(
+      readBrowserStorage(APP_PREFERENCES_STORAGE_KEY),
+    )
 
     replacePreferences(storedPreferences, false)
     isHydrated.value = true

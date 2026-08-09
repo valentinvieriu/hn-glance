@@ -208,6 +208,22 @@ client plugin hydrates the shared state after mount so server rendering remains
 deterministic; unavailable or malformed storage falls back to in-memory
 defaults without blocking the discussion.
 
+Discussion revisits use a separate `hn-glance:discussion-visits` store because
+they have a different retention and privacy promise. The first visit records a
+quiet baseline of public comment IDs. On a later visit, IDs absent from that
+baseline are marked **New** for the complete page visit. Reaching the Discussion
+section, entering Discussion focus, or navigating between new comments records
+the current IDs for the next visit without removing the current visit's
+markers; **Mark all seen** is the explicit immediate dismissal.
+
+Revisit memory expires after 30 days and is pruned lazily. It retains at most
+100 stories and 20,000 comment IDs, evicting least-recently-visited stories as
+whole units. A discussion above 5,000 comments is not tracked rather than being
+given a partial baseline. Only story IDs, comment IDs, and revisit timestamps
+are stored—never comment text, authors, source URLs, or a general activity log.
+Blocked, cleared, corrupt, or full storage returns the reader to first-visit
+behavior with no false wall of new markers.
+
 ## Look and Feel
 
 HN Glance should feel like a modern reader application: current, calm, and a

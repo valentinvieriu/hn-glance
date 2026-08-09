@@ -19,6 +19,7 @@
 
       <ReaderComment
         :author-comment-count="authorCommentCounts.get(node.comment.author) ?? 1"
+        :is-new="newCommentIds.has(node.comment.id)"
         :node="node"
         :parent-author="node.parentId ? nodes[index - 1]?.comment.author ?? 'parent' : undefined"
         presentation="path"
@@ -54,6 +55,7 @@ const props = defineProps<{
   authorCommentCounts: ReadonlyMap<string, number>
   descendantCounts: ReadonlyMap<number, number>
   getPaletteStyle: (commentId: number, author: string) => SeedPaletteStyle
+  newCommentIds: ReadonlySet<number>
   nodes: CommentNavigationNode[]
   scopePrefix: string
   selectedCommentId: number | null

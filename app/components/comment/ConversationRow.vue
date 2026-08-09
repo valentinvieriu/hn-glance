@@ -5,6 +5,7 @@
     :class="{
       'conversation-row-selected': selected,
       'conversation-row-current': current,
+      'conversation-row-new': isNew,
       'seed-palette-quiet': authorCommentCount <= 1,
     }"
     :style="paletteStyle"
@@ -22,6 +23,13 @@
       <span v-if="isOriginalPoster" class="conversation-row-badge">
         {{ discussionLanguage.states.originalPoster }}
       </span>
+      <span
+        v-if="isNew"
+        class="conversation-row-new-badge discussion-new-indicator"
+        :title="discussionLanguage.accessibility.newComment"
+      >
+        {{ discussionLanguage.states.new }}
+      </span>
       <span v-if="selected" class="conversation-row-path-badge">
         {{ current ? discussionLanguage.states.current : discussionLanguage.states.readingPath }}
       </span>
@@ -34,6 +42,12 @@
       <span v-if="replyLabel" class="conversation-row-count">{{ replyLabel }}</span>
       <span v-else class="conversation-row-count">
         {{ discussionLanguage.messages.endOfBranch }}
+      </span>
+      <span
+        v-if="newDescendantCount > 0"
+        class="conversation-row-new-replies discussion-new-indicator"
+      >
+        {{ discussionLanguage.format.newReplyCount(newDescendantCount) }}
       </span>
       <span v-if="contentMarkers.length" class="conversation-row-markers" aria-hidden="true">
         <component
@@ -70,6 +84,8 @@ const props = defineProps<{
   comment: Comment
   current: boolean
   descendantCount: number
+  isNew: boolean
+  newDescendantCount: number
   paletteStyle: SeedPaletteStyle
   selected: boolean
   storyAuthor?: string
@@ -117,6 +133,7 @@ const rowLabel = computed(() => {
     timeAgo.value,
     state,
     continuation,
+    props.isNew,
   )
 })
 </script>
@@ -157,6 +174,10 @@ const rowLabel = computed(() => {
 
 .conversation-row-current {
   box-shadow: 0 0 0 2px var(--seed-accent), 0 18px 36px -18px var(--seed-shadow-strong);
+}
+
+.conversation-row-new:not(.conversation-row-selected) {
+  box-shadow: inset 0 0 0 1px rgb(14 165 233 / 0.3), 0 10px 24px -24px var(--seed-shadow-strong);
 }
 
 .conversation-row-heading,
@@ -212,6 +233,21 @@ const rowLabel = computed(() => {
   letter-spacing: 0.025em;
   line-height: 1.25;
   text-transform: uppercase;
+}
+
+.conversation-row-new-badge,
+.conversation-row-new-replies {
+  font-size: 0.61rem;
+}
+
+.conversation-row-new-badge {
+  padding: 0.04rem 0.3rem;
+  letter-spacing: 0.035em;
+  text-transform: uppercase;
+}
+
+.conversation-row-new-replies {
+  padding: 0.1rem 0.34rem;
 }
 
 .conversation-row-current .conversation-row-path-badge {

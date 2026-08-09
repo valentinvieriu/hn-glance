@@ -25,6 +25,8 @@
         :comments="comments"
         :current-comment-id="currentCommentId"
         :descendant-counts="descendantCounts"
+        :new-comment-ids="newCommentIds"
+        :new-descendant-counts="newDescendantCounts"
         :get-palette-style="getPaletteStyle"
         :selected-id="selectedId"
         :story-author="storyAuthor"
@@ -47,6 +49,8 @@ const props = defineProps<{
   comments: Comment[]
   currentCommentId: number | null
   descendantCounts: ReadonlyMap<number, number>
+  newCommentIds: ReadonlySet<number>
+  newDescendantCounts: ReadonlyMap<number, number>
   getPaletteStyle: (commentId: number, author: string) => SeedPaletteStyle
   headingId: string
   initialScrollTop: number

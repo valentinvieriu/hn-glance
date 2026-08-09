@@ -3,7 +3,10 @@
     class="comment-reader-comment"
     :class="[
       `comment-reader-comment-${presentation}`,
-      { 'seed-palette-quiet': authorCommentCount <= 1 },
+      {
+        'comment-reader-comment-new': isNew,
+        'seed-palette-quiet': authorCommentCount <= 1,
+      },
     ]"
     :aria-labelledby="headingId"
   >
@@ -21,6 +24,13 @@
         </h2>
         <span v-if="isOriginalPoster" class="comment-reader-comment-badge">
           {{ discussionLanguage.states.originalPoster }}
+        </span>
+        <span
+          v-if="isNew"
+          class="comment-reader-comment-new-badge discussion-new-indicator"
+          :title="discussionLanguage.accessibility.newComment"
+        >
+          {{ discussionLanguage.states.new }}
         </span>
         <span
           v-if="authorCommentCount > 1"
@@ -80,6 +90,7 @@ import CommentRichContent from './RichContent.vue'
 
 const props = defineProps<{
   authorCommentCount: number
+  isNew: boolean
   node: CommentNavigationNode
   parentAuthor?: string
   presentation: 'focused' | 'path'
@@ -178,6 +189,17 @@ const emitParent = () => {
   font-size: 0.64rem;
   font-weight: 750;
   letter-spacing: 0.03em;
+}
+
+.comment-reader-comment-new-badge {
+  padding: 0.08rem 0.34rem;
+  font-size: 0.64rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.comment-reader-comment-new.comment-reader-comment-focused {
+  box-shadow: inset 3px 0 0 rgb(14 165 233 / 0.68);
 }
 
 .comment-reader-comment-activity {

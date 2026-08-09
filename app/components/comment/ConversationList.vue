@@ -8,6 +8,8 @@
         :comment="comment"
         :current="currentCommentId === comment.id"
         :descendant-count="descendantCounts.get(comment.id) ?? 0"
+        :is-new="newCommentIds.has(comment.id)"
+        :new-descendant-count="newDescendantCounts.get(comment.id) ?? 0"
         :palette-style="getPaletteStyle(comment.id, comment.author)"
         :selected="selectedId === comment.id"
         :story-author="storyAuthor"
@@ -27,6 +29,8 @@ defineProps<{
   comments: Comment[]
   currentCommentId: number | null
   descendantCounts: ReadonlyMap<number, number>
+  newCommentIds: ReadonlySet<number>
+  newDescendantCounts: ReadonlyMap<number, number>
   getPaletteStyle: (commentId: number, author: string) => SeedPaletteStyle
   selectedId: number | null
   storyAuthor?: string

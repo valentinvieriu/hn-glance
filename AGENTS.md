@@ -345,12 +345,23 @@ Durable revisit state contains only the minimum public identities and
 timestamps needed for comparison—never comment bodies, author histories,
 external URLs, or a general browsing log. Comment-change detection must be
 identity-based; a previous total alone cannot distinguish additions from
-deletion or reordering. When revisit memory ships, update the privacy page and
-treat cleared, malformed, disabled, and quota-limited storage as expected
-fallback cases. Future durable preference fields belong in the same schema and
-composable when they share this lifetime and privacy contract; revisit memory
-remains a separate bounded store because it has different retention and
-data-shape requirements.
+deletion or reordering. `shared/utils/discussionVisits.ts` owns the versioned
+30-day schema and whole-story pruning: at most 100 stories, 20,000 total
+comment IDs, and 5,000 IDs per story. Oversized stories are not tracked rather
+than partially remembered. `app/composables/useDiscussionVisits.ts` is the
+separate browser-storage boundary. Treat cleared, malformed, disabled, and
+quota-limited storage as expected fallback cases. Future durable preference
+fields belong in the preference schema and composable when they share that
+lifetime and privacy contract; revisit memory remains separate because it has
+different retention and data-shape requirements.
+
+The first visit establishes a baseline without marking existing comments. On a
+revisit, freeze the identity difference for that complete page visit. Briefly
+viewing the Discussion section, entering Discussion focus, or using new-comment
+navigation acknowledges the current IDs for the next visit without clearing
+the frozen markers. Only the explicit **Mark all seen** action dismisses them
+immediately. New-comment navigation and markers must use the same frozen set in
+the overview tree, sibling columns, current-comment reader, and reading path.
 
 ## Comment Rendering
 

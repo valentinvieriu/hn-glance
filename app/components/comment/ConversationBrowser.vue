@@ -62,6 +62,13 @@
         <LucidePanelLeft class="h-3.5 w-3.5" aria-hidden="true" />
         <span>{{ discussionLanguage.terms.rootComments }}</span>
       </button>
+      <NewCommentsNavigation
+        :count="newCommentCount"
+        :position="newCommentPosition"
+        @mark-seen="emit('markNewSeen')"
+        @next="emit('nextNew')"
+        @previous="emit('previousNew')"
+      />
       <div ref="pathBar" class="conversation-browser-path-trail">
         <template v-for="commentId in pathIds" :key="commentId">
           <LucideChevronRight class="conversation-browser-path-separator" aria-hidden="true" />
@@ -98,6 +105,8 @@
           :get-palette-style="getPaletteStyle"
           :heading-id="`conversation-column-${columnIndex}`"
           :initial-scroll-top="columnScrollPositions.get(column.key) ?? 0"
+          :new-comment-ids="newCommentIds"
+          :new-descendant-counts="newDescendantCounts"
           :selected-id="column.selectedId"
           :story-author="storyAuthor"
           :subtitle="column.subtitle"
@@ -118,6 +127,7 @@
           :descendant-counts="descendantCounts"
           :get-palette-style="getPaletteStyle"
           :mode="readerMode"
+          :new-comment-ids="newCommentIds"
           :node="selectedNode"
           :path-nodes="pathNodes"
           scope-prefix="conversation-desktop"
@@ -156,6 +166,8 @@
           :current-comment-id="selectedCommentId"
           :descendant-counts="descendantCounts"
           :get-palette-style="getPaletteStyle"
+          :new-comment-ids="newCommentIds"
+          :new-descendant-counts="newDescendantCounts"
           :selected-id="selectedCommentId"
           :story-author="storyAuthor"
           @select="selectMobileComment"
@@ -168,6 +180,7 @@
           :descendant-counts="descendantCounts"
           :get-palette-style="getPaletteStyle"
           :mode="readerMode"
+          :new-comment-ids="newCommentIds"
           :node="selectedNode"
           :path-nodes="pathNodes"
           scope-prefix="conversation-mobile"
@@ -215,6 +228,8 @@
             :current-comment-id="null"
             :descendant-counts="descendantCounts"
             :get-palette-style="getPaletteStyle"
+            :new-comment-ids="newCommentIds"
+            :new-descendant-counts="newDescendantCounts"
             :selected-id="null"
             :story-author="storyAuthor"
             @select="selectMobileComment"
@@ -257,6 +272,7 @@ import {
 } from '~/composables/useSeedPalette'
 import ConversationColumn from './ConversationColumn.vue'
 import ConversationList from './ConversationList.vue'
+import NewCommentsNavigation from './NewCommentsNavigation.vue'
 import ReaderPane from './ReaderPane.vue'
 import type { CommentReaderMode, CommentReaderPosition } from './reader'
 
@@ -273,6 +289,10 @@ const props = defineProps<{
   commentCount: number
   descendantCounts: ReadonlyMap<number, number>
   navigationNodes: ReadonlyMap<number, CommentNavigationNode>
+  newCommentCount: number
+  newCommentIds: ReadonlySet<number>
+  newCommentPosition: number
+  newDescendantCounts: ReadonlyMap<number, number>
   readerMode: CommentReaderMode
   rootComments: Comment[]
   selectedCommentId: number | null
@@ -286,6 +306,9 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   exit: []
+  markNewSeen: []
+  nextNew: []
+  previousNew: []
   readerMode: [mode: CommentReaderMode]
   select: [commentId: number]
 }>()

@@ -22,11 +22,14 @@
 
     <p class="mb-5 leading-7">
       HN Glance does not keep a visitor account database. It uses browser storage
-      only for app preferences and performance: your color theme, discussion
-      reading mode, and root-comment order may be stored in localStorage, and
-      recently loaded feed data may be stored temporarily in sessionStorage.
-      These values stay in your browser and can be cleared in your browser
-      settings.
+      only for app preferences, revisit awareness, and performance: your color
+      theme, discussion reading mode, and root-comment order may be stored in
+      localStorage. To show comments added since your previous visit, HN Glance
+      may also store public story IDs, public comment IDs, and revisit timestamps
+      for up to 30 days. Recently loaded feed data may be stored temporarily in
+      sessionStorage. These values stay in your browser and can be cleared in
+      your browser settings. Comment text, authors, and external links are not
+      stored in discussion revisit memory.
     </p>
 
     <h2 class="text-2xl font-display font-semibold mt-8 mb-4">Cookies, Analytics, and Tracking</h2>
@@ -58,13 +61,16 @@
       <li>To serve pages and API responses.</li>
       <li>To cache public story, comment, user, and screenshot data.</li>
       <li>To preserve basic interface preferences in your browser.</li>
+      <li>To identify public comments added since your previous story visit.</li>
       <li>To monitor reliability, security, and abuse of the service.</li>
     </ul>
 
     <h2 class="text-2xl font-display font-semibold mt-8 mb-4">Retention</h2>
     <p class="mb-5 leading-7">
-      Browser storage remains until it expires, the session ends, or you clear
-      it. Public story and screenshot data may be cached for performance.
+      Discussion revisit memory expires after 30 days and is also bounded by
+      story and comment-ID limits. Other browser storage remains until its
+      applicable expiration, the session ends, or you clear it. Public story
+      and screenshot data may be cached for performance.
       Hosting and CDN logs are retained according to the settings and policies of
       the infrastructure provider.
     </p>

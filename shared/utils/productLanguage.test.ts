@@ -15,6 +15,7 @@ describe('discussion product language', () => {
     expect(discussionLanguage.actions.focusDiscussion).toBe('Focus discussion')
     expect(discussionLanguage.actions.goToRootComment).toBe('Go to root comment')
     expect(discussionLanguage.actions.goToCurrentComment).toBe('Go to current comment')
+    expect(discussionLanguage.actions.markAllSeen).toBe('Mark all seen')
   })
 
   it('names comment and reply counts precisely', () => {
@@ -25,6 +26,11 @@ describe('discussion product language', () => {
     expect(discussionLanguage.format.replySummary(1, 1)).toBe('1 reply')
     expect(discussionLanguage.format.replySummary(3, 10))
       .toBe('3 direct replies · 10 replies in branch')
+    expect(discussionLanguage.format.newCommentCount(2)).toBe('2 new comments')
+    expect(discussionLanguage.format.newCommentCompactCount(2)).toBe('2 new')
+    expect(discussionLanguage.format.newCommentCompactPosition(2, 4)).toBe('2 / 4 new')
+    expect(discussionLanguage.format.newReplyCount(1)).toBe('1 new reply')
+    expect(discussionLanguage.format.newCommentPosition(2, 4)).toBe('2 of 4 new comments')
   })
 
   it('uses the sibling set to make navigation destinations explicit', () => {
@@ -50,5 +56,12 @@ describe('discussion product language', () => {
     )).toBe('alice, 2 hours ago, on reading path, 2 replies')
     expect(discussionLanguage.format.replyDisclosure(true, '4 replies', 'alice'))
       .toBe('Show 4 replies from alice')
+    expect(discussionLanguage.format.rowLabel(
+      'alice',
+      '2 hours ago',
+      null,
+      'end of branch',
+      true,
+    )).toBe('alice, 2 hours ago, new comment, end of branch')
   })
 })
