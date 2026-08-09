@@ -36,12 +36,14 @@ reading experience HN Glance can provide end to end, so deeper product
 investment should favor discussion readability and navigation.
 
 Do not force equal focus controls onto source, discussion, and references.
-When adding a focused discussion presentation, preserve the reader's comment
-context and disclosure state across entry, exit, and browser history. Reuse the
-existing story/comment data model and do not introduce article extraction,
-content rehosting, duplicated comment excerpts, or a focus-only upstream
-content dependency. This boundary does not forbid future pagination or
-performance work within the existing HN discussion experience.
+The recursive comment tree remains the default story-overview presentation.
+The optional full-size discussion presentation may project the same loaded tree
+as sibling columns plus a selected-comment reader, with compact plain-text row
+excerpts used only as navigation labels. Preserve the selected comment and the
+overview's disclosure state across entry, exit, deep links, and browser history.
+Do not introduce a second comment dataset, a focus-only upstream dependency,
+article extraction, or content rehosting. This boundary does not forbid future
+pagination or performance work within the existing HN discussion experience.
 
 Preserve these product principles:
 
@@ -70,6 +72,7 @@ Frontend:
 - `app/components/story/StoryCard.vue`: visual story card, source link, screenshot preview, title, and status row.
 - `app/components/story/StoryPlaceholderVisual.vue`: shared deterministic wireframe fallback for queued and unavailable screenshots.
 - `app/components/comment/CommentThread.vue`: nested comment renderer.
+- `app/components/comment/ConversationBrowser.vue`: full-size discussion projection with horizontally expanding sibling columns and a fixed rich comment reader; its supporting column, row, reader, and shared rich-content components live in the same directory.
 - `app/components/user/UserCommentCard.vue`: user activity comment card.
 - `app/components/SubmissionHistory.vue`: compact exact-source HN timeline that marks the current submission.
 - `app/components/RelatedStories.vue`: semantic “Similar Stories” list on detail pages.
@@ -221,6 +224,25 @@ Current rendering uses `useSanitizer.ts` to:
   `code` spans, and manual `-`/`1.` lists.
 
 Every comment renders at every depth. `app/pages/item/[id].vue` analyzes the tree once for totals, author activity, descendant counts, latest activity, and reply-disclosure defaults; `CommentThread.vue` uses that shared summary to collapse only deep, large reply subtrees behind disclosure controls while keeping every comment reachable. Top-level threads can be reordered with a persisted `?sort=` control: HN order (default), most discussed, or recent activity.
+
+The normal story overview keeps that recursive tree unchanged. Its `Full size`
+control adds `?view=discussion` and opens `ConversationBrowser.vue`, which uses
+the same analysis index and already-loaded comments. Column 1 contains all
+sorted roots; every later column contains the direct children of the selected
+comment in the preceding column. The selected path stays highlighted, the URL
+focus query identifies the selected comment, and the shared `ReaderComment.vue`
+renderer owns its complete sanitized body. `ReaderPane.vue` switches between
+that focused view and `?reader=path`, which projects the full root-to-current
+ancestry as one rich-text transcript. That mode opens at the current comment,
+offers Start and Current jumps, and reuses
+`CommentLinks.vue` plus `SourceIdentity.vue` for compact link previews; do not
+add a second link extractor, favicon implementation, or upstream metadata
+request. Reader previews must set non-recursive extraction so each entry shows
+only its own links; recursive aggregation belongs only to the story-level From
+the Discussion section. Exiting focus restores the normal `#comment-<id>` deep link. On narrow
+screens the same model becomes a one-level reader with explicit parent and
+direct-reply navigation, or the vertically scrolling reading path, instead of
+nested horizontal gestures.
 
 Story detail pages also extract a bounded set of safe HTTP(S) links from the
 already-loaded comment tree. `CommentLinks.vue` shows all extracted links in

@@ -16,6 +16,7 @@ describe('useSanitizer', () => {
   it.each([
     'javascript:alert(1)',
     'java&#x73;cript:alert(1)',
+    'javascript&colon;alert(1)',
     'data:text/html,<script>alert(1)</script>',
   ])('rejects unsafe link protocol %s', (href) => {
     const result = sanitize(`<p><a href="${href}">unsafe</a></p>`)

@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import type { Comment } from '#shared/types'
 import {
-  getCommentPathIds,
+  getCommentPathFromIndex,
+  getCommentPreview,
   getCommentReplyCountLabel,
   getExpandedCommentDisclosure,
   getSmartCommentDisclosure,
@@ -111,6 +112,27 @@ describe('comment tree summary', () => {
     expect(summary.rootCommentIds.get(3)).toBe(1)
     expect(summary.rootCommentIds.get(4)).toBe(4)
     expect(summary.commentAuthors.get(3)).toBe('carol')
+    expect(summary.navigationNodes.get(3)).toMatchObject({
+      depth: 3,
+      parentId: 2,
+      rootId: 1,
+      siblingCount: 1,
+      siblingIndex: 0,
+    })
+  })
+
+  it('indexes sibling navigation in native order', () => {
+    const summary = summarizeCommentTree([
+      comment(1, 'alice', [comment(2, 'bob'), comment(3, 'carol')]),
+      comment(4, 'dave'),
+    ])
+
+    expect(summary.navigationNodes.get(1)?.nextSiblingId).toBe(4)
+    expect(summary.navigationNodes.get(2)?.previousSiblingId).toBeNull()
+    expect(summary.navigationNodes.get(2)?.nextSiblingId).toBe(3)
+    expect(summary.navigationNodes.get(3)?.previousSiblingId).toBe(2)
+    expect(summary.navigationNodes.get(3)?.nextSiblingId).toBeNull()
+    expect(summary.navigationNodes.get(4)?.previousSiblingId).toBe(1)
   })
 })
 
@@ -149,16 +171,24 @@ describe('comment ancestor path lookup', () => {
     comment(5, 'dave'),
   ]
 
-  it('returns ancestor ids from root to a nested target', () => {
-    expect(getCommentPathIds(comments, 4)).toEqual([1, 2, 3, 4])
+  it('derives root-to-target paths from the shared navigation index', () => {
+    const summary = summarizeCommentTree(comments)
+
+    expect(getCommentPathFromIndex(summary.navigationNodes, 4)).toEqual([1, 2, 3, 4])
+    expect(getCommentPathFromIndex(summary.navigationNodes, 5)).toEqual([5])
+    expect(getCommentPathFromIndex(summary.navigationNodes, 99)).toBeNull()
+  })
+})
+
+describe('comment browser previews', () => {
+  it('produces a safe compact plain-text excerpt', () => {
+    expect(getCommentPreview('<p>Hello &amp; <strong>welcome</strong>.</p>')).toBe('Hello & welcome.')
+    expect(getCommentPreview('&#34;Quoted&#34; &#x2F; linked')).toBe('"Quoted" / linked')
   })
 
-  it('returns just the target for a root-level comment', () => {
-    expect(getCommentPathIds(comments, 5)).toEqual([5])
-  })
-
-  it('returns null for a missing comment id', () => {
-    expect(getCommentPathIds(comments, 99)).toBeNull()
+  it('truncates long excerpts at a useful word boundary', () => {
+    expect(getCommentPreview('A compact comment preview with several words', 24))
+      .toBe('A compact comment…')
   })
 })
 

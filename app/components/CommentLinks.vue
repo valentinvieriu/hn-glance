@@ -1,6 +1,6 @@
 <template>
   <section
-    v-if="totalLinks > 0"
+    v-if="totalLinks > 0 && presentation === 'section'"
     class="comment-links mt-10"
     aria-labelledby="comment-links-title"
     data-testid="comment-links"
@@ -47,21 +47,7 @@
             :key="link.url"
             class="comment-link-row story-context-interactive-row"
           >
-            <SourceIdentity :url="link.url" :label="link.title" />
-            <div class="comment-link-content">
-              <h3>
-                <a
-                  :href="link.url"
-                  target="_blank"
-                  rel="nofollow noopener noreferrer"
-                  class="comment-link-title story-context-primary-link"
-                >
-                  {{ link.title }}
-                </a>
-              </h3>
-              <div class="comment-link-source-line meta-text">
-                <span v-if="link.domain !== link.title" class="comment-link-domain">{{ link.domain }}</span>
-              </div>
+            <CommentLinkSource :link="link">
               <div class="comment-link-meta meta-text">
                 <span>shared by</span>
                 <span
@@ -93,12 +79,25 @@
                   </span>
                 </a>
               </div>
-            </div>
+            </CommentLinkSource>
           </li>
         </ul>
       </section>
     </div>
   </section>
+
+  <aside
+    v-else-if="totalLinks > 0"
+    class="comment-links-reader"
+    aria-label="Links in this comment"
+  >
+    <p class="comment-links-reader-label">Links in this comment</p>
+    <ul class="comment-links-reader-list">
+      <li v-for="link in links" :key="link.url" class="comment-links-reader-row">
+        <CommentLinkSource :link="link" presentation="reader" />
+      </li>
+    </ul>
+  </aside>
 </template>
 
 <script setup lang="ts">
@@ -120,6 +119,7 @@ import {
   getSeedPaletteStyle,
   type CommentThreadAuthorPalette,
 } from '~/composables/useSeedPalette'
+import CommentLinkSource from './CommentLinkSource.vue'
 
 const props = defineProps<{
   comments: Comment[]
@@ -127,7 +127,10 @@ const props = defineProps<{
   authorCommentCounts?: ReadonlyMap<string, number>
   threadAuthorPalettes?: ReadonlyMap<number, CommentThreadAuthorPalette>
   rootCommentIds?: ReadonlyMap<number, number>
+  presentation?: 'section' | 'reader'
 }>()
+
+const presentation = computed(() => props.presentation ?? 'section')
 
 const emit = defineEmits<{
   jumpToComment: [commentId: number]
@@ -174,6 +177,7 @@ const CATEGORY_META = {
 
 const links = computed(() => extractCommentLinks(props.comments, {
   excludedUrls: [props.storyUrl],
+  includeDescendants: presentation.value === 'section',
 }))
 const totalLinks = computed(() => links.value.length)
 const sections = computed(() => groupCommentLinks(links.value))
@@ -250,6 +254,49 @@ const handleJump = (link: CommentLink) => {
   min-width: 0;
 }
 
+.comment-links-reader {
+  margin: -0.55rem 0 1.55rem;
+}
+
+.comment-links-reader-label {
+  margin: 0 0 0.48rem;
+  color: rgb(100 116 139);
+  font-family: var(--font-ui);
+  font-size: 0.68rem;
+  font-weight: 760;
+  letter-spacing: 0.055em;
+  text-transform: uppercase;
+}
+
+.comment-links-reader-list {
+  display: grid;
+  gap: 0.42rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.comment-links-reader-row {
+  --source-identity-accent: var(--seed-accent-strong);
+  --source-identity-border: var(--seed-border-strong);
+  --source-identity-surface: var(--seed-metric-bg);
+  --source-identity-surface-dark: var(--seed-metric-bg);
+  display: grid;
+  grid-template-columns: 2.15rem minmax(0, 1fr);
+  align-items: center;
+  gap: 0.58rem;
+  padding: 0.42rem 0.52rem;
+  border: 1px solid rgb(148 163 184 / 0.2);
+  border-radius: 0.62rem;
+  background: rgb(255 255 255 / 0.36);
+}
+
+.comment-links-reader-row:hover,
+.comment-links-reader-row:focus-within {
+  border-color: var(--seed-border-strong);
+  background: var(--seed-metric-bg);
+}
+
 .comment-link-sections {
   margin-inline: -0.4rem;
   border-top: 1px solid var(--story-context-border);
@@ -298,52 +345,9 @@ const handleJump = (link: CommentLink) => {
   background: transparent;
 }
 
-.comment-link-row:has(.story-context-primary-link:hover),
-.comment-link-row:has(.story-context-primary-link:focus-visible) {
+.comment-link-row:hover,
+.comment-link-row:focus-within {
   background: var(--story-context-accent-soft);
-}
-
-.comment-link-content {
-  min-width: 0;
-}
-
-.comment-link-title {
-  display: inline;
-  color: rgb(15 23 42);
-  font-family: var(--font-ui);
-  font-size: 0.98rem;
-  font-weight: 650;
-  line-height: 1.32;
-  overflow-wrap: anywhere;
-  text-decoration-color: transparent;
-  text-decoration-thickness: 1px;
-  text-underline-offset: 0.2em;
-  transition: color 160ms ease, text-decoration-color 160ms ease;
-}
-
-.comment-link-title:hover,
-.comment-link-title:focus-visible {
-  color: var(--story-context-accent-strong);
-  text-decoration-line: underline;
-  text-decoration-color: var(--story-context-accent);
-}
-
-.comment-link-source-line {
-  display: flex;
-  min-width: 0;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.25rem 0.4rem;
-  margin-top: 0.3rem;
-  color: var(--story-context-muted);
-}
-
-.comment-link-domain {
-  min-width: 0;
-  overflow: hidden;
-  font-weight: 650;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .comment-link-meta {
@@ -409,16 +413,14 @@ const handleJump = (link: CommentLink) => {
   outline-offset: 2px;
 }
 
-.dark .comment-link-title {
-  color: rgb(241 245 249);
+.dark .comment-links-reader-row {
+  border-color: rgb(71 85 105 / 0.36);
+  background: rgb(15 23 42 / 0.22);
 }
 
-.dark .comment-link-title:hover,
-.dark .comment-link-title:focus-visible {
-  color: var(--story-context-accent);
+.dark .comment-links-reader-label {
+  color: rgb(148 163 184);
 }
-
-.dark .comment-link-source-line,
 .dark .comment-link-meta {
   color: rgb(203 213 225 / 0.78);
 }

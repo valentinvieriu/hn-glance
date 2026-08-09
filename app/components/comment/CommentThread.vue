@@ -68,10 +68,11 @@
         </div>
       </div>
       <div class="comment-expanded-content">
-        <div
+        <CommentRichContent
           class="comment-text reading-text rich-text break-words"
-          v-html="sanitizedText"
-        ></div>
+          :comment="comment"
+          :scope-id="`comment-${comment.id}`"
+        />
         <div class="comment-actions">
           <button
             v-if="hasChildren"
@@ -152,7 +153,7 @@ import type { Comment } from '#shared/types'
 import { getCommentReplyCountLabel } from '#shared/utils/comments'
 import { formatTimeAgo } from '#shared/utils/date'
 import { getHnUserPath } from '#shared/utils/hn'
-import { useSanitizer } from '~/composables/useSanitizer'
+import CommentRichContent from './RichContent.vue'
 import {
   getSeedPaletteStyle,
   type CommentThreadAuthorPalette,
@@ -176,9 +177,6 @@ const props = defineProps<{
   toggleRepliesHidden: (commentId: number) => void
   jumpToComment: (commentId: number) => void | Promise<void>
 }>()
-
-const { sanitize } = useSanitizer()
-const sanitizedText = computed(() => sanitize(props.comment.text || '', `comment-${props.comment.id}`))
 
 const currentDepth = computed(() => props.currentDepth ?? 1)
 const siblingIndex = computed(() => props.siblingIndex ?? 0)

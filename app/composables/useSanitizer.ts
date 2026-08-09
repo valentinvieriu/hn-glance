@@ -1,12 +1,4 @@
-const HTML_ENTITIES: Record<string, string> = {
-  amp: '&',
-  apos: "'",
-  colon: ':',
-  gt: '>',
-  lt: '<',
-  nbsp: ' ',
-  quot: '"',
-};
+import { decodeHtmlEntities } from '../../shared/utils/html'
 
 const ALLOWED_TAGS = new Set([
   'a',
@@ -49,20 +41,6 @@ type ManualListBuffer = {
   nextValue?: number
   type: 'ol' | 'ul'
 }
-
-const decodeHtmlEntities = (value: string) => value.replace(
-  /&(#\d+|#x[\da-f]+|[a-z]+);/gi,
-  (entity, code: string) => {
-    if (code[0] === '#') {
-      const radix = code[1]?.toLowerCase() === 'x' ? 16 : 10;
-      const offset = radix === 16 ? 2 : 1;
-      const parsed = Number.parseInt(code.slice(offset), radix);
-      return Number.isFinite(parsed) ? String.fromCodePoint(parsed) : entity;
-    }
-
-    return HTML_ENTITIES[code.toLowerCase()] ?? entity;
-  },
-);
 
 const escapeText = (value: string) => value
   .replace(/</g, '&lt;')

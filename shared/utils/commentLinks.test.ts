@@ -58,6 +58,26 @@ describe('comment link extraction', () => {
     ])
   })
 
+  it('can limit extraction to the supplied comment without aggregating replies', () => {
+    const links = extractCommentLinks([
+      comment(
+        1,
+        'alice',
+        '<p>Root: <a href="https://docs.example.com/root">root docs</a>.</p>',
+        [
+          comment(2, 'bob', '<p>Reply: <a href="https://github.com/example/reply">reply repo</a>.</p>'),
+        ],
+      ),
+    ], {
+      includeDescendants: false,
+    })
+
+    expect(links.map(link => link.url)).toEqual(['https://docs.example.com/root'])
+    expect(links[0]?.mentions).toEqual([
+      expect.objectContaining({ author: 'alice', commentId: 1 }),
+    ])
+  })
+
   it('excludes the story source, HN links, unsafe URLs, and duplicate tracking variants', () => {
     const sourceUrl = 'https://example.com/article'
     const links = extractCommentLinks([

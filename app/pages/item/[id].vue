@@ -16,7 +16,12 @@
         <h1 class="text-3xl font-display font-semibold mb-4">Loading...</h1>
       </div>
 
-      <div v-else-if="story" class="story-detail-layout grid lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)] lg:items-start">
+      <template v-else-if="story">
+      <div
+        class="story-detail-layout grid lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)] lg:items-start"
+        :inert="isDiscussionFocusActive ? true : undefined"
+        :aria-hidden="isDiscussionFocusActive ? 'true' : undefined"
+      >
         <div
           class="story-detail-primary story-context-palette min-w-0"
           :style="storyContextPaletteStyle"
@@ -157,7 +162,7 @@
                 {{ commentCount }} total
               </span>
             </div>
-            <div v-if="canSortComments || canToggleAllComments" class="comments-actions">
+            <div v-if="commentCount > 0 || canSortComments || canToggleAllComments" class="comments-actions">
               <label
                 v-if="canSortComments"
                 class="comments-sort-control text-gray-700 dark:text-gray-300"
@@ -183,6 +188,16 @@
                 <LucideChevronsUp v-if="areAllCommentsExpanded" class="w-4 h-4" />
                 <LucideChevronsDown v-else class="w-4 h-4" />
                 <span>{{ areAllCommentsExpanded ? 'Hide deep replies' : 'Expand all' }}</span>
+              </button>
+              <button
+                v-if="commentCount > 0"
+                type="button"
+                class="focus-comments-button text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100"
+                aria-label="Open comments at full size"
+                @click="enterDiscussionFocus"
+              >
+                <LucideMaximize2 class="h-4 w-4" aria-hidden="true" />
+                <span>Full size</span>
               </button>
             </div>
           </div>
@@ -243,6 +258,26 @@
           </div>
         </dialog>
       </div>
+      <ConversationBrowser
+        v-if="isDiscussionFocusActive && storyId"
+        :author-comment-counts="authorCommentCounts"
+        :comment-count="commentCount"
+        :descendant-counts="descendantCommentCounts"
+        :navigation-nodes="commentNavigationNodes"
+        :reader-mode="discussionReaderMode"
+        :root-comments="sortedComments"
+        :selected-comment-id="focusedCommentId"
+        :source-url="storyExternalUrl"
+        :story-author="story.author"
+        :story-domain="storyDomain"
+        :story-id="storyId"
+        :story-title="story.title"
+        :thread-author-palettes="commentThreadAuthorPalettes"
+        @exit="exitDiscussionFocus"
+        @reader-mode="setDiscussionReaderMode"
+        @select="selectFocusedComment"
+      />
+      </template>
     </div>
   </div>
 </template>
@@ -264,7 +299,7 @@ import type {
 } from '#shared/types'
 import {
   type CommentSort,
-  getCommentPathIds,
+  getCommentPathFromIndex,
   getExpandedCommentDisclosure,
   getSmartCommentDisclosure,
   revealCommentPath,
@@ -276,9 +311,26 @@ import { formatTimeAgo } from '#shared/utils/date'
 import { getHnItemUrl, getHnUserPath, normalizeHnItemId } from '#shared/utils/hn'
 import { getScreenshotPath } from '#shared/utils/screenshot'
 import { appendServerTiming } from '#shared/utils/serverTiming'
+import ConversationBrowser from '~/components/comment/ConversationBrowser.vue'
+import {
+  getCommentReaderMode,
+  type CommentReaderMode,
+} from '~/components/comment/reader'
 
 const route = useRoute();
 const router = useRouter()
+const isClientReady = ref(false)
+const discussionReaderMode = ref<CommentReaderMode>('comment')
+const getFirstQueryValue = (value: unknown): string | undefined => {
+  const firstValue = Array.isArray(value) ? value[0] : value
+
+  return typeof firstValue === 'string' ? firstValue : undefined
+}
+
+const isDiscussionFocus = computed(() => {
+  return getFirstQueryValue(route.query.view) === 'discussion'
+})
+const isDiscussionFocusActive = computed(() => isDiscussionFocus.value && isClientReady.value)
 
 const storyId = computed(() => normalizeHnItemId(route.params.id))
 const storyDataKey = computed(() => `story-detail:${storyId.value ?? 'missing'}`)
@@ -502,7 +554,7 @@ const jumpToComment = async (commentId: number, updateHash = true) => {
     return
   }
 
-  const pathIds = getCommentPathIds(story.value?.children ?? [], commentId)
+  const pathIds = getCommentPathFromIndex(commentNavigationNodes.value, commentId)
 
   if (pathIds) {
     // Open only what is required to render the target. Its own reply visibility
@@ -548,12 +600,14 @@ const jumpToComment = async (commentId: number, updateHash = true) => {
 }
 
 onMounted(() => {
+  isClientReady.value = true
+
   if (screenshotImage.value?.complete) {
     updateScreenshotPreviewState(screenshotImage.value)
   }
 
   const hashedCommentId = getCommentIdFromHash(route.hash)
-  if (hashedCommentId) {
+  if (hashedCommentId && !isDiscussionFocus.value) {
     void jumpToComment(hashedCommentId, false)
   }
 
@@ -624,6 +678,18 @@ watch(storyId, () => {
 watch(() => route.hash, (hash) => {
   const commentId = getCommentIdFromHash(hash)
 
+  if (commentId && !isDiscussionFocus.value) {
+    void jumpToComment(commentId, false)
+  }
+})
+
+watch(isDiscussionFocus, (isFocused, wasFocused) => {
+  if (isFocused || !wasFocused) {
+    return
+  }
+
+  const commentId = getCommentIdFromHash(route.hash)
+
   if (commentId) {
     void jumpToComment(commentId, false)
   }
@@ -636,7 +702,7 @@ const sanitizedText = computed(() => sanitize(story.value?.text || '', `story-${
 const commentSummary = computed(() => summarizeCommentTree(story.value?.children || []))
 const commentSort = computed<CommentSort>({
   get: () => {
-    const querySort = Array.isArray(route.query.sort) ? route.query.sort[0] : route.query.sort
+    const querySort = getFirstQueryValue(route.query.sort)
 
     return querySort === 'discussed' || querySort === 'recent'
       ? querySort
@@ -658,6 +724,7 @@ const commentCount = computed(() => commentSummary.value.total)
 const authorCommentCounts = computed(() => commentSummary.value.authorCounts)
 const commentAuthors = computed(() => commentSummary.value.commentAuthors)
 const descendantCommentCounts = computed(() => commentSummary.value.descendantCounts)
+const commentNavigationNodes = computed(() => commentSummary.value.navigationNodes)
 const parentCommentIds = computed(() => commentSummary.value.parentCommentIds)
 const rootCommentIds = computed(() => commentSummary.value.rootCommentIds)
 const defaultHiddenReplyIds = computed(() => commentSummary.value.defaultHiddenReplyIds)
@@ -666,6 +733,115 @@ const sortedComments = computed(() => sortCommentThreads(
   commentSort.value,
   commentSummary.value,
 ))
+const focusedCommentId = computed(() => {
+  const queryComment = getFirstQueryValue(route.query.comment)
+  const queryCommentId = queryComment && /^\d+$/.test(queryComment)
+    ? Number(queryComment)
+    : null
+  const hashCommentId = getCommentIdFromHash(route.hash)
+
+  if (queryCommentId && commentNavigationNodes.value.has(queryCommentId)) {
+    return queryCommentId
+  }
+
+  if (hashCommentId && commentNavigationNodes.value.has(hashCommentId)) {
+    return hashCommentId
+  }
+
+  return sortedComments.value[0]?.id ?? null
+})
+
+const enterDiscussionFocus = () => {
+  const windowHashCommentId = import.meta.client
+    ? getCommentIdFromHash(window.location.hash)
+    : null
+  const commentId = windowHashCommentId && commentNavigationNodes.value.has(windowHashCommentId)
+    ? windowHashCommentId
+    : focusedCommentId.value
+  const query = {
+    ...route.query,
+    view: 'discussion',
+    ...(commentId ? { comment: String(commentId) } : {}),
+    reader: discussionReaderMode.value === 'path' ? 'path' : undefined,
+  }
+
+  void router.push({ query, hash: '' })
+}
+
+const exitDiscussionFocus = async () => {
+  const commentId = focusedCommentId.value
+  const query = { ...route.query }
+  delete query.view
+  delete query.comment
+  delete query.reader
+
+  if (commentId) {
+    const pathIds = getCommentPathFromIndex(commentNavigationNodes.value, commentId)
+
+    if (pathIds) {
+      hiddenReplyOverride.value = revealCommentPath(hiddenReplyIds.value, pathIds)
+      await nextTick()
+    }
+  }
+
+  const hash = commentId
+    ? `#comment-${commentId}`
+    : route.hash
+
+  await router.replace({ query, hash })
+}
+
+const selectFocusedComment = (commentId: number) => {
+  if (!commentNavigationNodes.value.has(commentId)) {
+    return
+  }
+
+  const query = { ...route.query, comment: String(commentId) }
+
+  void router.replace({ query, hash: '' })
+}
+
+const setDiscussionReaderMode = (mode: CommentReaderMode) => {
+  discussionReaderMode.value = mode
+
+  if (!isDiscussionFocus.value) {
+    return
+  }
+
+  const query = { ...route.query }
+
+  if (mode === 'path') {
+    query.reader = 'path'
+  } else {
+    delete query.reader
+  }
+
+  void router.replace({ query, hash: '' })
+}
+
+watch([isDiscussionFocus, () => route.query.reader], ([isFocused, queryReader]) => {
+  if (!isFocused) {
+    return
+  }
+
+  discussionReaderMode.value = getCommentReaderMode(queryReader)
+}, { immediate: true })
+
+watch([isDiscussionFocus, focusedCommentId], ([isFocused, commentId]) => {
+  const queryComment = getFirstQueryValue(route.query.comment)
+
+  if (import.meta.server || !isFocused || !commentId || queryComment === String(commentId)) {
+    return
+  }
+
+  const query = { ...route.query, comment: String(commentId) }
+
+  void router.replace({
+    query,
+    hash: '',
+  })
+}, { immediate: true })
+
 const canSortComments = computed(() => (story.value?.children.length ?? 0) > 1)
 const EMPTY_COMMENT_THREAD_AUTHOR_PALETTE: CommentThreadAuthorPalette = {
   authorStyles: new Map(),
@@ -724,6 +900,9 @@ const socialImage = computed(() => {
 })
 
 useHead(() => ({
+  bodyAttrs: {
+    class: isDiscussionFocusActive.value && story.value ? 'discussion-focus-active' : undefined,
+  },
   link: screenshotSrc.value
     ? [{
         key: 'story-screenshot-preload',
@@ -1122,7 +1301,8 @@ useSeoMeta({
 }
 
 .comments-sort-control,
-.expand-comments-button {
+.expand-comments-button,
+.focus-comments-button {
   min-height: 2rem;
   border: 1px solid rgb(148 163 184 / 0.24);
   border-radius: 999px;
@@ -1155,7 +1335,8 @@ useSeoMeta({
   color-scheme: dark;
 }
 
-.expand-comments-button {
+.expand-comments-button,
+.focus-comments-button {
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
@@ -1164,7 +1345,8 @@ useSeoMeta({
 
 .comments-sort-control:hover,
 .comments-sort-control:focus-within,
-.expand-comments-button:hover {
+.expand-comments-button:hover,
+.focus-comments-button:hover {
   border-color: rgb(148 163 184 / 0.38);
   background: rgb(148 163 184 / 0.13);
 }
@@ -1172,6 +1354,16 @@ useSeoMeta({
 .comments-sort-control:focus-within {
   outline: 2px solid currentColor;
   outline-offset: 2px;
+}
+
+.focus-comments-button:focus-visible,
+.expand-comments-button:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+
+:global(body.discussion-focus-active) {
+  overflow: hidden;
 }
 
 @media (max-width: 640px) {

@@ -31,6 +31,7 @@ synthesizes an HN discussion permalink to make them eligible for a feed card.
 - Opens an HN Glance story page for the card, with metadata, comments, screenshot, exact-source HN history, similar stories, and value-grouped links shared in the discussion.
 - Opens the original source from the source/domain link.
 - Renders HN comments with safer rich text, nested threads, quote handling, reference links, expand controls, and thread sorting by HN order, discussion size, or recent activity.
+- Offers an optional full-size Conversation Browser for deep threads: each column is a sibling set along the selected reply path, while the reader can show either the complete selected comment or the full root-to-current reading path.
 - Includes user activity pages for posts and comments.
 - Supports responsive layouts and dark mode.
 - Avoids analytics and marketing cookies.
@@ -64,12 +65,26 @@ introduced them. The HN discussion is the sustained reading surface HN Glance
 can present end to end while preserving HN ordering, authorship, and reply
 context.
 
-The overview remains the default. A deeper presentation should help readers
-focus on the discussion without turning HN Glance into an article-rehosting
-service or a second comments product. It should preserve the reader's place and
-disclosure state, reuse the existing story and comment model, and leave original
-sources clearly reachable. In compact form: **discover visually, evaluate
-together, focus on discussion, and leave for sources.**
+The overview remains the default, including its familiar nested comment tree.
+When a discussion becomes too deep to scan comfortably through indentation,
+the optional full-size Conversation Browser projects that same already-loaded
+tree into Miller columns: top-level conversations first, then one sibling set
+for each selected reply level, with the complete selected comment in a fixed
+reader. Its optional Reading path mode renders every ancestor in full, opens
+at the current comment so the argument can be read upward, and provides Start
+and Current jumps. Compact source previews reuse the same extracted-link and
+favicon identity used by From the Discussion; they do not fetch page metadata.
+Each reader entry shows only links in that exact comment, while the overview's
+From the Discussion index remains the story-wide aggregate.
+Compact row excerpts are navigation labels, not a second comment dataset.
+Entry, exit, deep links, and browser history retain both the selected comment
+and reader mode while the overview preserves its own disclosure state.
+
+This deeper presentation helps readers focus on the discussion without turning
+HN Glance into an article-rehosting service or a second comments product. It
+reuses the existing story and comment model and leaves original sources clearly
+reachable. In compact form: **discover visually, evaluate together, focus on
+discussion, and leave for sources.**
 
 Typography supports the same transition: once a reader commits to a story
 page, comments and story prose switch to a dedicated reading voice so long
@@ -167,7 +182,7 @@ Use `npm run check` as the baseline check before shipping changes.
 
 - `app/pages/`: feed pages, story detail pages, and user activity pages.
 - `app/components/story/`: story grid, visual story card UI, and the shared generated screenshot fallback.
-- `app/components/comment/`: nested comment rendering.
+- `app/components/comment/`: the default nested comment tree, shared rich comment content, and the full-size column-based Conversation Browser.
 - `server/api/`: feed, item, related-story, user, and screenshot APIs.
 - `server/api/internal/screenshot-jobs/`: authenticated capture-agent API.
 - `server/utils/screenshot/`: HN source policy, R2 state, result validation, and agent authentication.

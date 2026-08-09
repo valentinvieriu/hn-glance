@@ -1,4 +1,5 @@
 import type { Comment } from '#shared/types'
+import { decodeHtmlEntities, htmlToPlainText, truncateAtWordBoundary } from './html'
 
 export const COMMENT_LINK_CATEGORY_ORDER = [
   'documentation',
@@ -36,6 +37,7 @@ export type CommentLinkGroup = {
 
 export type ExtractCommentLinksOptions = {
   excludedUrls?: Array<string | null | undefined>
+  includeDescendants?: boolean
   maximumLinks?: number
 }
 
@@ -178,30 +180,6 @@ const CATEGORY_HOSTS: Partial<Record<CommentLinkCategory, string[]>> = {
   ],
 }
 
-const decodeHtmlEntities = (value: string) => value.replace(
-  /&(#\d+|#x[\da-f]+|amp|apos|gt|lt|nbsp|quot);/giu,
-  (entity, code: string) => {
-    if (code[0] === '#') {
-      const radix = code[1]?.toLowerCase() === 'x' ? 16 : 10
-      const offset = radix === 16 ? 2 : 1
-      const parsed = Number.parseInt(code.slice(offset), radix)
-
-      return Number.isInteger(parsed) && parsed >= 0 && parsed <= 0x10FFFF
-        ? String.fromCodePoint(parsed)
-        : entity
-    }
-
-    return {
-      amp: '&',
-      apos: "'",
-      gt: '>',
-      lt: '<',
-      nbsp: ' ',
-      quot: '"',
-    }[code.toLowerCase()] ?? entity
-  },
-)
-
 const getAttribute = (attributes: string, attributeName: string) => {
   const attributePattern = new RegExp(
     `${attributeName}\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s"'=<>` + '`' + `]+))`,
@@ -288,24 +266,10 @@ const getComparableUrl = (value: string) => {
   return url.href
 }
 
-const stripHtml = (value: string) => {
-  return decodeHtmlEntities(value.replace(/<[^>]*>/gu, ' '))
-    .replace(/\s+/gu, ' ')
-    .trim()
-}
-
 const EXCERPT_MAXIMUM_LENGTH = 140
 
 const getCommentExcerpt = (text: string) => {
-  const plain = stripHtml(text)
-
-  if (plain.length <= EXCERPT_MAXIMUM_LENGTH) return plain
-
-  const truncated = plain.slice(0, EXCERPT_MAXIMUM_LENGTH)
-  const lastSpace = truncated.lastIndexOf(' ')
-  const cut = lastSpace > EXCERPT_MAXIMUM_LENGTH / 2 ? truncated.slice(0, lastSpace) : truncated
-
-  return `${cut.trimEnd()}…`
+  return truncateAtWordBoundary(htmlToPlainText(text), EXCERPT_MAXIMUM_LENGTH, 0.5)
 }
 
 const safeDecodeURIComponent = (value: string) => {
@@ -373,7 +337,7 @@ const getLinkTitle = (
   url: URL,
   category: CommentLinkCategory,
 ) => {
-  const label = stripHtml(rawLabel)
+  const label = htmlToPlainText(rawLabel)
   const decodedUrl = decodeHtmlEntities(url.href)
   const useDerivedTitle = (
     label.length < 2
@@ -513,10 +477,12 @@ export const extractCommentLinks = (
       addLink(match[0], match[0], comment)
     }
 
-    const children = comment.children ?? []
-    for (let index = children.length - 1; index >= 0; index -= 1) {
-      const child = children[index]
-      if (child) stack.push(child)
+    if (options.includeDescendants !== false) {
+      const children = comment.children ?? []
+      for (let index = children.length - 1; index >= 0; index -= 1) {
+        const child = children[index]
+        if (child) stack.push(child)
+      }
     }
   }
 

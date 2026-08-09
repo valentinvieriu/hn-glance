@@ -1,4 +1,5 @@
 import type { Comment } from '#shared/types'
+import { htmlToPlainText, truncateAtWordBoundary } from './html'
 
 const DEFAULT_COMMENT_DEPTH = 3
 
@@ -15,6 +16,7 @@ export type CommentTreeSummary = {
   authorCounts: ReadonlyMap<string, number>
   commentAuthors: ReadonlyMap<number, string>
   descendantCounts: ReadonlyMap<number, number>
+  navigationNodes: ReadonlyMap<number, CommentNavigationNode>
   latestActivityTimestamps: ReadonlyMap<number, number>
   parentCommentIds: ReadonlyMap<number, number | null>
   rootCommentIds: ReadonlyMap<number, number>
@@ -27,11 +29,26 @@ export type CommentTreeSummary = {
   total: number
 }
 
+export type CommentNavigationNode = {
+  comment: Comment
+  depth: number
+  nextSiblingId: number | null
+  parentId: number | null
+  previousSiblingId: number | null
+  rootId: number
+  siblingCount: number
+  siblingIndex: number
+}
+
 type CommentFrame = {
   comment: Comment
   depth: number
+  nextSiblingId: number | null
   parentCommentId: number | null
+  previousSiblingId: number | null
   rootCommentId: number
+  siblingCount: number
+  siblingIndex: number
   visited: boolean
 }
 
@@ -42,15 +59,20 @@ export const summarizeCommentTree = (
   const authorCounts = new Map<string, number>()
   const commentAuthors = new Map<number, string>()
   const descendantCounts = new Map<number, number>()
+  const navigationNodes = new Map<number, CommentNavigationNode>()
   const latestActivityTimestamps = new Map<number, number>()
   const parentCommentIds = new Map<number, number | null>()
   const rootCommentIds = new Map<number, number>()
   const defaultHiddenReplyIds = new Set<number>()
-  const stack: CommentFrame[] = comments.map((comment) => ({
+  const stack: CommentFrame[] = comments.map((comment, siblingIndex) => ({
     comment,
     depth: 1,
+    nextSiblingId: comments[siblingIndex + 1]?.id ?? null,
     parentCommentId: null,
+    previousSiblingId: comments[siblingIndex - 1]?.id ?? null,
     rootCommentId: comment.id,
+    siblingCount: comments.length,
+    siblingIndex,
     visited: false,
   }))
   let total = 0
@@ -62,7 +84,17 @@ export const summarizeCommentTree = (
       continue
     }
 
-    const { comment, depth, parentCommentId, rootCommentId, visited } = frame
+    const {
+      comment,
+      depth,
+      nextSiblingId,
+      parentCommentId,
+      previousSiblingId,
+      rootCommentId,
+      siblingCount,
+      siblingIndex,
+      visited,
+    } = frame
     const children = comment.children ?? []
 
     if (visited) {
@@ -94,14 +126,38 @@ export const summarizeCommentTree = (
     commentAuthors.set(comment.id, comment.author)
     parentCommentIds.set(comment.id, parentCommentId)
     rootCommentIds.set(comment.id, rootCommentId)
+    navigationNodes.set(comment.id, {
+      comment,
+      depth,
+      nextSiblingId,
+      parentId: parentCommentId,
+      previousSiblingId,
+      rootId: rootCommentId,
+      siblingCount,
+      siblingIndex,
+    })
 
-    stack.push({ comment, depth, parentCommentId, rootCommentId, visited: true })
-    children.forEach((child) => {
+    stack.push({
+      comment,
+      depth,
+      nextSiblingId,
+      parentCommentId,
+      previousSiblingId,
+      rootCommentId,
+      siblingCount,
+      siblingIndex,
+      visited: true,
+    })
+    children.forEach((child, childIndex) => {
       stack.push({
         comment: child,
         depth: depth + 1,
+        nextSiblingId: children[childIndex + 1]?.id ?? null,
         parentCommentId: comment.id,
+        previousSiblingId: children[childIndex - 1]?.id ?? null,
         rootCommentId,
+        siblingCount: children.length,
+        siblingIndex: childIndex,
         visited: false,
       })
     })
@@ -111,12 +167,47 @@ export const summarizeCommentTree = (
     authorCounts,
     commentAuthors,
     descendantCounts,
+    navigationNodes,
     latestActivityTimestamps,
     parentCommentIds,
     rootCommentIds,
     defaultHiddenReplyIds,
     total,
   }
+}
+
+export const getCommentPreview = (
+  text: string | null | undefined,
+  maxLength = 180,
+): string => {
+  return truncateAtWordBoundary(htmlToPlainText(text ?? ''), maxLength)
+}
+
+export const getCommentPathFromIndex = (
+  navigationNodes: ReadonlyMap<number, CommentNavigationNode>,
+  commentId: number,
+): number[] | null => {
+  const path: number[] = []
+  const visited = new Set<number>()
+  let currentId: number | null = commentId
+
+  while (currentId !== null) {
+    if (visited.has(currentId)) {
+      return null
+    }
+
+    const node = navigationNodes.get(currentId)
+
+    if (!node) {
+      return null
+    }
+
+    visited.add(currentId)
+    path.push(currentId)
+    currentId = node.parentId
+  }
+
+  return path.reverse()
 }
 
 export const sortCommentThreads = (
@@ -182,33 +273,4 @@ export const revealCommentPath = (
   const revealedReplyIds = new Set(hiddenReplyIds)
   pathIds.slice(0, -1).forEach(commentId => revealedReplyIds.delete(commentId))
   return revealedReplyIds
-}
-
-export const getCommentPathIds = (
-  comments: Comment[],
-  commentId: number,
-): number[] | null => {
-  const stack: Array<{ comment: Comment; path: number[] }> = comments
-    .map(comment => ({ comment, path: [] as number[] }))
-    .reverse()
-
-  while (stack.length > 0) {
-    const frame = stack.pop()
-
-    if (!frame) continue
-
-    const path = [...frame.path, frame.comment.id]
-
-    if (frame.comment.id === commentId) {
-      return path
-    }
-
-    const children = frame.comment.children ?? []
-    for (let index = children.length - 1; index >= 0; index -= 1) {
-      const child = children[index]
-      if (child) stack.push({ comment: child, path })
-    }
-  }
-
-  return null
 }

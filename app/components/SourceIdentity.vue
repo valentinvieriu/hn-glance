@@ -1,7 +1,10 @@
 <template>
   <span
     class="source-identity"
-    :class="{ 'has-preview': previewLoaded }"
+    :class="[
+      { 'has-preview': previewLoaded },
+      `source-identity-${size}`,
+    ]"
     aria-hidden="true"
   >
     <span class="source-identity-fallback">{{ initial }}</span>
@@ -36,8 +39,11 @@ import { getSourceFaviconUrl } from '~/utils/sourceFavicon'
 const props = defineProps<{
   label: string
   previewUrl?: string
+  size?: 'default' | 'compact'
   url: string
 }>()
+
+const size = computed(() => props.size ?? 'default')
 
 const faviconFailed = ref(false)
 const previewFailed = ref(false)
@@ -137,6 +143,27 @@ const handlePreviewLoad = (event: Event) => {
 }
 
 .source-identity.has-preview .source-identity-favicon {
+  width: 0.82rem;
+  height: 0.82rem;
+}
+
+.source-identity-compact {
+  width: 2.15rem;
+  height: 2.15rem;
+  border-radius: 0.5rem;
+}
+
+.source-identity-compact .source-identity-fallback {
+  font-size: 0.8rem;
+}
+
+.source-identity-compact .source-identity-favicon-frame {
+  width: 1.2rem;
+  height: 1.2rem;
+  border-radius: 0.3rem;
+}
+
+.source-identity-compact .source-identity-favicon {
   width: 0.82rem;
   height: 0.82rem;
 }
