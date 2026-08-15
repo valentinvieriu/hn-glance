@@ -29,6 +29,7 @@ describe('getSitemapUrls', () => {
       `${SITEMAP_ORIGIN}/best`,
       `${SITEMAP_ORIGIN}/new`,
       `${SITEMAP_ORIGIN}/show`,
+      `${SITEMAP_ORIGIN}/about`,
       `${SITEMAP_ORIGIN}/privacy`,
       `${SITEMAP_ORIGIN}/terms`,
       `${SITEMAP_ORIGIN}/item/42`,

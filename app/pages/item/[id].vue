@@ -346,6 +346,14 @@ import { formatTimeAgo } from '#shared/utils/date'
 import { getHnItemUrl, getHnUserPath, normalizeHnItemId } from '#shared/utils/hn'
 import { discussionLanguage } from '#shared/utils/productLanguage'
 import { getScreenshotPath } from '#shared/utils/screenshot'
+import {
+  SITE_SOCIAL_IMAGE_ALT,
+  SITE_SOCIAL_IMAGE_HEIGHT,
+  SITE_SOCIAL_IMAGE_TYPE,
+  SITE_SOCIAL_IMAGE_URL,
+  SITE_SOCIAL_IMAGE_WIDTH,
+} from '#shared/utils/siteMetadata'
+import { createStoryStructuredData } from '#shared/utils/structuredData'
 import { appendServerTiming } from '#shared/utils/serverTiming'
 import ConversationBrowser from '~/components/comment/ConversationBrowser.vue'
 import NewCommentsNavigation from '~/components/comment/NewCommentsNavigation.vue'
@@ -1160,18 +1168,12 @@ const timeAgo = computed(() => {
   return formatTimeAgo(story.value?.created_at || '')
 });
 
-const requestUrl = useRequestURL()
-const siteOrigin = requestUrl.origin
 const title = computed(() => story.value?.title ?? 'Loading...')
 const seoTitle = computed(() => `${title.value} — HN Glance`)
 useCanonicalUrl(() => storyId.value ? `/item/${storyId.value}` : null)
-const socialImage = computed(() => {
-  const path = storyId.value
-    ? getScreenshotPath(storyId.value)
-    : '/icon_x512.png'
-
-  return new URL(path, siteOrigin).href
-})
+useStructuredData('story-webpage', () => storyId.value && story.value
+  ? createStoryStructuredData(storyId.value, story.value)
+  : null)
 
 useHead(() => ({
   bodyAttrs: {
@@ -1193,9 +1195,14 @@ useSeoMeta({
   description: () => story.value ? `Read the story titled "${story.value.title}" by ${story.value.author}.` : 'Loading story...',
   ogTitle: seoTitle,
   ogDescription: () => story.value ? `Read the story titled "${story.value.title}" by ${story.value.author}.` : 'Loading story...',
-  ogImage: socialImage,
+  ogImage: SITE_SOCIAL_IMAGE_URL,
+  ogImageType: SITE_SOCIAL_IMAGE_TYPE,
+  ogImageWidth: SITE_SOCIAL_IMAGE_WIDTH,
+  ogImageHeight: SITE_SOCIAL_IMAGE_HEIGHT,
+  ogImageAlt: SITE_SOCIAL_IMAGE_ALT,
   twitterCard: 'summary_large_image',
-  twitterImage: socialImage,
+  twitterImage: SITE_SOCIAL_IMAGE_URL,
+  twitterImageAlt: SITE_SOCIAL_IMAGE_ALT,
 });
 </script>
 

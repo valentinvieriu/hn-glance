@@ -101,6 +101,14 @@ import { getSeedPaletteStyle } from '~/composables/useSeedPalette';
 import { getFeedTheme, getFeedThemeStyle } from '~/composables/useFeedTheme';
 import type { FeedEndpoint } from '~/composables/useFeedTheme';
 import { getScreenshotPath } from '#shared/utils/screenshot';
+import {
+  SITE_SOCIAL_IMAGE_ALT,
+  SITE_SOCIAL_IMAGE_HEIGHT,
+  SITE_SOCIAL_IMAGE_TYPE,
+  SITE_SOCIAL_IMAGE_URL,
+  SITE_SOCIAL_IMAGE_WIDTH,
+} from '#shared/utils/siteMetadata';
+import { createFeedStructuredData } from '#shared/utils/structuredData';
 import { LucideRefreshCw } from '@lucide/vue';
 
 const props = defineProps<{ endpoint: FeedEndpoint }>();
@@ -114,8 +122,6 @@ const feedThemeStyle = computed(() => getFeedThemeStyle(props.endpoint));
 const title = computed(() => feedTheme.value.title);
 const seoTitle = computed(() => `${title.value} — HN Glance`);
 useCanonicalUrl(() => feedTheme.value.path);
-const requestUrl = useRequestURL();
-const feedSocialImage = new URL('/icon_x512.png', requestUrl.origin).href;
 const skeletonTitleWidths = ['82%', '68%', '76%', '58%', '88%'];
 const skeletonPaletteStyle = (index: number) => {
   return getSeedPaletteStyle(`loading-${props.endpoint}-${index}`);
@@ -133,14 +139,22 @@ useHead(() => ({
     : [],
 }));
 
+useStructuredData('feed-item-list', () => stories.value.length
+  ? createFeedStructuredData(feedTheme.value.title, feedTheme.value.path, stories.value)
+  : null);
+
 useSeoMeta({
   title: seoTitle,
   description: () => feedTheme.value.description,
   ogTitle: seoTitle,
   ogDescription: () => feedTheme.value.description,
-  ogImage: feedSocialImage,
-  twitterCard: 'summary_large_image',
-  twitterImage: feedSocialImage,
+  ogImage: SITE_SOCIAL_IMAGE_URL,
+  ogImageType: SITE_SOCIAL_IMAGE_TYPE,
+  ogImageWidth: SITE_SOCIAL_IMAGE_WIDTH,
+  ogImageHeight: SITE_SOCIAL_IMAGE_HEIGHT,
+  ogImageAlt: SITE_SOCIAL_IMAGE_ALT,
+  twitterImage: SITE_SOCIAL_IMAGE_URL,
+  twitterImageAlt: SITE_SOCIAL_IMAGE_ALT,
 });
 </script>
 

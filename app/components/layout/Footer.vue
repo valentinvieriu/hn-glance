@@ -36,6 +36,7 @@ const copyrightYears = currentYear <= startYear
   : `${startYear}-${currentYear}`;
 
 const footerLinks = [
+  { name: 'About', to: '/about' },
   { name: 'Privacy', to: '/privacy' },
   { name: 'Terms', to: '/terms' },
 ];

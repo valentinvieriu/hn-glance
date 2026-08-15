@@ -68,6 +68,9 @@ export default defineNuxtConfig({
   },
   app: {
     head: {
+      htmlAttrs: {
+        lang: 'en-US',
+      },
       title: 'HN Glance — a visual Hacker News reader',
       meta: [
         { name: 'viewport', content: 'width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover' },
@@ -101,6 +104,7 @@ export default defineNuxtConfig({
   },
   routeRules: {
     '/': { headers: { 'cache-control': 'no-store' } },
+    '/about': { headers: { 'cache-control': 'no-store' } },
     '/best': { headers: { 'cache-control': 'no-store' } },
     '/item/**': { headers: { 'cache-control': 'no-store' } },
     '/new': { headers: { 'cache-control': 'no-store' } },

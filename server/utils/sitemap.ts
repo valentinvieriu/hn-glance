@@ -16,6 +16,7 @@ const SITEMAP_STATIC_PATHS = [
   '/best',
   '/new',
   '/show',
+  '/about',
   '/privacy',
   '/terms',
 ] as const
