@@ -1,7 +1,8 @@
 import type { Story } from '#shared/types'
+import { SITE_ORIGIN } from '../../shared/utils/canonical'
 import { isValidHnItemId } from '../../shared/utils/hn'
 
-export const SITEMAP_ORIGIN = 'https://hnglance.com'
+export const SITEMAP_ORIGIN = SITE_ORIGIN
 
 export const SITEMAP_FEEDS = [
   'top',

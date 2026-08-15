@@ -96,3 +96,7 @@
     </p>
   </div>
 </template>
+
+<script setup lang="ts">
+useCanonicalUrl('/privacy')
+</script>

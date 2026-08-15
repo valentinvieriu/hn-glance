@@ -203,7 +203,7 @@ import {
 } from '@lucide/vue'
 import type { HNUserProfile, UserActivityPage, UserComment, UserPost } from '#shared/types'
 import { formatCalendarDate, formatTimeAgo } from '#shared/utils/date'
-import { normalizeHnUsername } from '#shared/utils/hn'
+import { getHnUserPath, normalizeHnUsername } from '#shared/utils/hn'
 import { useSanitizer } from '~/composables/useSanitizer'
 import { getSeedPaletteStyle } from '~/composables/useSeedPalette'
 
@@ -519,6 +519,8 @@ const joinedDate = computed(() => {
 
   return `${formatCalendarDate(createdAt)} (${formatTimeAgo(createdAt)})`
 })
+
+useCanonicalUrl(() => pageError.value ? null : getHnUserPath(displayUsername.value))
 
 useSeoMeta({
   title: () => pageError.value

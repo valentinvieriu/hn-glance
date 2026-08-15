@@ -78,3 +78,7 @@
     </p>
   </div>
 </template>
+
+<script setup lang="ts">
+useCanonicalUrl('/terms')
+</script>

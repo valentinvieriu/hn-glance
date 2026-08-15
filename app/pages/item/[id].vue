@@ -1164,6 +1164,7 @@ const requestUrl = useRequestURL()
 const siteOrigin = requestUrl.origin
 const title = computed(() => story.value?.title ?? 'Loading...')
 const seoTitle = computed(() => `${title.value} — HN Glance`)
+useCanonicalUrl(() => storyId.value ? `/item/${storyId.value}` : null)
 const socialImage = computed(() => {
   const path = storyId.value
     ? getScreenshotPath(storyId.value)
