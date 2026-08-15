@@ -1,1 +1,2 @@
-
+# Cloudflare prepends the zone's managed crawler policy to this origin file.
+Sitemap: https://hnglance.com/sitemap.xml
