@@ -10,8 +10,12 @@ describe('HN identifiers and paths', () => {
   it('normalizes route params with one shared validation policy', () => {
     expect(normalizeHnItemId(['123'])).toBe('123')
     expect(normalizeHnItemId('0')).toBeNull()
+    expect(normalizeHnItemId('000123')).toBeNull()
+    expect(normalizeHnItemId('9007199254740992')).toBeNull()
     expect(normalizeHnUsername(['alice_42'])).toBe('alice_42')
     expect(normalizeHnUsername('../alice')).toBe('')
+    expect(normalizeHnUsername('$alice')).toBe('')
+    expect(normalizeHnUsername('a'.repeat(65))).toBe('')
   })
 
   it('encodes item and user destinations', () => {

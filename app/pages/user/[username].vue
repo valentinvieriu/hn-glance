@@ -1,18 +1,13 @@
 <template>
-  <div class="user-shell seed-palette-surface min-h-full text-slate-900 dark:text-slate-100" :style="userPaletteStyle">
-    <div class="layout-frame py-8 md:py-10">
-      <div v-if="pageError" class="mt-20 text-center">
-        <h1 class="mb-4 text-3xl font-display font-semibold">User not found</h1>
-        <p class="mb-6 leading-7">{{ pageError }}</p>
-        <NuxtLink
-          to="/top"
-          class="inline-flex items-center rounded bg-orange-500 px-4 py-2 font-medium text-white hover:bg-orange-600"
-        >
-          Back to Top Stories
-        </NuxtLink>
-      </div>
+  <SiteErrorPage
+    v-if="pageError"
+    :status-code="pageErrorStatusCode"
+    :status-message="pageErrorTitle"
+  />
 
-      <div v-else>
+  <div v-else class="user-shell seed-palette-surface min-h-full text-slate-900 dark:text-slate-100" :style="userPaletteStyle">
+    <div class="layout-frame py-8 md:py-10">
+      <div>
         <header class="user-hero layout-content">
           <div class="min-w-0">
             <p class="user-kicker meta-text mb-2 inline-flex items-center gap-2 font-semibold uppercase">
@@ -212,6 +207,10 @@ import { normalizeHnUsername } from '#shared/utils/hn'
 import { useSanitizer } from '~/composables/useSanitizer'
 import { getSeedPaletteStyle } from '~/composables/useSeedPalette'
 
+definePageMeta({
+  validate: route => normalizeHnUsername(route.params.username) !== '',
+})
+
 type ActivityTab = 'comments' | 'posts'
 
 const PAGE_SIZE = 30
@@ -242,36 +241,41 @@ const postSentinelRef = ref<HTMLElement | null>(null)
 const commentSentinelRef = ref<HTMLElement | null>(null)
 
 const profileDataKey = computed(() => `user-profile:${username.value || 'missing'}`)
-const postsDataKey = computed(() => `user-posts:${username.value || 'missing'}:${PAGE_SIZE}`)
-const commentsDataKey = computed(() => `user-comments:${username.value || 'missing'}:${PAGE_SIZE}`)
+
+const profileAsyncData = await useAsyncData<HNUserProfile | null>(
+  profileDataKey,
+  async () => {
+    if (!username.value) {
+      return null
+    }
+
+    return await $fetch<HNUserProfile>(`/api/user/${encodedUsername.value}`)
+  },
+  {
+    default: () => null,
+    watch: [username],
+  },
+)
+
+const { data: profile, pending: profilePending, error: profileFetchError } = profileAsyncData
+
+const profileUsername = computed(() => profile.value?.username ?? '')
+const encodedProfileUsername = computed(() => encodeURIComponent(profileUsername.value))
+const postsDataKey = computed(() => `user-posts:${profileUsername.value || 'missing'}:${PAGE_SIZE}`)
+const commentsDataKey = computed(() => `user-comments:${profileUsername.value || 'missing'}:${PAGE_SIZE}`)
 
 const [
-  profileAsyncData,
   initialPostsAsyncData,
   initialCommentsAsyncData,
 ] = await Promise.all([
-  useAsyncData<HNUserProfile | null>(
-    profileDataKey,
-    async () => {
-      if (!username.value) {
-        return null
-      }
-
-      return await $fetch<HNUserProfile>(`/api/user/${encodedUsername.value}`)
-    },
-    {
-      default: () => null,
-      watch: [username],
-    },
-  ),
   useAsyncData<UserActivityPage<UserPost> | null>(
     postsDataKey,
     async () => {
-      if (!username.value) {
+      if (!profileUsername.value) {
         return null
       }
 
-      return await $fetch<UserActivityPage<UserPost>>(`/api/user/${encodedUsername.value}/stories`, {
+      return await $fetch<UserActivityPage<UserPost>>(`/api/user/${encodedProfileUsername.value}/stories`, {
         query: {
           hitsPerPage: PAGE_SIZE,
           page: 0,
@@ -280,17 +284,17 @@ const [
     },
     {
       default: () => null,
-      watch: [username],
+      watch: [profileUsername],
     },
   ),
   useAsyncData<UserActivityPage<UserComment> | null>(
     commentsDataKey,
     async () => {
-      if (!username.value) {
+      if (!profileUsername.value) {
         return null
       }
 
-      return await $fetch<UserActivityPage<UserComment>>(`/api/user/${encodedUsername.value}/comments`, {
+      return await $fetch<UserActivityPage<UserComment>>(`/api/user/${encodedProfileUsername.value}/comments`, {
         query: {
           hitsPerPage: PAGE_SIZE,
           page: 0,
@@ -299,12 +303,11 @@ const [
     },
     {
       default: () => null,
-      watch: [username],
+      watch: [profileUsername],
     },
   ),
 ])
 
-const { data: profile, pending: profilePending, error: profileFetchError } = profileAsyncData
 const { data: initialPostsData, pending: postsPending, error: postsFetchError } = initialPostsAsyncData
 const { data: initialCommentsData, pending: commentsPending, error: commentsFetchError } = initialCommentsAsyncData
 
@@ -486,6 +489,12 @@ const pageError = computed(() => {
 
   return null
 })
+const pageErrorTitle = computed(() => {
+  return profileFetchError.value && profileFetchError.value.statusCode !== 404
+    ? 'User unavailable'
+    : 'User not found'
+})
+const pageErrorStatusCode = computed(() => profileFetchError.value?.statusCode ?? 404)
 
 const displayUsername = computed(() => profile.value?.username || username.value)
 const userPaletteStyle = computed(() => getSeedPaletteStyle(displayUsername.value))
@@ -512,11 +521,32 @@ const joinedDate = computed(() => {
 })
 
 useSeoMeta({
-  title: () => `${displayUsername.value} on HN Glance`,
-  description: () => `Posts and comments by ${displayUsername.value} on Hacker News.`,
-  ogTitle: () => `${displayUsername.value} on HN Glance`,
-  ogDescription: () => `Posts and comments by ${displayUsername.value} on Hacker News.`,
+  title: () => pageError.value
+    ? `${pageErrorTitle.value} — HN Glance`
+    : `${displayUsername.value} on HN Glance`,
+  description: () => pageError.value
+    ? 'Return to the current Hacker News feeds on HN Glance.'
+    : `Posts and comments by ${displayUsername.value} on Hacker News.`,
+  ogTitle: () => pageError.value
+    ? `${pageErrorTitle.value} — HN Glance`
+    : `${displayUsername.value} on HN Glance`,
+  ogDescription: () => pageError.value
+    ? 'Return to the current Hacker News feeds on HN Glance.'
+    : `Posts and comments by ${displayUsername.value} on Hacker News.`,
+  robots: () => pageError.value ? 'noindex, nofollow' : 'index, follow',
 })
+
+if (import.meta.server && (profileFetchError.value || !profile.value)) {
+  const requestEvent = useRequestEvent()
+
+  if (requestEvent) {
+    setResponseStatus(
+      requestEvent,
+      profileFetchError.value?.statusCode ?? 404,
+      profileFetchError.value?.statusMessage ?? 'User not found',
+    )
+  }
+}
 </script>
 
 <style scoped>

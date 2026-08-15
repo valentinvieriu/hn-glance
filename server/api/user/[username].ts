@@ -4,6 +4,7 @@ import { isValidHnUsername } from '#shared/utils/hn'
 import { formatServerTiming } from '#shared/utils/serverTiming'
 import { fetchAlgoliaUser } from '../../utils/algolia'
 import { getErrorStatusCode } from '../../utils/error'
+import { fetchHnUserExists } from '../../utils/hnUser'
 
 type AlgoliaUserProfile = {
   username?: string | null
@@ -23,6 +24,17 @@ export default defineEventHandler(async (event) => {
   }
 
   try {
+    const hnUserStartedAt = performance.now()
+    const userExists = await fetchHnUserExists(username)
+    const hnUserDuration = performance.now() - hnUserStartedAt
+
+    if (!userExists) {
+      throw createError({
+        statusCode: 404,
+        statusMessage: 'User not found',
+      })
+    }
+
     const algoliaUserStartedAt = performance.now()
     const profile = await fetchAlgoliaUser<AlgoliaUserProfile>(username)
     const algoliaUserDuration = performance.now() - algoliaUserStartedAt
@@ -45,6 +57,11 @@ export default defineEventHandler(async (event) => {
 
     setHeader(event, 'Cache-Control', 'public, max-age=300, stale-while-revalidate=900')
     setHeader(event, 'Server-Timing', formatServerTiming([
+      {
+        name: 'hn-user',
+        duration: hnUserDuration,
+        description: 'HN Firebase user existence',
+      },
       {
         name: 'algolia-user',
         duration: algoliaUserDuration,

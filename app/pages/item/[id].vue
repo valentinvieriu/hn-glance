@@ -350,6 +350,10 @@ import { appendServerTiming } from '#shared/utils/serverTiming'
 import ConversationBrowser from '~/components/comment/ConversationBrowser.vue'
 import NewCommentsNavigation from '~/components/comment/NewCommentsNavigation.vue'
 
+definePageMeta({
+  validate: route => normalizeHnItemId(route.params.id) !== null,
+})
+
 const route = useRoute();
 const router = useRouter()
 const isClientReady = ref(false)
@@ -406,7 +410,7 @@ if (import.meta.server && pageSsrStartedAt !== null) {
   })
 }
 
-const { data: storyData, pending, error: fetchError } = useAsyncData<StoryDetail | null>(
+const { data: storyData, pending, error: fetchError } = await useAsyncData<StoryDetail | null>(
   storyDataKey,
   async () => {
     const id = storyId.value
@@ -435,6 +439,21 @@ const { data: storyData, pending, error: fetchError } = useAsyncData<StoryDetail
     watch: [storyId],
   },
 )
+
+if (fetchError.value) {
+  throw createError({
+    statusCode: fetchError.value.statusCode ?? 500,
+    statusMessage: fetchError.value.statusMessage ?? 'Failed to fetch story',
+    cause: fetchError.value,
+  })
+}
+
+if (!storyData.value) {
+  throw createError({
+    statusCode: 404,
+    statusMessage: 'Story not found',
+  })
+}
 
 const story = computed(() => storyData.value)
 const error = computed(() => {
