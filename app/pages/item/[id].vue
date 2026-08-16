@@ -217,8 +217,8 @@
           <div v-if="story.children.length === 0" class="comments-empty-state text-gray-500">
             <p>{{ discussionLanguage.messages.noCommentsYet }}</p>
             <a
-              v-if="storyReplyUrl"
-              :href="storyReplyUrl"
+              v-if="storyDiscussionUrl"
+              :href="storyDiscussionUrl"
               target="_blank"
               rel="noopener noreferrer"
               class="comments-empty-reply-link"
@@ -354,7 +354,7 @@ import {
   getCommentIdsInTreeOrder,
 } from '#shared/utils/discussionVisits'
 import { formatTimeAgo } from '#shared/utils/date'
-import { getHnItemUrl, getHnReplyUrl, getHnUserPath, normalizeHnItemId } from '#shared/utils/hn'
+import { getHnItemUrl, getHnUserPath, normalizeHnItemId } from '#shared/utils/hn'
 import { discussionLanguage } from '#shared/utils/productLanguage'
 import { getScreenshotPath } from '#shared/utils/screenshot'
 import {
@@ -544,8 +544,8 @@ const storyExternalUrl = computed(() => {
     ? getHnItemUrl(storyId.value)
     : ''
 })
-const storyReplyUrl = computed(() => storyId.value
-  ? getHnReplyUrl(storyId.value)
+const storyDiscussionUrl = computed(() => storyId.value
+  ? getHnItemUrl(storyId.value)
   : '')
 type ScreenshotPreviewState = 'loading' | 'loaded' | 'failed'
 const SCREENSHOT_RETRY_DELAYS_MS = [16_000, 45_000] as const

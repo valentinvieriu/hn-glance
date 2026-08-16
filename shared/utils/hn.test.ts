@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
   getHnItemUrl,
-  getHnReplyUrl,
   getHnUserPath,
   normalizeHnItemId,
   normalizeHnUsername,
@@ -21,8 +20,6 @@ describe('HN identifiers and paths', () => {
 
   it('encodes item and user destinations', () => {
     expect(getHnItemUrl('123')).toBe('https://news.ycombinator.com/item?id=123')
-    expect(getHnReplyUrl('123'))
-      .toBe('https://news.ycombinator.com/reply?id=123&goto=item%3Fid%3D123')
     expect(getHnUserPath('alice 42')).toBe('/user/alice%2042')
   })
 })
