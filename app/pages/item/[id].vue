@@ -214,8 +214,19 @@
               </button>
             </div>
           </div>
-          <div v-if="story.children.length === 0" class="text-gray-500 leading-7">
-            {{ discussionLanguage.messages.noCommentsYet }}
+          <div v-if="story.children.length === 0" class="comments-empty-state text-gray-500">
+            <p>{{ discussionLanguage.messages.noCommentsYet }}</p>
+            <a
+              v-if="storyReplyUrl"
+              :href="storyReplyUrl"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="comments-empty-reply-link"
+              :aria-label="discussionLanguage.accessibility.startDiscussionOnHackerNews"
+            >
+              <span>{{ discussionLanguage.actions.startDiscussionOnHackerNews }}</span>
+              <LucideExternalLink class="h-3.5 w-3.5" aria-hidden="true" />
+            </a>
           </div>
           <div v-else class="comments-list">
             <CommentThread
@@ -343,7 +354,7 @@ import {
   getCommentIdsInTreeOrder,
 } from '#shared/utils/discussionVisits'
 import { formatTimeAgo } from '#shared/utils/date'
-import { getHnItemUrl, getHnUserPath, normalizeHnItemId } from '#shared/utils/hn'
+import { getHnItemUrl, getHnReplyUrl, getHnUserPath, normalizeHnItemId } from '#shared/utils/hn'
 import { discussionLanguage } from '#shared/utils/productLanguage'
 import { getScreenshotPath } from '#shared/utils/screenshot'
 import {
@@ -533,6 +544,9 @@ const storyExternalUrl = computed(() => {
     ? getHnItemUrl(storyId.value)
     : ''
 })
+const storyReplyUrl = computed(() => storyId.value
+  ? getHnReplyUrl(storyId.value)
+  : '')
 type ScreenshotPreviewState = 'loading' | 'loaded' | 'failed'
 const SCREENSHOT_RETRY_DELAYS_MS = [16_000, 45_000] as const
 const screenshotPreviewState = ref<ScreenshotPreviewState>('loading')
@@ -1559,6 +1573,49 @@ useSeoMeta({
 
 .comments-list {
   min-width: 0;
+}
+
+.comments-empty-state {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.75rem;
+  line-height: 1.75;
+}
+
+.comments-empty-reply-link {
+  display: inline-flex;
+  min-height: 2rem;
+  align-items: center;
+  gap: 0.35rem;
+  border: 1px solid rgb(148 163 184 / 0.24);
+  border-radius: 999px;
+  padding: 0.35rem 0.7rem;
+  background: rgb(148 163 184 / 0.08);
+  color: rgb(55 65 81);
+  font-size: 0.8125rem;
+  font-weight: 650;
+  line-height: 1;
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+.comments-empty-reply-link:hover {
+  border-color: rgb(148 163 184 / 0.38);
+  background: rgb(148 163 184 / 0.13);
+  color: rgb(17 24 39);
+}
+
+.comments-empty-reply-link:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+
+.dark .comments-empty-reply-link {
+  color: rgb(209 213 219);
+}
+
+.dark .comments-empty-reply-link:hover {
+  color: rgb(243 244 246);
 }
 
 /* Cards carry speaker boundaries, so roots need only enough air to separate

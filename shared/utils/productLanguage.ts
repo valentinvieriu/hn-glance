@@ -34,6 +34,7 @@ const actions = {
   replyOnHackerNews: 'Reply on HN',
   returnToOverview: 'Return to overview',
   showRootComments: 'Show root comments',
+  startDiscussionOnHackerNews: 'Start the discussion on HN',
 } as const
 
 const states = {
@@ -184,6 +185,7 @@ export const discussionLanguage = {
     newCommentsNavigation: 'New comment navigation',
     originalPoster: 'Submitted this story',
     readingPath: terms.readingPath,
+    startDiscussionOnHackerNews: 'Add the first comment on Hacker News (opens in a new tab)',
   },
 } as const
 

@@ -31,6 +31,12 @@ export const getHnItemUrl = (itemId: string | number) => {
   return `https://news.ycombinator.com/item?id=${encodeURIComponent(String(itemId))}`
 }
 
+export const getHnReplyUrl = (itemId: string | number) => {
+  const encodedItemId = encodeURIComponent(String(itemId))
+
+  return `https://news.ycombinator.com/reply?id=${encodedItemId}&goto=item%3Fid%3D${encodedItemId}`
+}
+
 export const getHnUserPath = (username: string) => {
   return `/user/${encodeURIComponent(username)}`
 }

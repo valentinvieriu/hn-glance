@@ -16,6 +16,10 @@ describe('discussion product language', () => {
     expect(discussionLanguage.actions.goToRootComment).toBe('Go to root comment')
     expect(discussionLanguage.actions.goToCurrentComment).toBe('Go to current comment')
     expect(discussionLanguage.actions.markAllSeen).toBe('Mark all seen')
+    expect(discussionLanguage.actions.startDiscussionOnHackerNews)
+      .toBe('Start the discussion on HN')
+    expect(discussionLanguage.accessibility.startDiscussionOnHackerNews)
+      .toBe('Add the first comment on Hacker News (opens in a new tab)')
   })
 
   it('names comment and reply counts precisely', () => {
