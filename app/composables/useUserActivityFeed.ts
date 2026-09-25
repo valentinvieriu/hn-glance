@@ -63,10 +63,19 @@ export const useUserActivityFeed = <T extends { objectID: string }>(
     nextCursor.value = page.nextCursor
   }
 
-  watch(initialPage.data, page => applyPage(page), { immediate: true })
-  watch(initialPage.error, (error) => {
+  const applyInitialError = (error: Error | null | undefined) => {
     errorMessage.value = error?.message ?? null
-  }, { immediate: true })
+  }
+
+  // SSR runs an immediate watcher only once, before the data resolves, so the
+  // awaited result below also applies the first page to the rendered HTML.
+  watch(initialPage.data, page => applyPage(page), { immediate: true })
+  watch(initialPage.error, applyInitialError, { immediate: true })
+
+  const initialPageReady = initialPage.then(() => {
+    applyPage(initialPage.data.value)
+    applyInitialError(initialPage.error.value)
+  })
 
   const loadMore = async () => {
     if (!toValue(username) || isLoadingMore.value || !hasMore.value) {
@@ -99,6 +108,6 @@ export const useUserActivityFeed = <T extends { objectID: string }>(
     isInitialLoading: computed(() => initialPage.pending.value && items.value.length === 0),
     errorMessage,
     loadMore,
-    initialPage,
+    initialPage: initialPageReady,
   }
 }
