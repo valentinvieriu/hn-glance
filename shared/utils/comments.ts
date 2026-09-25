@@ -12,7 +12,7 @@ const HIDDEN_REPLY_SUBTREE_MIN_DESCENDANTS = 4
 
 export type CommentSort = 'hn' | 'discussed' | 'recent'
 
-type CommentTreeSummary = {
+export type CommentTreeSummary = {
   authorCounts: ReadonlyMap<string, number>
   commentAuthors: ReadonlyMap<number, string>
   descendantCounts: ReadonlyMap<number, number>

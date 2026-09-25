@@ -88,6 +88,9 @@ Shared client logic:
 
 - `app/composables/useStories.ts`: feed loading, session-memory cache, and stale refresh state.
 - `app/composables/useFeedTheme.ts`: feed-specific labels, routes, and color theme variables.
+- `app/composables/useDiscussionRoute.ts`: story-detail URL state (root-comment `sort`, `view=discussion` focus, `reader` mode, and current `comment`), preference fill-in for missing query values, and focus entry/exit.
+- `app/composables/useCommentDisclosure.ts`: overview reply disclosure plus jump-to-comment (ancestor reveal, scroll, focus, highlight) and `#comment-<id>` hash handling outside focus.
+- `app/composables/useNewComments.ts`: per-visit frozen new-comment set, toolbar-dwell acknowledgement, new-comment navigation, and Mark all seen, built on `useDiscussionVisits`.
 - `app/composables/usePageSeo.ts`: the one page-metadata entry point (title, description, Open Graph/Twitter mirrors, canonical URL, robots). Site-wide social image tags stay in `app.vue`.
 - `app/composables/useSeedPalette.ts`: deterministic card color palettes.
 - `app/composables/useStoryPlaceholder.ts`: non-semantic, story-seeded wireframe layout generation with bounded SVG geometry.

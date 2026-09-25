@@ -215,42 +215,21 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { LucideArrowDownUp, LucideExternalLink, LucideTrendingUp, LucideMessageSquare, LucideChevronsDown, LucideChevronsUp, LucideMaximize2 } from '@lucide/vue';
 import { useSanitizer } from '~/composables/useSanitizer';
-import { useAppPreferences } from '~/composables/useAppPreferences'
-import { useDiscussionVisits } from '~/composables/useDiscussionVisits'
+import { useCommentDisclosure } from '~/composables/useCommentDisclosure'
+import { useDiscussionRoute } from '~/composables/useDiscussionRoute'
+import { useNewComments } from '~/composables/useNewComments'
 import {
   getCommentThreadAuthorPalette,
   getStoryContextPaletteStyle,
   type CommentThreadAuthorPalette,
 } from '~/composables/useSeedPalette';
 import type { StoryContextResponse, StoryDetail } from '#shared/types'
-import {
-  getCommentPathFromIndex,
-  getExpandedCommentDisclosure,
-  getSmartCommentDisclosure,
-  revealCommentPath,
-  sortCommentThreads,
-  summarizeCommentTree,
-  toggleCommentReplies,
-} from '#shared/utils/comments'
-import {
-  DEFAULT_COMMENT_READER_MODE,
-  DEFAULT_ROOT_COMMENT_ORDER,
-  parseCommentReaderMode,
-  parseRootCommentOrder,
-  type CommentReaderMode,
-  type RootCommentOrder,
-} from '#shared/utils/appPreferences'
-import {
-  countMatchingDescendants,
-  getCommentIdsInTreeOrder,
-} from '#shared/utils/discussionVisits'
+import { summarizeCommentTree } from '#shared/utils/comments'
 import { formatTimeAgo } from '#shared/utils/date'
 import {
-  getCommentIdFromHash,
-  getFirstQueryValue,
   getHnItemUrl,
   getHnUserPath,
   normalizeHnItemId,
@@ -268,38 +247,6 @@ definePageMeta({
 })
 
 const route = useRoute();
-const router = useRouter()
-const isClientReady = ref(false)
-const {
-  discussionReaderMode: preferredDiscussionReaderMode,
-  isHydrated: arePreferencesHydrated,
-  rootCommentOrder: preferredRootCommentOrder,
-  setDiscussionReaderMode: setPreferredDiscussionReaderMode,
-  setRootCommentOrder: setPreferredRootCommentOrder,
-} = useAppPreferences()
-const {
-  acknowledgeVisit: acknowledgeDiscussionVisit,
-  beginVisit: beginDiscussionVisit,
-} = useDiscussionVisits()
-const isDiscussionFocus = computed(() => {
-  return getFirstQueryValue(route.query.view) === 'discussion'
-})
-const explicitDiscussionReaderMode = computed(() => {
-  return parseCommentReaderMode(route.query.reader)
-})
-const discussionReaderMode = computed<CommentReaderMode>(() => {
-  if (isDiscussionFocus.value && explicitDiscussionReaderMode.value) {
-    return explicitDiscussionReaderMode.value
-  }
-
-  return DEFAULT_COMMENT_READER_MODE
-})
-const isDiscussionFocusActive = computed(() => {
-  return isDiscussionFocus.value
-    && isClientReady.value
-    && explicitDiscussionReaderMode.value !== null
-})
-
 const storyId = computed(() => normalizeHnItemId(route.params.id))
 const storyDataKey = computed(() => `story-detail:${storyId.value ?? 'missing'}`)
 const serverTimingHeader = useResponseHeader('Server-Timing')
@@ -361,10 +308,7 @@ if (!storyData.value) {
 
 const story = computed(() => storyData.value)
 const storyContextRoot = ref<HTMLElement | null>(null)
-const discussionEngagementTarget = ref<HTMLElement | null>(null)
 let storyContextObserver: IntersectionObserver | null = null
-let discussionEngagementObserver: IntersectionObserver | null = null
-let discussionEngagementTimer: ReturnType<typeof setTimeout> | undefined
 const {
   data: storyContext,
   status: storyContextStatus,
@@ -403,104 +347,88 @@ const storyExternalUrl = computed(() => {
 const storyDiscussionUrl = computed(() => storyId.value
   ? getHnItemUrl(storyId.value)
   : '')
-
-onBeforeUnmount(() => {
-  clearCommentHighlight()
-  if (discussionEngagementTimer) {
-    clearTimeout(discussionEngagementTimer)
-  }
-  discussionEngagementObserver?.disconnect()
-  storyContextObserver?.disconnect()
-})
 const storyDomain = computed(() => getUrlDomain(storyExternalUrl.value, 'source'))
 
 const storyContextPaletteStyle = computed(() => {
   return getStoryContextPaletteStyle(storyId.value, storyDomain.value)
 })
 
+// Use the sanitizer
+const { sanitize } = useSanitizer();
+const sanitizedText = computed(() => sanitize(story.value?.text || '', `story-${storyId.value}`));
 
-// Overrides stay null until the reader acts so smart reply gates derive from
-// the SSR summary during hydration.
-const hiddenReplyOverride = ref<ReadonlySet<number> | null>(null)
-const jumpTargetCommentId = ref<number | null>(null)
-let commentHighlightTimer: ReturnType<typeof setTimeout> | undefined
-let highlightedComment: HTMLElement | null = null
+const commentSummary = computed(() => summarizeCommentTree(story.value?.children || []))
+const commentCount = computed(() => commentSummary.value.total)
+const authorCommentCounts = computed(() => commentSummary.value.authorCounts)
+const commentAuthors = computed(() => commentSummary.value.commentAuthors)
+const descendantCommentCounts = computed(() => commentSummary.value.descendantCounts)
+const commentNavigationNodes = computed(() => commentSummary.value.navigationNodes)
+const parentCommentIds = computed(() => commentSummary.value.parentCommentIds)
+const rootCommentIds = computed(() => commentSummary.value.rootCommentIds)
 
-const clearCommentHighlight = () => {
-  if (commentHighlightTimer) {
-    clearTimeout(commentHighlightTimer)
-    commentHighlightTimer = undefined
+const {
+  commentSort,
+  discussionReaderMode,
+  enterDiscussionFocus,
+  exitDiscussionFocus: leaveDiscussionFocus,
+  focusedCommentId,
+  isDiscussionFocus,
+  isDiscussionFocusActive,
+  selectFocusedComment,
+  setDiscussionReaderMode,
+  sortedComments,
+} = useDiscussionRoute({
+  rootComments: () => story.value?.children ?? [],
+  summary: commentSummary,
+})
+
+const {
+  areAllCommentsExpanded,
+  canToggleAllComments,
+  hiddenReplyIds,
+  jumpTargetCommentId,
+  jumpToComment,
+  revealComment,
+  toggleExpandAllComments,
+  toggleRepliesHidden,
+} = useCommentDisclosure({
+  summary: commentSummary,
+  isDiscussionFocus,
+})
+
+const discussionEngagementTarget = ref<HTMLElement | null>(null)
+const {
+  markAllNewCommentsSeen,
+  navigateToNextNewComment,
+  navigateToPreviousNewComment,
+  newCommentCount,
+  newCommentIds,
+  newCommentPosition,
+  newDescendantCounts,
+} = useNewComments({
+  engagementTarget: discussionEngagementTarget,
+  storyId,
+  comments: () => story.value?.children,
+  sortedComments,
+  navigationNodes: commentNavigationNodes,
+  isLoading,
+  isDiscussionFocus,
+  focusedCommentId,
+  jumpTargetCommentId,
+  selectFocusedComment,
+  jumpToComment,
+})
+
+// The overview renders the current comment's ancestors before the hash jump.
+const exitDiscussionFocus = async () => {
+  if (focusedCommentId.value) {
+    await revealComment(focusedCommentId.value)
   }
 
-  highlightedComment?.classList.remove('comment-jump-highlight')
-  highlightedComment = null
-}
-
-const highlightComment = (target: HTMLElement) => {
-  clearCommentHighlight()
-  highlightedComment = target
-  target.classList.add('comment-jump-highlight')
-  commentHighlightTimer = setTimeout(clearCommentHighlight, 1600)
-}
-
-const jumpToComment = async (commentId: number, updateHash = true) => {
-  if (!Number.isSafeInteger(commentId) || commentId <= 0) {
-    return
-  }
-
-  const pathIds = getCommentPathFromIndex(commentNavigationNodes.value, commentId)
-
-  if (pathIds) {
-    // Open only what is required to render the target. Its own reply visibility
-    // and every unrelated branch retain their existing state.
-    hiddenReplyOverride.value = revealCommentPath(hiddenReplyIds.value, pathIds)
-  }
-  await nextTick()
-
-  let target = document.getElementById(`comment-${commentId}`)
-
-  if (!target) {
-    // Safety net: open the whole tree if targeted expansion missed.
-    hiddenReplyOverride.value = getExpandedCommentDisclosure()
-    await nextTick()
-    target = document.getElementById(`comment-${commentId}`)
-  }
-
-  if (!target) {
-    return
-  }
-
-  jumpTargetCommentId.value = commentId
-
-  if (updateHash) {
-    const nextUrl = `${window.location.pathname}${window.location.search}#comment-${commentId}`
-
-    if (window.location.hash !== `#comment-${commentId}`) {
-      window.history.pushState(
-        window.history.state,
-        '',
-        nextUrl,
-      )
-    }
-  }
-
-  const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-  target.scrollIntoView({
-    behavior: prefersReducedMotion ? 'auto' : 'smooth',
-    block: 'start',
-  })
-  target.focus({ preventScroll: true })
-  highlightComment(target)
+  await leaveDiscussionFocus()
 }
 
 onMounted(() => {
-  isClientReady.value = true
-
-  const hashedCommentId = getCommentIdFromHash(route.hash)
-  if (hashedCommentId && !isDiscussionFocus.value) {
-    void jumpToComment(hashedCommentId, false)
-  }
-
   if (!storyContextRoot.value || !('IntersectionObserver' in window)) {
     loadStoryContext()
     return
@@ -521,354 +449,9 @@ onMounted(() => {
   storyContextObserver.observe(storyContextRoot.value)
 })
 
-watch(() => route.hash, (hash) => {
-  const commentId = getCommentIdFromHash(hash)
-
-  if (commentId && !isDiscussionFocus.value) {
-    void jumpToComment(commentId, false)
-  }
+onBeforeUnmount(() => {
+  storyContextObserver?.disconnect()
 })
-
-watch(isDiscussionFocus, (isFocused, wasFocused) => {
-  if (isFocused) {
-    clearDiscussionEngagementTimer()
-    discussionEngagementObserver?.disconnect()
-    discussionEngagementObserver = null
-    persistNewCommentsAsSeen()
-    return
-  }
-
-  if (!wasFocused) {
-    return
-  }
-
-  const commentId = getCommentIdFromHash(route.hash)
-
-  if (commentId) {
-    void jumpToComment(commentId, false)
-  }
-})
-
-// Use the sanitizer
-const { sanitize } = useSanitizer();
-const sanitizedText = computed(() => sanitize(story.value?.text || '', `story-${storyId.value}`));
-
-const commentSummary = computed(() => summarizeCommentTree(story.value?.children || []))
-const explicitRootCommentOrder = computed(() => parseRootCommentOrder(route.query.sort))
-const commentSort = computed<RootCommentOrder>({
-  get: () => explicitRootCommentOrder.value ?? DEFAULT_ROOT_COMMENT_ORDER,
-  set: (sort) => {
-    setPreferredRootCommentOrder(sort)
-
-    const query = { ...route.query, sort }
-    void router.replace({ query, hash: route.hash })
-  },
-})
-const commentCount = computed(() => commentSummary.value.total)
-const authorCommentCounts = computed(() => commentSummary.value.authorCounts)
-const commentAuthors = computed(() => commentSummary.value.commentAuthors)
-const descendantCommentCounts = computed(() => commentSummary.value.descendantCounts)
-const commentNavigationNodes = computed(() => commentSummary.value.navigationNodes)
-const parentCommentIds = computed(() => commentSummary.value.parentCommentIds)
-const rootCommentIds = computed(() => commentSummary.value.rootCommentIds)
-const defaultHiddenReplyIds = computed(() => commentSummary.value.defaultHiddenReplyIds)
-const sortedComments = computed(() => sortCommentThreads(
-  story.value?.children ?? [],
-  commentSort.value,
-  commentSummary.value,
-))
-const currentCommentIds = computed(() => {
-  return getCommentIdsInTreeOrder(story.value?.children ?? [])
-})
-const newCommentIds = ref<ReadonlySet<number>>(new Set())
-const initializedDiscussionVisitStoryId = ref<string | null>(null)
-const hasAcknowledgedNewComments = ref(false)
-const newCommentIdsInDisplayOrder = computed(() => {
-  return getCommentIdsInTreeOrder(sortedComments.value)
-    .filter(commentId => newCommentIds.value.has(commentId))
-})
-const newCommentCount = computed(() => newCommentIdsInDisplayOrder.value.length)
-const newDescendantCounts = computed(() => {
-  return countMatchingDescendants(commentNavigationNodes.value, newCommentIds.value)
-})
-const focusedCommentId = computed(() => {
-  const queryComment = normalizeHnItemId(route.query.comment)
-  const queryCommentId = queryComment ? Number(queryComment) : null
-  const hashCommentId = getCommentIdFromHash(route.hash)
-
-  if (queryCommentId && commentNavigationNodes.value.has(queryCommentId)) {
-    return queryCommentId
-  }
-
-  if (hashCommentId && commentNavigationNodes.value.has(hashCommentId)) {
-    return hashCommentId
-  }
-
-  return sortedComments.value[0]?.id ?? null
-})
-const activeNewCommentId = computed(() => {
-  return isDiscussionFocus.value
-    ? focusedCommentId.value
-    : jumpTargetCommentId.value
-})
-const newCommentPosition = computed(() => {
-  if (!activeNewCommentId.value) {
-    return 0
-  }
-
-  const index = newCommentIdsInDisplayOrder.value.indexOf(activeNewCommentId.value)
-
-  return index >= 0 ? index + 1 : 0
-})
-
-const persistNewCommentsAsSeen = (dismissImmediately = false) => {
-  const id = storyId.value
-
-  if (!id || newCommentIds.value.size === 0) {
-    return
-  }
-
-  if (!hasAcknowledgedNewComments.value) {
-    acknowledgeDiscussionVisit(id, currentCommentIds.value)
-    hasAcknowledgedNewComments.value = true
-    clearDiscussionEngagementTimer()
-    discussionEngagementObserver?.disconnect()
-    discussionEngagementObserver = null
-  }
-
-  if (dismissImmediately) {
-    newCommentIds.value = new Set()
-  }
-}
-
-const clearDiscussionEngagementTimer = () => {
-  if (discussionEngagementTimer) {
-    clearTimeout(discussionEngagementTimer)
-    discussionEngagementTimer = undefined
-  }
-}
-
-const observeMeaningfulDiscussionReading = async () => {
-  discussionEngagementObserver?.disconnect()
-  discussionEngagementObserver = null
-  clearDiscussionEngagementTimer()
-
-  if (
-    !import.meta.client
-    || newCommentIds.value.size === 0
-    || !('IntersectionObserver' in window)
-  ) {
-    return
-  }
-
-  await nextTick()
-
-  if (!discussionEngagementTarget.value) {
-    return
-  }
-
-  discussionEngagementObserver = new IntersectionObserver((entries) => {
-    const isReadingDiscussion = entries.some((entry) => {
-      return entry.isIntersecting && entry.intersectionRatio >= 0.6
-    })
-
-    if (!isReadingDiscussion) {
-      clearDiscussionEngagementTimer()
-      return
-    }
-
-    if (discussionEngagementTimer || hasAcknowledgedNewComments.value) {
-      return
-    }
-
-    discussionEngagementTimer = setTimeout(() => {
-      discussionEngagementTimer = undefined
-      persistNewCommentsAsSeen()
-      discussionEngagementObserver?.disconnect()
-      discussionEngagementObserver = null
-    }, 1_200)
-  }, { threshold: [0.6] })
-  discussionEngagementObserver.observe(discussionEngagementTarget.value)
-}
-
-const initializeDiscussionVisit = () => {
-  const id = storyId.value
-
-  if (
-    !import.meta.client
-    || !isClientReady.value
-    || !id
-    || !story.value
-    || isLoading.value
-    || initializedDiscussionVisitStoryId.value === id
-  ) {
-    return
-  }
-
-  const visit = beginDiscussionVisit(id, currentCommentIds.value)
-
-  initializedDiscussionVisitStoryId.value = id
-  hasAcknowledgedNewComments.value = false
-  newCommentIds.value = visit.isTracked
-    ? visit.newCommentIds
-    : new Set()
-
-  if (isDiscussionFocus.value) {
-    persistNewCommentsAsSeen()
-  } else {
-    void observeMeaningfulDiscussionReading()
-  }
-}
-
-const navigateToNewComment = (direction: 1 | -1) => {
-  const ids = newCommentIdsInDisplayOrder.value
-
-  if (ids.length === 0) {
-    return
-  }
-
-  const currentIndex = activeNewCommentId.value
-    ? ids.indexOf(activeNewCommentId.value)
-    : -1
-  const nextIndex = currentIndex < 0
-    ? (direction > 0 ? 0 : ids.length - 1)
-    : (currentIndex + direction + ids.length) % ids.length
-  const nextCommentId = ids[nextIndex]
-
-  if (!nextCommentId) {
-    return
-  }
-
-  persistNewCommentsAsSeen()
-
-  if (isDiscussionFocus.value) {
-    selectFocusedComment(nextCommentId)
-  } else {
-    void jumpToComment(nextCommentId)
-  }
-}
-
-const navigateToNextNewComment = () => navigateToNewComment(1)
-const navigateToPreviousNewComment = () => navigateToNewComment(-1)
-const markAllNewCommentsSeen = () => persistNewCommentsAsSeen(true)
-
-const enterDiscussionFocus = () => {
-  persistNewCommentsAsSeen()
-  const windowHashCommentId = import.meta.client
-    ? getCommentIdFromHash(window.location.hash)
-    : null
-  const commentId = windowHashCommentId && commentNavigationNodes.value.has(windowHashCommentId)
-    ? windowHashCommentId
-    : focusedCommentId.value
-  const query = {
-    ...route.query,
-    view: 'discussion',
-    ...(commentId ? { comment: String(commentId) } : {}),
-    reader: preferredDiscussionReaderMode.value,
-  }
-
-  void router.push({ query, hash: '' })
-}
-
-const exitDiscussionFocus = async () => {
-  const commentId = focusedCommentId.value
-  const query = { ...route.query }
-  delete query.view
-  delete query.comment
-  delete query.reader
-
-  if (commentId) {
-    const pathIds = getCommentPathFromIndex(commentNavigationNodes.value, commentId)
-
-    if (pathIds) {
-      hiddenReplyOverride.value = revealCommentPath(hiddenReplyIds.value, pathIds)
-      await nextTick()
-    }
-  }
-
-  const hash = commentId
-    ? `#comment-${commentId}`
-    : route.hash
-
-  await router.replace({ query, hash })
-}
-
-const selectFocusedComment = (commentId: number) => {
-  if (!commentNavigationNodes.value.has(commentId)) {
-    return
-  }
-
-  const query = { ...route.query, comment: String(commentId) }
-
-  void router.replace({ query, hash: '' })
-}
-
-const setDiscussionReaderMode = (mode: CommentReaderMode) => {
-  setPreferredDiscussionReaderMode(mode)
-
-  if (!isDiscussionFocus.value) {
-    return
-  }
-
-  const query = { ...route.query, reader: mode }
-
-  void router.replace({ query, hash: '' })
-}
-
-watch(
-  [isClientReady, storyId, story, isLoading],
-  initializeDiscussionVisit,
-  { flush: 'post', immediate: true },
-)
-
-watch(
-  [
-    arePreferencesHydrated,
-    isDiscussionFocus,
-    () => route.query.reader,
-    () => route.query.sort,
-  ],
-  ([preferencesHydrated, isFocused, queryReader, querySort]) => {
-    if (import.meta.server || !preferencesHydrated) {
-      return
-    }
-
-    const query = { ...route.query }
-    let shouldReplace = false
-
-    if (!parseRootCommentOrder(querySort)) {
-      query.sort = preferredRootCommentOrder.value
-      shouldReplace = true
-    }
-
-    if (isFocused && !parseCommentReaderMode(queryReader)) {
-      query.reader = preferredDiscussionReaderMode.value
-      shouldReplace = true
-    }
-
-    if (!shouldReplace) {
-      return
-    }
-
-    void router.replace({ query, hash: route.hash })
-  },
-  { immediate: true },
-)
-
-watch([isDiscussionFocus, focusedCommentId], ([isFocused, commentId]) => {
-  const queryComment = getFirstQueryValue(route.query.comment)
-
-  if (import.meta.server || !isFocused || !commentId || queryComment === String(commentId)) {
-    return
-  }
-
-  const query = { ...route.query, comment: String(commentId) }
-
-  void router.replace({
-    query,
-    hash: '',
-  })
-}, { immediate: true })
 
 const canSortComments = computed(() => (story.value?.children.length ?? 0) > 1)
 const EMPTY_COMMENT_THREAD_AUTHOR_PALETTE: CommentThreadAuthorPalette = {
@@ -886,29 +469,6 @@ const commentThreadAuthorPalettes = computed(() => {
 const getCommentThreadAuthorPaletteForRoot = (rootCommentId: number) => {
   return commentThreadAuthorPalettes.value.get(rootCommentId)
     ?? EMPTY_COMMENT_THREAD_AUTHOR_PALETTE
-}
-
-const hiddenReplyIds = computed<ReadonlySet<number>>(() => {
-  return hiddenReplyOverride.value ?? defaultHiddenReplyIds.value
-})
-
-const areAllCommentsExpanded = computed(() => {
-  return hiddenReplyIds.value.size === 0
-})
-
-const canToggleAllComments = computed(() => {
-  return defaultHiddenReplyIds.value.size > 0
-    || hiddenReplyIds.value.size > 0
-})
-
-const toggleExpandAllComments = () => {
-  hiddenReplyOverride.value = areAllCommentsExpanded.value
-    ? getSmartCommentDisclosure(defaultHiddenReplyIds.value)
-    : getExpandedCommentDisclosure()
-}
-
-const toggleRepliesHidden = (commentId: number) => {
-  hiddenReplyOverride.value = toggleCommentReplies(hiddenReplyIds.value, commentId)
 }
 
 const timeAgo = computed(() => {
