@@ -22,21 +22,21 @@
     "cf:screenshots:scheduler:typegen": "wrangler types workers/screenshot-scheduler/worker-configuration.d.ts --config workers/screenshot-scheduler/wrangler.jsonc --env-interface SchedulerEnv --include-runtime false"
   },
   "dependencies": {
-    "@lucide/vue": "^1.24.0",
+    "@lucide/vue": "^1.48.0",
     "@nuxtjs/color-mode": "^4.0.1",
     "@nuxtjs/google-fonts": "^3.2.0",
     "@nuxtjs/tailwindcss": "^6.14.0",
-    "nuxt": "^4.4.8",
-    "vue": "^3.5.39",
-    "vue-router": "^5.1.0"
+    "nuxt": "^4.5.2",
+    "vue": "^3.5.43",
+    "vue-router": "^5.3.1"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^5.20260711.1",
-    "@types/node": "^26.1.1",
+    "@cloudflare/workers-types": "^5.20260925.2",
+    "@types/node": "^26.6.2",
     "nitro-cloudflare-dev": "^0.2.2",
     "typescript": "^5.9.3",
-    "vitest": "^4.1.10",
-    "vue-tsc": "^3.3.7",
-    "wrangler": "^4.110.0"
+    "vitest": "^5.0.2",
+    "vue-tsc": "^3.3.11",
+    "wrangler": "^4.140.0"
   }
 }

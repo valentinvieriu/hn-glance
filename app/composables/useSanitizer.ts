@@ -1,4 +1,4 @@
-import { decodeHtmlEntities } from '../../shared/utils/html'
+import { decodeHtmlEntities } from '#shared/utils/html'
 
 const ALLOWED_TAGS = new Set([
   'a',
