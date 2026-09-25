@@ -28,8 +28,7 @@ const story = (
 const result = (
   kind: RelatedSearchKind,
   hits: AlgoliaStoryHit[],
-  weight = 80,
-): SearchResult => ({ kind, hits, weight })
+): SearchResult => ({ kind, hits })
 
 describe('buildTitleQuery', () => {
   it('preserves Unicode terms and splits compounds into searchable concepts', () => {
@@ -83,8 +82,8 @@ describe('rankRelatedStories', () => {
     const related = story('302', 'Postgres planner reliability lessons', 1_700_000_100)
 
     const ranked = rankRelatedStories([
-      result('full-text', [unrelated, related], 52),
-      result('comment', [unrelated, related], 26),
+      result('full-text', [unrelated, related]),
+      result('comment', [unrelated, related]),
     ], {
       title: 'Postgres query planner improvements',
       url: 'https://source.example/postgres-planner',
@@ -122,23 +121,7 @@ describe('rankRelatedStories', () => {
     expect(ranked.map(item => item.objectID)).toEqual(['403', '402'])
   })
 
-  it('retains the strongest previous discussion of the exact source URL', () => {
-    const ranked = rankRelatedStories([
-      result('url', [
-        story('501', 'PCjs Machines', 1_700_000_100, 'https://www.pcjs.org/', { points: 293 }),
-        story('502', 'PCjs Machines', 1_700_000_200, 'https://pcjs.org/?utm_source=hn', { points: 10 }),
-        story('503', 'Thinking Machines releases a model', 1_700_000_300, 'https://pcjs.org/model'),
-      ], 28),
-    ], {
-      title: 'PCjs Machines',
-      url: 'https://pcjs.org/',
-      created_at_i: 1_800_000_000,
-    }, '500')
-
-    expect(ranked.map(item => item.objectID)).toEqual(['501'])
-  })
-
-  it('can keep exact prior submissions out of semantic suggestions', () => {
+  it('keeps exact prior submissions out of semantic suggestions', () => {
     const ranked = rankRelatedStories([
       result('title', [
         story('521', 'PCjs Machines', 1_700_000_100, 'https://www.pcjs.org/'),
@@ -148,20 +131,18 @@ describe('rankRelatedStories', () => {
       title: 'PCjs Machines',
       url: 'https://pcjs.org/',
       created_at_i: 1_800_000_000,
-    }, '520', {
-      excludeExactSourceUrl: true,
-    })
+    }, '520')
 
     expect(ranked.map(item => item.objectID)).toEqual(['522'])
   })
 
   it('rejects unrelated stories that only share a publisher hostname', () => {
     const ranked = rankRelatedStories([
-      result('url', [
+      result('full-text', [
         story('551', 'In Europe, wind and solar overtake fossil fuels', 1_700_000_300, 'https://e360.yale.edu/digest/wind-solar'),
         story('552', 'China has added forest the size of Texas', 1_700_000_200, 'https://e360.yale.edu/digest/china-forest'),
         story('553', 'Dead coral skeletons hinder reef regeneration', 1_700_000_100, 'https://phys.org/dead-coral-reef'),
-      ], 28),
+      ]),
     ], {
       title: 'Long presumed dead, a thriving coral reef is discovered in West Africa',
       url: 'https://e360.yale.edu/digest/benin-coral-reef',
@@ -219,12 +200,12 @@ describe('rankRelatedStories', () => {
 
   it('caps one product hostname so related results retain variety', () => {
     const ranked = rankRelatedStories([
-      result('url', Array.from({ length: 5 }, (_, index) => story(
+      result('full-text', Array.from({ length: 5 }, (_, index) => story(
         String(701 + index),
         `Qwen ${3 + index} model release`,
         1_700_000_500 - index,
         `https://qwen.ai/blog/model-${index}`,
-      )), 28),
+      ))),
     ], {
       title: 'Qwen-Image-3.0: Rich content and authentic details',
       url: 'https://qwen.ai/blog?id=qwen-image-3.0',

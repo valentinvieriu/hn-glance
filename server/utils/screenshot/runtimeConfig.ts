@@ -9,6 +9,13 @@ const SCREENSHOT_RUNTIME_CONFIG_KEYS = [
   'screenshotXCancelBaseUrl',
 ] as const
 
+/** Runtime config values arrive as strings or numbers; keep whole values of at least one. */
+export const parsePositiveIntegerConfig = (value: unknown, fallback: number) => {
+  const parsedValue = Number(value)
+
+  return Number.isFinite(parsedValue) ? Math.max(1, Math.floor(parsedValue)) : fallback
+}
+
 const getNuxtBindingName = (runtimeConfigKey: string) => {
   const snakeCaseKey = runtimeConfigKey
     .replace(/([a-z0-9])([A-Z])/g, '$1_$2')

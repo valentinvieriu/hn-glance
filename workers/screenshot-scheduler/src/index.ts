@@ -8,12 +8,12 @@ import {
 import {
   SCREENSHOT_PREVIEW_MAX_BYTES,
   SCREENSHOT_PROFILE_VERSION,
+  SCREENSHOT_STORAGE_PREFIX,
 } from '../../../shared/utils/screenshot'
+import { getHnFeedIdsUrl } from '../../../shared/utils/hn'
 
-const HN_FIREBASE_API_URL = 'https://hacker-news.firebaseio.com/v0'
 const ADMISSION_PREFIX = `screenshot-jobs/v1/${SCREENSHOT_PROFILE_VERSION}/`
 const SCHEDULER_STATE_KEY = `screenshot-scheduler/v1/${SCREENSHOT_PROFILE_VERSION}/state.json`
-const SCREENSHOT_PREFIX = `screenshots/${SCREENSHOT_PROFILE_VERSION}/items/`
 export const SCHEDULER_FEEDS: ScreenshotJobFeed[] = ['top', 'best', 'show', 'new']
 const FEED_LIMIT = 100
 const MAX_ADMISSIONS_PER_RUN = 200
@@ -53,7 +53,7 @@ type LoadedSchedulerState = {
 const getAdmissionKey = (storyId: string) => `${ADMISSION_PREFIX}${storyId}`
 
 const fetchFeed = async (feed: ScreenshotJobFeed): Promise<RankedStory[]> => {
-  const response = await fetch(`${HN_FIREBASE_API_URL}/${feed}stories.json`)
+  const response = await fetch(getHnFeedIdsUrl(feed))
 
   if (!response.ok) {
     throw new Error(`${feed} feed returned ${response.status}`)
@@ -253,7 +253,7 @@ const getStoredScreenshotBytes = async (bucket: R2Bucket) => {
   do {
     const page = await bucket.list({
       cursor,
-      prefix: SCREENSHOT_PREFIX,
+      prefix: SCREENSHOT_STORAGE_PREFIX,
     })
 
     for (const object of page.objects) {

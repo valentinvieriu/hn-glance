@@ -72,6 +72,7 @@ import {
   LucideExternalLink,
 } from '@lucide/vue'
 import type { CommentNavigationNode } from '#shared/utils/comments'
+import { getHnReplyUrl } from '#shared/utils/hn'
 import {
   discussionLanguage,
   type DiscussionSiblingKind,
@@ -87,11 +88,10 @@ const emit = defineEmits<{
 }>()
 
 const replyCountLabel = computed(() => {
-  const directReplyCount = props.node.comment.children?.length ?? 0
-
-  return directReplyCount > 0
-    ? discussionLanguage.format.replySummary(directReplyCount, props.descendantCount)
-    : ''
+  return discussionLanguage.format.replySummaryIfAny(
+    props.node.comment.children?.length ?? 0,
+    props.descendantCount,
+  )
 })
 const siblingKind = computed<DiscussionSiblingKind>(() => {
   return props.node.parentId ? 'reply' : 'root-comment'
@@ -109,11 +109,7 @@ const positionLabel = computed(() => {
     siblingKind.value,
   )
 })
-const replyHref = computed(() => {
-  const comment = props.node.comment
-
-  return `https://news.ycombinator.com/reply?id=${comment.id}&goto=item%3Fid%3D${comment.parent_id}%23${comment.id}`
-})
+const replyHref = computed(() => getHnReplyUrl(props.node.comment))
 
 const emitParent = () => {
   if (props.node.parentId) {

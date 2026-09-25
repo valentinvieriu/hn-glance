@@ -5,6 +5,8 @@ import {
   type ScreenshotPrepareResponse,
 } from '../../shared/utils/screenshotJobs'
 import {
+  getMediaType,
+  isBoundedWebpScreenshot,
   isScreenshotAcceptedOutcome,
   isScreenshotSourceRoute,
   SCREENSHOT_PREVIEW_HEIGHT,
@@ -227,7 +229,7 @@ const getErrorCode = async (response: Response) => {
 }
 
 const requireCaptureMetadata = (response: Response, captureUrl: string) => {
-  const contentType = response.headers.get('content-type')?.split(';')[0]?.trim().toLowerCase()
+  const contentType = getMediaType(response.headers.get('content-type'))
   const outcome = response.headers.get('x-screenshot-outcome')?.toLowerCase() ?? ''
   const sourceRoute = response.headers.get('x-screenshot-source-route')?.toLowerCase() ?? ''
   const width = Number(response.headers.get('x-screenshot-width'))
@@ -271,20 +273,7 @@ const validateWebp = (
   bytes: ArrayBuffer,
   details: Record<string, number | string | undefined> = {},
 ) => {
-  const view = new Uint8Array(bytes)
-
-  if (
-    view.byteLength < 1024
-    || view.byteLength > SCREENSHOT_PREVIEW_MAX_BYTES
-    || view[0] !== 0x52
-    || view[1] !== 0x49
-    || view[2] !== 0x46
-    || view[3] !== 0x46
-    || view[8] !== 0x57
-    || view[9] !== 0x45
-    || view[10] !== 0x42
-    || view[11] !== 0x50
-  ) {
+  if (!isBoundedWebpScreenshot(new Uint8Array(bytes), SCREENSHOT_PREVIEW_MAX_BYTES)) {
     throw new TerminalCaptureError('Screenshot API returned an invalid WebP', 'invalid-output', details)
   }
 
@@ -382,10 +371,6 @@ const uploadResult = async (
       signal: AbortSignal.timeout(20_000),
     },
   )
-
-  if (response.status === 409) {
-    return
-  }
 
   if ([413, 415, 422].includes(response.status)) {
     throw new TerminalCaptureError(

@@ -1,15 +1,11 @@
-import { isValidHnItemId } from '#shared/utils/hn'
+import { HN_FIREBASE_API_URL, isValidHnItemId } from '#shared/utils/hn'
+import type { ScreenshotSkipReason } from '#shared/utils/screenshotJobs'
 import {
   createScreenshotSourceDecision,
   normalizeSourceUrl,
   type ScreenshotCaptureDecision,
 } from './sourcePolicy'
-import type {
-  ScreenshotRuntimeConfig,
-  ScreenshotSkipReason,
-} from './types'
-
-const HN_FIREBASE_API_URL = 'https://hacker-news.firebaseio.com/v0'
+import type { ScreenshotRuntimeConfig } from './types'
 
 type HnFirebaseStory = {
   dead?: unknown
@@ -18,17 +14,17 @@ type HnFirebaseStory = {
   url?: unknown
 }
 
-export type ResolvedScreenshotCaptureJob = {
+type ResolvedScreenshotCaptureJob = {
   sourceDecision: ScreenshotCaptureDecision
   status: 'capture'
 }
 
-export type ResolvedScreenshotSkipJob = {
+type ResolvedScreenshotSkipJob = {
   skipReason: ScreenshotSkipReason
   status: 'skip'
 }
 
-export type ResolvedScreenshotJob = ResolvedScreenshotCaptureJob | ResolvedScreenshotSkipJob
+type ResolvedScreenshotJob = ResolvedScreenshotCaptureJob | ResolvedScreenshotSkipJob
 
 const resolveStorySourceUrl = async (storyId: string) => {
   const response = await fetch(`${HN_FIREBASE_API_URL}/item/${storyId}.json`, {

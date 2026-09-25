@@ -1,7 +1,7 @@
 import { computed, shallowRef, watch } from 'vue';
-import { onNuxtReady, useFetch, useNuxtApp } from 'nuxt/app';
 import type { Story } from '#shared/types';
 import type { FeedEndpoint } from './useFeedTheme';
+import { readBrowserStorage, removeBrowserStorage, writeBrowserStorage } from '~/utils/browserStorage';
 
 const FEED_CACHE_PREFIX = 'hn:stories:';
 const FEED_CACHE_MAX_AGE = 30 * 60 * 1000;
@@ -22,12 +22,10 @@ type IdleCapableWindow = Window & {
   ) => number;
 };
 
+const getFeedCacheKey = (endpoint: FeedEndpoint) => `${FEED_CACHE_PREFIX}${endpoint}`;
+
 const removeCachedStories = (endpoint: FeedEndpoint) => {
-  try {
-    window.sessionStorage.removeItem(`${FEED_CACHE_PREFIX}${endpoint}`);
-  } catch {
-    // Ignore storage access failures; they only affect the optional stale cache.
-  }
+  removeBrowserStorage(getFeedCacheKey(endpoint), 'session');
 };
 
 const readCachedStories = (endpoint: FeedEndpoint): Story[] => {
@@ -40,12 +38,12 @@ const readCachedStories = (endpoint: FeedEndpoint): Story[] => {
     return memoryStories;
   }
 
-  try {
-    const rawPayload = window.sessionStorage.getItem(`${FEED_CACHE_PREFIX}${endpoint}`);
-    if (!rawPayload) {
-      return [];
-    }
+  const rawPayload = readBrowserStorage(getFeedCacheKey(endpoint), 'session');
+  if (!rawPayload) {
+    return [];
+  }
 
+  try {
     const payload = JSON.parse(rawPayload) as FeedCachePayload;
     if (
       !Array.isArray(payload.stories)
@@ -73,14 +71,7 @@ const flushStoredStories = (endpoint: FeedEndpoint) => {
     return;
   }
 
-  try {
-    window.sessionStorage.setItem(
-      `${FEED_CACHE_PREFIX}${endpoint}`,
-      JSON.stringify(payload),
-    );
-  } catch {
-    // Storage can be unavailable in private browsing or constrained WebViews.
-  }
+  writeBrowserStorage(getFeedCacheKey(endpoint), JSON.stringify(payload), 'session');
 };
 
 const scheduleStoredStories = (endpoint: FeedEndpoint, stories: Story[]) => {

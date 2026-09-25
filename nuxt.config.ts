@@ -6,6 +6,21 @@ import { SCREENSHOT_RETENTION_DAYS } from './shared/utils/screenshot'
 const GOOGLE_FONTS_OUTPUT_DIR = 'node_modules/.cache/nuxt-google-fonts'
 const GOOGLE_FONTS_OUTPUT_PATH = resolve(GOOGLE_FONTS_OUTPUT_DIR)
 
+// SSR pages are never cached; uncategorized successful Worker responses would
+// otherwise receive the platform's default cache TTL.
+const SSR_PAGE_ROUTES = [
+  '/',
+  '/about',
+  '/best',
+  '/item/**',
+  '/new',
+  '/privacy',
+  '/show',
+  '/terms',
+  '/top',
+  '/user/**',
+]
+
 export default defineNuxtConfig({
   compatibilityDate: '2026-07-11',
   devtools: { enabled: false },
@@ -90,30 +105,10 @@ export default defineNuxtConfig({
       ],
     }
   },
-  colorMode: {
-    classSuffix: '',
-    preference: 'system', // Uses system preference
-    fallback: 'light', // Fallback theme
-    storageKey: 'nuxt-color-mode', // Ensure consistent storage key
-    storage: 'localStorage', // Persist user preference
-  },
-  ssr: true,
-
-  build: {
-    transpile: ['vue-router'],
-  },
-  routeRules: {
-    '/': { headers: { 'cache-control': 'no-store' } },
-    '/about': { headers: { 'cache-control': 'no-store' } },
-    '/best': { headers: { 'cache-control': 'no-store' } },
-    '/item/**': { headers: { 'cache-control': 'no-store' } },
-    '/new': { headers: { 'cache-control': 'no-store' } },
-    '/privacy': { headers: { 'cache-control': 'no-store' } },
-    '/show': { headers: { 'cache-control': 'no-store' } },
-    '/terms': { headers: { 'cache-control': 'no-store' } },
-    '/top': { headers: { 'cache-control': 'no-store' } },
-    '/user/**': { headers: { 'cache-control': 'no-store' } },
-  },
+  routeRules: Object.fromEntries(SSR_PAGE_ROUTES.map((route) => [
+    route,
+    { headers: { 'cache-control': 'no-store' } },
+  ])),
   vite: {
     optimizeDeps: {
       include: [

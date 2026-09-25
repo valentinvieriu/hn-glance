@@ -5,7 +5,7 @@
       `comment-reader-comment-${presentation}`,
       {
         'comment-reader-comment-new': isNew,
-        'seed-palette-quiet': authorCommentCount <= 1,
+        'seed-palette-quiet': isQuietAuthor(authorCommentCount),
       },
     ]"
     :aria-labelledby="headingId"
@@ -17,7 +17,7 @@
           class="comment-reader-comment-dot"
           aria-hidden="true"
         ></span>
-        <h2 :id="headingId" class="comment-reader-comment-author">
+        <h2 :id="headingId" class="comment-reader-comment-author truncate">
           <NuxtLink :to="getHnUserPath(node.comment.author)">
             {{ node.comment.author }}
           </NuxtLink>
@@ -86,6 +86,7 @@ import { formatTimeAgo } from '#shared/utils/date'
 import { getHnUserPath } from '#shared/utils/hn'
 import { discussionLanguage } from '#shared/utils/productLanguage'
 import CommentLinks from '~/components/CommentLinks.vue'
+import { isQuietAuthor, isStoryAuthor } from '~/composables/useSeedPalette'
 import CommentRichContent from './RichContent.vue'
 
 const props = defineProps<{
@@ -104,7 +105,7 @@ const emit = defineEmits<{
 
 const headingId = computed(() => `${props.scopeId}-author`)
 const isOriginalPoster = computed(() => {
-  return Boolean(props.storyAuthor) && props.node.comment.author === props.storyAuthor
+  return isStoryAuthor(props.node.comment.author, props.storyAuthor)
 })
 const permalink = computed(() => `#comment-${props.node.comment.id}`)
 const timeAgo = computed(() => formatTimeAgo(props.node.comment.created_at))
@@ -165,13 +166,10 @@ const emitParent = () => {
 .comment-reader-comment-author {
   min-width: 0;
   margin: 0;
-  overflow: hidden;
   color: var(--seed-author-text);
   font-size: 0.95rem;
   font-weight: 720;
   line-height: 1.25;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .comment-reader-comment-author a:hover,

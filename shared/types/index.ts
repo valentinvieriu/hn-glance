@@ -1,4 +1,4 @@
-export interface BaseStory {
+interface BaseStory {
   objectID: string;
   title: string;
   author: string;

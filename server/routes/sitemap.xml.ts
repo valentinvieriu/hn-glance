@@ -1,9 +1,4 @@
-import { defineEventHandler, setHeaders } from 'h3'
 import type { Story } from '#shared/types'
-import {
-  createSitemapXml,
-  SITEMAP_FEEDS,
-} from '../utils/sitemap'
 
 const SITEMAP_CACHE_MAX_AGE_SECONDS = 300
 const SITEMAP_CACHE_STALE_MAX_AGE_SECONDS = 900

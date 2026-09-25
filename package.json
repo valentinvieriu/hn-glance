@@ -27,8 +27,7 @@
     "@nuxtjs/google-fonts": "^3.2.0",
     "@nuxtjs/tailwindcss": "^6.14.0",
     "nuxt": "^4.5.2",
-    "vue": "^3.5.43",
-    "vue-router": "^5.3.1"
+    "vue": "^3.5.43"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20260925.2",

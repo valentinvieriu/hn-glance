@@ -1,8 +1,4 @@
-import {
-  getResponseHeader,
-  setResponseHeader,
-  type H3Event,
-} from 'h3'
+import type { H3Event } from 'h3'
 import { appendServerTiming } from '#shared/utils/serverTiming'
 
 const apiRequestStarts = new WeakMap<H3Event, number>()

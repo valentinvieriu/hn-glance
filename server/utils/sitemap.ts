@@ -1,15 +1,15 @@
 import type { Story } from '#shared/types'
-import { SITE_ORIGIN } from '../../shared/utils/canonical'
-import { isValidHnItemId } from '../../shared/utils/hn'
+import { SITE_ORIGIN } from '#shared/utils/canonical'
+import { isValidHnItemId, type HnFeed } from '#shared/utils/hn'
 
 export const SITEMAP_ORIGIN = SITE_ORIGIN
 
-export const SITEMAP_FEEDS = [
+export const SITEMAP_FEEDS: readonly HnFeed[] = [
   'top',
   'best',
   'new',
   'show',
-] as const
+]
 
 const SITEMAP_STATIC_PATHS = [
   '/top',

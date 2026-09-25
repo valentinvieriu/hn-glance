@@ -5,27 +5,18 @@
     aria-labelledby="comment-links-title"
     data-testid="comment-links"
   >
-    <div class="story-context-section-header">
-      <div class="story-context-section-heading">
-        <span class="story-context-section-icon" aria-hidden="true">
-          <LucideMessagesSquare class="h-4 w-4" />
-        </span>
-        <h2
-          id="comment-links-title"
-          class="section-title mb-0 text-xl font-semibold text-gray-900 dark:text-gray-100"
-        >
-          {{ discussionLanguage.sections.fromDiscussion }}
-        </h2>
-      </div>
-      <span
-        class="story-context-section-count"
-        :aria-label="discussionLanguage.format.linkCountSharedInComments(totalLinks)"
-      >
-        {{ totalLinks }}
-      </span>
-    </div>
+    <StoryContextSectionHeader
+      id="comment-links-title"
+      :title="discussionLanguage.sections.fromDiscussion"
+      :count="totalLinks"
+      :count-label="discussionLanguage.format.linkCountSharedInComments(totalLinks)"
+    >
+      <template #icon>
+        <LucideMessagesSquare class="h-4 w-4" />
+      </template>
+    </StoryContextSectionHeader>
 
-    <div class="comment-link-sections">
+    <div class="story-context-source-list">
       <section
         v-for="section in sections"
         :key="section.category"
@@ -45,7 +36,7 @@
           <li
             v-for="link in section.links"
             :key="link.url"
-            class="comment-link-row story-context-interactive-row"
+            class="comment-link-row story-context-source-row story-context-interactive-row"
           >
             <CommentLinkSource :link="link">
               <div class="comment-link-meta meta-text">
@@ -58,7 +49,7 @@
                   <span class="comment-link-author-dot" aria-hidden="true"></span>
                   <NuxtLink
                     :to="getHnUserPath(getActiveMention(link).author)"
-                    class="comment-link-author story-context-secondary-link"
+                    class="comment-link-author story-context-secondary-link truncate"
                   >
                     {{ getActiveMention(link).author }}
                   </NuxtLink>
@@ -119,10 +110,12 @@ import {
 import { getHnUserPath } from '#shared/utils/hn'
 import { discussionLanguage } from '#shared/utils/productLanguage'
 import {
-  getSeedPaletteStyle,
+  getAuthorPaletteStyle,
+  isQuietAuthor,
   type CommentThreadAuthorPalette,
 } from '~/composables/useSeedPalette'
 import CommentLinkSource from './CommentLinkSource.vue'
+import StoryContextSectionHeader from './StoryContextSectionHeader.vue'
 
 const props = defineProps<{
   comments: Comment[]
@@ -217,10 +210,10 @@ const getAuthorSeedStyle = (link: CommentLink) => {
   const mention = getActiveMention(link)
   const rootCommentId = props.rootCommentIds?.get(mention.commentId)
 
-  return props.threadAuthorPalettes
-    ?.get(rootCommentId ?? 0)
-    ?.authorStyles.get(mention.author)
-    ?? getSeedPaletteStyle(mention.author)
+  return getAuthorPaletteStyle(
+    props.threadAuthorPalettes?.get(rootCommentId ?? 0),
+    mention.author,
+  )
 }
 
 // Matches CommentThread: a jump keeps both the thread-local hue and the quieter
@@ -229,7 +222,7 @@ const getAuthorSeedClass = (link: CommentLink) => {
   const mention = getActiveMention(link)
 
   return {
-    'seed-palette-quiet': (props.authorCommentCounts?.get(mention.author) ?? 1) < 2,
+    'seed-palette-quiet': isQuietAuthor(props.authorCommentCounts?.get(mention.author) ?? 1),
   }
 }
 
@@ -300,11 +293,6 @@ const handleJump = (link: CommentLink) => {
   background: var(--seed-metric-bg);
 }
 
-.comment-link-sections {
-  margin-inline: -0.4rem;
-  border-top: 1px solid var(--story-context-border);
-}
-
 .comment-link-group-header {
   display: flex;
   align-items: center;
@@ -332,20 +320,6 @@ const handleJump = (link: CommentLink) => {
   margin: 0;
   padding: 0;
   list-style: none;
-}
-
-.comment-link-row {
-  --source-identity-accent: var(--story-context-accent-strong);
-  --source-identity-border: var(--story-context-border);
-  --source-identity-surface: var(--story-context-accent-soft);
-  --source-identity-surface-dark: var(--story-context-accent-soft);
-  display: grid;
-  min-width: 0;
-  grid-template-columns: 2.85rem minmax(0, 1fr);
-  gap: 0.72rem;
-  padding: 0.78rem 0.4rem;
-  border-bottom: 1px solid var(--story-context-border);
-  background: transparent;
 }
 
 .comment-link-row:hover,
@@ -381,11 +355,8 @@ const handleJump = (link: CommentLink) => {
 
 .comment-link-author {
   min-width: 0;
-  overflow: hidden;
   color: var(--seed-author-text);
   font-weight: 700;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .comment-link-author:hover,
@@ -430,11 +401,5 @@ const handleJump = (link: CommentLink) => {
 
 .dark .comment-link-group-title {
   color: oklch(76% 0.06 var(--comment-link-hue, 245));
-}
-
-@media (max-width: 480px) {
-  .comment-link-row {
-    gap: 0.65rem;
-  }
 }
 </style>

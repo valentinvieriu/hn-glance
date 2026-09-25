@@ -48,7 +48,7 @@ describe('screenshot R2 storage', () => {
       processor: 'browserless-ladder',
       provider: 'browserless-agent',
       sourceRoute: 'ladder',
-    }, 'original')
+    })
 
     const [, , options] = put.mock.calls[0] ?? []
     expect(options.customMetadata).toMatchObject({

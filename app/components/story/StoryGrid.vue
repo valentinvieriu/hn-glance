@@ -1,6 +1,6 @@
 <template>
   <div
-    class="feed-shell feed-theme-surface min-h-full text-slate-900 dark:text-slate-100"
+    class="feed-shell grid-paper-backdrop feed-theme-surface min-h-full text-slate-900 dark:text-slate-100"
     :style="feedThemeStyle"
   >
     <div class="layout-frame py-8 md:py-10">
@@ -101,13 +101,6 @@ import { getSeedPaletteStyle } from '~/composables/useSeedPalette';
 import { getFeedTheme, getFeedThemeStyle } from '~/composables/useFeedTheme';
 import type { FeedEndpoint } from '~/composables/useFeedTheme';
 import { getScreenshotPath } from '#shared/utils/screenshot';
-import {
-  SITE_SOCIAL_IMAGE_ALT,
-  SITE_SOCIAL_IMAGE_HEIGHT,
-  SITE_SOCIAL_IMAGE_TYPE,
-  SITE_SOCIAL_IMAGE_URL,
-  SITE_SOCIAL_IMAGE_WIDTH,
-} from '#shared/utils/siteMetadata';
 import { createFeedStructuredData } from '#shared/utils/structuredData';
 import { LucideRefreshCw } from '@lucide/vue';
 
@@ -119,9 +112,6 @@ const priorityScreenshotHref = computed(() => {
 });
 const feedTheme = computed(() => getFeedTheme(props.endpoint));
 const feedThemeStyle = computed(() => getFeedThemeStyle(props.endpoint));
-const title = computed(() => feedTheme.value.title);
-const seoTitle = computed(() => `${title.value} — HN Glance`);
-useCanonicalUrl(() => feedTheme.value.path);
 const skeletonTitleWidths = ['82%', '68%', '76%', '58%', '88%'];
 const skeletonPaletteStyle = (index: number) => {
   return getSeedPaletteStyle(`loading-${props.endpoint}-${index}`);
@@ -143,50 +133,20 @@ useStructuredData('feed-item-list', () => stories.value.length
   ? createFeedStructuredData(feedTheme.value.title, feedTheme.value.path, stories.value)
   : null);
 
-useSeoMeta({
-  title: seoTitle,
+usePageSeo({
+  title: () => `${feedTheme.value.title} — HN Glance`,
   description: () => feedTheme.value.description,
-  ogTitle: seoTitle,
-  ogDescription: () => feedTheme.value.description,
-  ogImage: SITE_SOCIAL_IMAGE_URL,
-  ogImageType: SITE_SOCIAL_IMAGE_TYPE,
-  ogImageWidth: SITE_SOCIAL_IMAGE_WIDTH,
-  ogImageHeight: SITE_SOCIAL_IMAGE_HEIGHT,
-  ogImageAlt: SITE_SOCIAL_IMAGE_ALT,
-  twitterImage: SITE_SOCIAL_IMAGE_URL,
-  twitterImageAlt: SITE_SOCIAL_IMAGE_ALT,
+  path: () => feedTheme.value.path,
 });
 </script>
 
 <style scoped>
 .feed-shell {
-  position: relative;
-  isolation: isolate;
   background:
     radial-gradient(circle at 8% -7%, var(--feed-glow-a) 0, transparent 30rem),
     radial-gradient(circle at 84% 0%, var(--feed-glow-b) 0, transparent 34rem),
     radial-gradient(circle at 52% 28%, var(--feed-glow-c) 0, transparent 28rem),
     linear-gradient(135deg, var(--feed-bg-start) 0%, var(--feed-bg-mid) 48%, var(--feed-bg-end) 100%);
-}
-
-.feed-shell::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  pointer-events: none;
-  background-image:
-    linear-gradient(rgb(15 23 42 / 0.045) 1px, transparent 1px),
-    linear-gradient(90deg, rgb(15 23 42 / 0.04) 1px, transparent 1px);
-  background-size: 48px 48px;
-  -webkit-mask-image: linear-gradient(180deg, rgb(0 0 0 / 0.5), transparent 70%);
-  mask-image: linear-gradient(180deg, rgb(0 0 0 / 0.5), transparent 70%);
-}
-
-.dark .feed-shell::before {
-  background-image:
-    linear-gradient(rgb(255 255 255 / 0.05) 1px, transparent 1px),
-    linear-gradient(90deg, rgb(255 255 255 / 0.04) 1px, transparent 1px);
 }
 
 .feed-page-header {

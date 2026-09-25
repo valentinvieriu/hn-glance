@@ -1,9 +1,15 @@
-import { isValidHnItemId } from './hn'
+import { isHnFeed, isValidHnItemId, type HnFeed } from './hn'
 import { SCREENSHOT_PROFILE_VERSION } from './screenshot'
 
 export const SCREENSHOT_JOB_PROTOCOL_VERSION = 1 as const
 
-export type ScreenshotJobFeed = 'best' | 'new' | 'show' | 'top'
+export type ScreenshotJobFeed = HnFeed
+
+export type ScreenshotSkipReason =
+  | 'blocked-hostname'
+  | 'invalid-url'
+  | 'non-html-content'
+  | 'unverified-content'
 
 export type ScreenshotJobMessage = {
   discoveredAt: string
@@ -22,7 +28,7 @@ export type ScreenshotPrepareResponse =
       status: 'capture'
     }
   | {
-      reason: string
+      reason: ScreenshotSkipReason
       status: 'skipped'
     }
   | {
@@ -43,7 +49,7 @@ export const parseScreenshotJobMessage = (value: unknown): ScreenshotJobMessage 
     || value.profile !== SCREENSHOT_PROFILE_VERSION
     || value.reason !== 'scheduled'
     || !isValidHnItemId(value.storyId)
-    || !['best', 'new', 'show', 'top'].includes(String(value.feed))
+    || !isHnFeed(value.feed)
     || !Number.isSafeInteger(value.rank)
     || Number(value.rank) < 1
     || typeof value.discoveredAt !== 'string'
@@ -54,7 +60,7 @@ export const parseScreenshotJobMessage = (value: unknown): ScreenshotJobMessage 
 
   return {
     discoveredAt: value.discoveredAt,
-    feed: value.feed as ScreenshotJobFeed,
+    feed: value.feed,
     profile: SCREENSHOT_PROFILE_VERSION,
     protocolVersion: SCREENSHOT_JOB_PROTOCOL_VERSION,
     rank: Number(value.rank),

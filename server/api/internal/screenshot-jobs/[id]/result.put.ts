@@ -1,12 +1,6 @@
+import type { H3Event } from 'h3'
 import {
-  createError,
-  defineEventHandler,
-  getRequestHeader,
-  getRouterParams,
-  readRawBody,
-} from 'h3'
-import { isValidHnItemId } from '#shared/utils/hn'
-import {
+  getMediaType,
   isScreenshotAcceptedOutcome,
   isScreenshotSourceRoute,
   SCREENSHOT_PREVIEW_HEIGHT,
@@ -14,15 +8,8 @@ import {
   SCREENSHOT_PREVIEW_WIDTH,
   SCREENSHOT_PROFILE_VERSION,
 } from '#shared/utils/screenshot'
-import { requireScreenshotAgent } from '../../../../utils/screenshot/agentAuth'
-import {
-  getR2PreviewScreenshotKey,
-  writeR2Screenshot,
-} from '../../../../utils/screenshot/r2Cache'
-import type { ScreenshotResult } from '../../../../utils/screenshot/types'
-import { validateWebpScreenshot } from '../../../../utils/screenshot/validation'
 
-const requireDimension = (event: Parameters<typeof getRequestHeader>[0], name: string, maximum: number) => {
+const requireDimension = (event: H3Event, name: string, maximum: number) => {
   const value = Number(getRequestHeader(event, name))
 
   if (!Number.isSafeInteger(value) || value < 1 || value > maximum) {
@@ -33,31 +20,16 @@ const requireDimension = (event: Parameters<typeof getRequestHeader>[0], name: s
   }
 }
 
-const toArrayBuffer = (body: string | Buffer<ArrayBufferLike>) => {
-  if (typeof body === 'string') {
-    return new TextEncoder().encode(body).buffer
-  }
-
-  return body.buffer.slice(body.byteOffset, body.byteOffset + body.byteLength) as ArrayBuffer
-}
-
 export default defineEventHandler(async (event) => {
   const env = await requireScreenshotAgent(event)
-  const storyId = getRouterParams(event).id
-
-  if (!isValidHnItemId(storyId)) {
-    throw createError({ statusCode: 400, statusMessage: 'Valid story ID is required' })
-  }
-
-  if (!env?.SCREENSHOTS_BUCKET) {
-    throw createError({ statusCode: 503, statusMessage: 'Screenshot storage is unavailable' })
-  }
+  const storyId = requireHnItemIdParam(event)
+  requireScreenshotStorage(env)
 
   const contentLength = Number(getRequestHeader(event, 'content-length'))
   const outcome = getRequestHeader(event, 'x-screenshot-outcome')?.toLowerCase() ?? ''
   const sourceRoute = getRequestHeader(event, 'x-screenshot-source-route')?.toLowerCase() ?? ''
 
-  if (getRequestHeader(event, 'content-type')?.split(';')[0]?.trim().toLowerCase() !== 'image/webp') {
+  if (getMediaType(getRequestHeader(event, 'content-type')) !== 'image/webp') {
     throw createError({ statusCode: 415, statusMessage: 'Screenshot result must be WebP' })
   }
 
@@ -82,7 +54,7 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: 'Screenshot result body is required' })
   }
 
-  const bytes = toArrayBuffer(rawBody)
+  const bytes = rawBody.buffer.slice(rawBody.byteOffset, rawBody.byteOffset + rawBody.byteLength) as ArrayBuffer
 
   try {
     validateWebpScreenshot(bytes, SCREENSHOT_PREVIEW_MAX_BYTES)
@@ -104,7 +76,6 @@ export default defineEventHandler(async (event) => {
     previewKey,
     storyId,
     result,
-    'original',
   )
 
   console.info(JSON.stringify({

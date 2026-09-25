@@ -6,8 +6,8 @@
   >
     <header class="conversation-column-header">
       <div class="min-w-0">
-        <h2 :id="headingId" class="conversation-column-title">{{ title }}</h2>
-        <p class="conversation-column-subtitle">{{ subtitle }}</p>
+        <h2 :id="headingId" class="conversation-column-title truncate">{{ title }}</h2>
+        <p class="conversation-column-subtitle truncate">{{ subtitle }}</p>
       </div>
       <span class="conversation-column-depth">
         <span aria-hidden="true">{{ columnIndex + 1 }}</span>
@@ -30,7 +30,7 @@
         :get-palette-style="getPaletteStyle"
         :selected-id="selectedId"
         :story-author="storyAuthor"
-        @select="emit('select', $event, columnIndex)"
+        @select="emit('select', $event)"
       />
     </div>
   </section>
@@ -62,7 +62,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   scroll: [scrollTop: number]
-  select: [commentId: number, columnIndex: number]
+  select: [commentId: number]
 }>()
 
 const scrollElement = ref<HTMLElement | null>(null)
@@ -138,25 +138,19 @@ watch(() => props.selectedId, revealSelectedRow)
 }
 
 .conversation-column-title {
-  overflow: hidden;
   margin: 0;
   color: rgb(30 41 59);
   font-size: 0.9rem;
   font-weight: 700;
   line-height: 1.25;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .conversation-column-subtitle {
-  overflow: hidden;
   margin: 0.18rem 0 0;
   color: rgb(100 116 139);
   font-size: 0.74rem;
   font-weight: 600;
   line-height: 1.2;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .conversation-column-depth {

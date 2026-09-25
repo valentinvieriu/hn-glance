@@ -1,6 +1,6 @@
 <template>
   <section
-    class="error-shell feed-theme-surface min-h-full text-slate-900 dark:text-slate-100"
+    class="error-shell grid-paper-backdrop feed-theme-surface min-h-full text-slate-900 dark:text-slate-100"
     :style="getFeedThemeStyle('top')"
   >
     <div class="layout-frame py-8 sm:py-10 lg:py-14">
@@ -11,8 +11,8 @@
             {{ statusCode }} · {{ errorKind }}
           </p>
 
-          <h1 class="error-title">{{ title }}</h1>
-          <p class="error-description">{{ description }}</p>
+          <h1 class="error-title">{{ copy.title }}</h1>
+          <p class="error-description">{{ copy.description }}</p>
 
           <div class="error-actions">
             <a href="/top" class="error-primary-action">
@@ -35,7 +35,7 @@
           <div class="missing-preview-window">
             <div class="missing-preview-bar">
               <span class="missing-preview-domain">hnglance.com</span>
-              <span class="missing-preview-state">not found</span>
+              <span class="missing-preview-state">{{ isNotFound ? 'not found' : 'unavailable' }}</span>
             </div>
             <div class="missing-preview-canvas">
               <span class="missing-preview-code">{{ statusCode }}</span>
@@ -97,93 +97,75 @@ const props = withDefaults(defineProps<{
   statusMessage: 'Page not found',
 })
 
+type ErrorCopy = {
+  kind: string
+  title: string
+  description: string
+}
+
+const UNAVAILABLE_COPY: ErrorCopy = {
+  kind: 'Page unavailable',
+  title: 'The page could not be loaded.',
+  description: 'HN Glance ran into an upstream problem while loading this page. Try again, or continue with one of the feeds below.',
+}
+
+const NOT_FOUND_COPY: Record<'page' | 'story' | 'user', ErrorCopy> = {
+  page: {
+    kind: 'Page not found',
+    title: 'This page is not in the feed.',
+    description: 'The address may be mistyped or the destination may have moved. Choose a feed below to continue exploring Hacker News.',
+  },
+  story: {
+    kind: 'Story not found',
+    title: 'This story is not available.',
+    description: 'The HN item may have been removed, or the story number in the address may be incorrect. The current feeds are still available below.',
+  },
+  user: {
+    kind: 'User not found',
+    title: 'This user is not on HN.',
+    description: 'That username does not resolve to a Hacker News profile. Check the spelling, or continue browsing the current stories.',
+  },
+}
+
 const isNotFound = computed(() => props.statusCode === 404)
-const normalizedStatusMessage = computed(() => props.statusMessage.toLowerCase())
-const missingResource = computed<'page' | 'story' | 'user'>(() => {
-  if (normalizedStatusMessage.value.includes('story')) {
-    return 'story'
-  }
-
-  if (normalizedStatusMessage.value.includes('user')) {
-    return 'user'
-  }
-
-  return 'page'
-})
-
-const errorKind = computed(() => {
+const copy = computed(() => {
   if (!isNotFound.value) {
-    return 'Page unavailable'
+    return UNAVAILABLE_COPY
   }
 
-  return missingResource.value === 'story'
-    ? 'Story not found'
-    : missingResource.value === 'user'
-      ? 'User not found'
-      : 'Page not found'
-})
+  const statusMessage = props.statusMessage.toLowerCase()
 
-const title = computed(() => {
-  if (!isNotFound.value) {
-    return 'The page could not be loaded.'
+  if (statusMessage.includes('story')) {
+    return NOT_FOUND_COPY.story
   }
 
-  return missingResource.value === 'story'
-    ? 'This story is not available.'
-    : missingResource.value === 'user'
-      ? 'This user is not on HN.'
-      : 'This page is not in the feed.'
+  return statusMessage.includes('user')
+    ? NOT_FOUND_COPY.user
+    : NOT_FOUND_COPY.page
 })
-
-const description = computed(() => {
-  if (!isNotFound.value) {
-    return 'HN Glance ran into an upstream problem while loading this page. Try again, or continue with one of the feeds below.'
-  }
-
-  return missingResource.value === 'story'
-    ? 'The HN item may have been removed, or the story number in the address may be incorrect. The current feeds are still available below.'
-    : missingResource.value === 'user'
-      ? 'That username does not resolve to a Hacker News profile. Check the spelling, or continue browsing the current stories.'
-      : 'The address may be mistyped or the destination may have moved. Choose a feed below to continue exploring Hacker News.'
-})
+const errorKind = computed(() => copy.value.kind)
 
 const reloadPage = () => {
-  if (import.meta.client) {
-    window.location.reload()
-  }
+  window.location.reload()
 }
+
+useSeoMeta({
+  title: () => `${errorKind.value} — HN Glance`,
+  description: 'Return to the current Hacker News feeds on HN Glance.',
+  robots: 'noindex, nofollow',
+})
 </script>
 
 <style scoped>
 .error-shell {
-  position: relative;
-  isolation: isolate;
+  --grid-paper-mask-strength: 0.55;
+  --grid-paper-fade: 78%;
   overflow: hidden;
   background:
     radial-gradient(circle at 8% -8%, var(--feed-glow-a) 0, transparent 30rem),
     radial-gradient(circle at 90% 4%, var(--feed-glow-b) 0, transparent 34rem),
     radial-gradient(circle at 52% 58%, var(--feed-glow-c) 0, transparent 30rem),
     linear-gradient(135deg, var(--feed-bg-start) 0%, var(--feed-bg-mid) 48%, var(--feed-bg-end) 100%);
-}
-
-.error-shell::before {
-  position: absolute;
-  z-index: -1;
-  inset: 0;
-  background-image:
-    linear-gradient(rgb(15 23 42 / 0.045) 1px, transparent 1px),
-    linear-gradient(90deg, rgb(15 23 42 / 0.04) 1px, transparent 1px);
-  background-size: 48px 48px;
-  content: '';
-  pointer-events: none;
-  -webkit-mask-image: linear-gradient(180deg, rgb(0 0 0 / 0.55), transparent 78%);
-  mask-image: linear-gradient(180deg, rgb(0 0 0 / 0.55), transparent 78%);
-}
-
-.dark .error-shell::before {
-  background-image:
-    linear-gradient(rgb(255 255 255 / 0.05) 1px, transparent 1px),
-    linear-gradient(90deg, rgb(255 255 255 / 0.04) 1px, transparent 1px);
 }
 
 .error-card {

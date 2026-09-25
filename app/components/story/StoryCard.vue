@@ -135,6 +135,7 @@ import { getSourceFaviconUrl } from '~/utils/sourceFavicon'
 import { getScreenshotPath } from '#shared/utils/screenshot'
 import { formatCompactTimeAgo } from '#shared/utils/date'
 import { getHnItemUrl, getHnUserPath } from '#shared/utils/hn'
+import { getUrlDomain } from '#shared/utils/url'
 import { observeStoryScreenshot, unobserveStoryScreenshot } from '~/utils/storyScreenshotObserver'
 
 const props = withDefaults(defineProps<{
@@ -144,16 +145,8 @@ const props = withDefaults(defineProps<{
   priority: false,
 })
 
-const getDomainFromUrl = (url: string): string => {
-  try {
-    return new URL(url).hostname
-  } catch {
-    return 'news.ycombinator.com'
-  }
-}
-
 const externalStoryUrl = computed(() => props.story.url || getHnItemUrl(props.story.objectID))
-const storyDomain = computed(() => getDomainFromUrl(externalStoryUrl.value))
+const storyDomain = computed(() => getUrlDomain(externalStoryUrl.value, 'news.ycombinator.com'))
 const faviconUrl = computed(() => getSourceFaviconUrl(externalStoryUrl.value))
 const faviconFailed = ref(false)
 const paletteDomain = computed(() => normalizeStoryPlaceholderDomain(storyDomain.value))
@@ -188,10 +181,8 @@ const commentsToneClass = computed(() => {
   return 'story-card-tone-comments'
 })
 
-const router = useRouter()
-
 const handleCardClick = () => {
-  router.push(`/item/${props.story.objectID}`)
+  void navigateTo(`/item/${props.story.objectID}`)
 }
 
 const cardRef = ref<HTMLElement | null>(null)

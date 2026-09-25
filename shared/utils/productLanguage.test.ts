@@ -30,6 +30,8 @@ describe('discussion product language', () => {
     expect(discussionLanguage.format.replySummary(1, 1)).toBe('1 reply')
     expect(discussionLanguage.format.replySummary(3, 10))
       .toBe('3 direct replies · 10 replies in branch')
+    expect(discussionLanguage.format.replySummaryIfAny(0, 0)).toBe('')
+    expect(discussionLanguage.format.replySummaryIfAny(2, 2)).toBe('2 replies')
     expect(discussionLanguage.format.newCommentCount(2)).toBe('2 new comments')
     expect(discussionLanguage.format.newCommentCompactCount(2)).toBe('2 new')
     expect(discussionLanguage.format.newCommentCompactPosition(2, 4)).toBe('2 / 4 new')

@@ -1,5 +1,9 @@
-import type { RelatedStory } from '../../shared/types'
-import type { AlgoliaRankingInfo, AlgoliaStoryHit } from './algolia'
+import type { RelatedStory } from '#shared/types'
+import {
+  mapAlgoliaStorySummary,
+  type AlgoliaRankingInfo,
+  type AlgoliaStoryHit,
+} from './algolia'
 import { canonicalizeSubmissionUrl } from './previousSubmissions'
 
 const MAX_RELATED_STORIES = 6
@@ -7,27 +11,21 @@ const MAX_STORIES_PER_HOST = 3
 const TITLE_SIMILARITY_THRESHOLD = 0.82
 const RELATED_TOKEN_LIMIT = 24
 
-export type RelatedSourceStory = {
-  title?: string | null
-  url?: string | null
-  created_at_i?: number | null
-}
+export type RelatedSourceStory = Pick<AlgoliaStoryHit, 'title' | 'url' | 'created_at_i'>
 
 type RelatedStoryCandidate = RelatedStory & {
   url: string
   created_at_i: number
 }
 
-export type RelatedSearchKind = 'title' | 'recent-title' | 'full-text' | 'comment' | 'url'
+export type RelatedSearchKind = 'title' | 'recent-title' | 'full-text' | 'comment'
 
 export type SearchResult = {
   hits: AlgoliaStoryHit[]
   kind: RelatedSearchKind
-  weight: number
 }
 
 type CandidateEvidence = RelatedStoryCandidate & {
-  evidence: Set<RelatedSearchKind>
   ranks: Map<RelatedSearchKind, number>
   rankingInfo: Map<RelatedSearchKind, AlgoliaRankingInfo>
 }
@@ -35,13 +33,8 @@ type CandidateEvidence = RelatedStoryCandidate & {
 type ScoredCandidate = {
   candidate: CandidateEvidence
   canonicalUrl: string
-  exactSourceUrl: boolean
   score: number
   tokens: Set<string>
-}
-
-type RelatedStoryRankingOptions = {
-  excludeExactSourceUrl?: boolean
 }
 
 const STOPWORDS = new Set([
@@ -286,7 +279,6 @@ const getRetrievalScore = (candidate: CandidateEvidence, queryTokenCount: number
   return titleRank * 12
     + getRankScore(candidate.ranks.get('full-text')) * 4
     + getRankScore(candidate.ranks.get('comment')) * 3
-    + getRankScore(candidate.ranks.get('url')) * 2
     + exactScore
 }
 
@@ -325,14 +317,9 @@ const toRelatedStory = (hit: AlgoliaStoryHit): RelatedStoryCandidate | null => {
   if (!hit.objectID || !hit.title) return null
 
   return {
-    title: hit.title,
-    objectID: hit.objectID,
-    created_at: hit.created_at ?? (hit.created_at_i ? new Date(hit.created_at_i * 1000).toISOString() : ''),
+    ...mapAlgoliaStorySummary(hit),
     created_at_i: hit.created_at_i ?? 0,
-    points: hit.points ?? 0,
-    num_comments: hit.num_comments ?? 0,
-    author: hit.author ?? 'Unknown',
-    url: hit.url ?? ''
+    url: hit.url ?? '',
   }
 }
 
@@ -347,9 +334,7 @@ const selectDiverseStories = (scoredCandidates: ScoredCandidate[]) => {
     if (scored.canonicalUrl && seenUrls.has(scored.canonicalUrl)) continue
     if (host && (hostCounts.get(host) ?? 0) >= MAX_STORIES_PER_HOST) continue
     if (selected.some(existing => (
-      !scored.exactSourceUrl
-      && !existing.exactSourceUrl
-      && getSetSimilarity(scored.tokens, existing.tokens) >= TITLE_SIMILARITY_THRESHOLD
+      getSetSimilarity(scored.tokens, existing.tokens) >= TITLE_SIMILARITY_THRESHOLD
     ))) continue
 
     selected.push(scored)
@@ -366,7 +351,6 @@ export const rankRelatedStories = (
   results: SearchResult[],
   source: RelatedSourceStory,
   excludeId: string,
-  options: RelatedStoryRankingOptions = {},
 ) => {
   const sourceTitle = cleanTitle(source.title ?? '')
   const sourceTokens = tokenize(sourceTitle)
@@ -385,13 +369,11 @@ export const rankRelatedStories = (
       const existing = candidates.get(story.objectID)
 
       if (existing) {
-        existing.evidence.add(result.kind)
         existing.ranks.set(result.kind, Math.min(existing.ranks.get(result.kind) ?? index, index))
         if (hit._rankingInfo) existing.rankingInfo.set(result.kind, hit._rankingInfo)
       } else {
         candidates.set(story.objectID, {
           ...story,
-          evidence: new Set([result.kind]),
           ranks: new Map([[result.kind, index]]),
           rankingInfo: hit._rankingInfo
             ? new Map([[result.kind, hit._rankingInfo]])
@@ -431,7 +413,6 @@ export const rankRelatedStories = (
     const bigramMatches = Array.from(sourceBigrams).filter(bigram => candidateBigrams.has(bigram)).length
     const anchorMatch = matchedTokens.some(token => sourceAnchors.has(token))
     const sameHost = Boolean(sourceHost && normalizeHost(candidate.url) === sourceHost)
-    const canonicalUrl = canonicalizeUrl(candidate.url)
     const isExactSourceUrl = Boolean(
       exactSourceUrl
       && canonicalizeSubmissionUrl(candidate.url) === exactSourceUrl,
@@ -444,12 +425,11 @@ export const rankRelatedStories = (
         || (matchedTokens.length >= 3 && similarity >= 0.4)
       )
     const anchoredRelation = anchorMatch && (sameHost || matchedTokens.length >= 2)
-    const hasRelevantSignal = isExactSourceUrl || strongTitleMatch || anchoredRelation
 
-    if (!hasRelevantSignal || (options.excludeExactSourceUrl && isExactSourceUrl)) continue
+    // Exact prior submissions belong to the submission history, not suggestions.
+    if (isExactSourceUrl || !(strongTitleMatch || anchoredRelation)) continue
 
-    const score = (isExactSourceUrl ? 140 : 0)
-      + similarity * 100
+    const score = similarity * 100
       + Math.min(2, bigramMatches) * 8
       + (anchorMatch ? 12 : 0)
       + (sameHost ? 4 : 0)
@@ -459,30 +439,18 @@ export const rankRelatedStories = (
 
     scoredCandidates.push({
       candidate,
-      canonicalUrl,
-      exactSourceUrl: isExactSourceUrl,
+      canonicalUrl: canonicalizeUrl(candidate.url),
       score,
       tokens,
     })
   }
 
-  const selectedStories = selectDiverseStories(scoredCandidates.sort((first, second) => {
-    if (
-      first.exactSourceUrl
-      && second.exactSourceUrl
-      && first.canonicalUrl === second.canonicalUrl
-    ) {
-      const engagementDifference = (second.candidate.points + second.candidate.num_comments)
-        - (first.candidate.points + first.candidate.num_comments)
-
-      if (engagementDifference !== 0) return engagementDifference
-    }
-
-    return second.score - first.score
+  const selectedStories = selectDiverseStories(scoredCandidates.sort((first, second) => (
+    second.score - first.score
       || second.candidate.points - first.candidate.points
       || second.candidate.created_at_i - first.candidate.created_at_i
       || Number(second.candidate.objectID) - Number(first.candidate.objectID)
-  }))
+  )))
 
   return selectedStories
     .sort((first, second) => (
@@ -491,5 +459,5 @@ export const rankRelatedStories = (
       || Number(second.candidate.objectID) - Number(first.candidate.objectID)
     ))
     .map(({ candidate }) => candidate)
-    .map(({ created_at_i: _createdAt, evidence: _evidence, ranks: _ranks, rankingInfo: _rankingInfo, ...story }) => story)
+    .map(({ created_at_i: _createdAt, ranks: _ranks, rankingInfo: _rankingInfo, ...story }) => story)
 }

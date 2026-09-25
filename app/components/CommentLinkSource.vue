@@ -13,7 +13,7 @@
         :href="link.url"
         target="_blank"
         rel="nofollow noopener noreferrer"
-        class="comment-link-source-title comment-link-source-title-section story-context-primary-link"
+        class="comment-link-source-title-section story-context-source-title story-context-primary-link"
       >
         {{ link.title }}
       </a>
@@ -25,16 +25,19 @@
       rel="nofollow noopener noreferrer"
       class="comment-link-source-title comment-link-source-title-reader"
     >
-      <span>{{ link.title }}</span>
+      <span class="truncate">{{ link.title }}</span>
       <LucideExternalLink class="h-3 w-3" aria-hidden="true" />
     </a>
 
     <div v-if="presentation === 'section'" class="comment-link-source-line meta-text">
-      <span v-if="link.domain !== link.title" class="comment-link-source-domain">
+      <span v-if="link.domain !== link.title" class="comment-link-source-domain truncate">
         {{ link.domain }}
       </span>
     </div>
-    <span v-else-if="link.domain !== link.title" class="comment-link-source-domain-reader">
+    <span
+      v-else-if="link.domain !== link.title"
+      class="comment-link-source-domain-reader truncate"
+    >
       {{ link.domain }}
     </span>
 
@@ -73,14 +76,7 @@ const presentation = computed(() => props.presentation ?? 'section')
 }
 
 .comment-link-source-title-section {
-  display: inline;
-  font-size: 0.98rem;
-  line-height: 1.32;
   overflow-wrap: anywhere;
-  text-decoration-color: transparent;
-  text-decoration-thickness: 1px;
-  text-underline-offset: 0.2em;
-  transition: color 160ms ease, text-decoration-color 160ms ease;
 }
 
 .comment-link-source-title-reader {
@@ -94,14 +90,6 @@ const presentation = computed(() => props.presentation ?? 'section')
   line-height: 1.25;
 }
 
-.comment-link-source-title-reader span,
-.comment-link-source-domain,
-.comment-link-source-domain-reader {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .comment-link-source-title-reader svg {
   flex: 0 0 auto;
 }
@@ -109,12 +97,6 @@ const presentation = computed(() => props.presentation ?? 'section')
 .comment-link-source-title:hover,
 .comment-link-source-title:focus-visible {
   text-decoration-line: underline;
-}
-
-.comment-link-source-title-section:hover,
-.comment-link-source-title-section:focus-visible {
-  color: var(--story-context-accent-strong);
-  text-decoration-color: var(--story-context-accent);
 }
 
 .comment-link-source-title-reader:hover,
@@ -148,15 +130,6 @@ const presentation = computed(() => props.presentation ?? 'section')
   font-family: var(--font-ui);
   font-size: 0.7rem;
   font-weight: 620;
-}
-
-.dark .comment-link-source-title-section {
-  color: rgb(241 245 249);
-}
-
-.dark .comment-link-source-title-section:hover,
-.dark .comment-link-source-title-section:focus-visible {
-  color: var(--story-context-accent);
 }
 
 .dark .comment-link-source-line,

@@ -269,19 +269,10 @@ import {
   LucideShieldCheck,
 } from '@lucide/vue'
 
-useCanonicalUrl('/about')
-
 const title = 'About HN Glance — a visual Hacker News reader'
 const description = 'Why HN Glance uses visual source previews to make Hacker News easier to scan, compare, and read without replacing HN or rehosting articles.'
 
-useSeoMeta({
-  title,
-  description,
-  ogTitle: title,
-  ogDescription: description,
-  twitterTitle: title,
-  twitterDescription: description,
-})
+usePageSeo({ title, description, path: '/about' })
 </script>
 
 <style scoped>

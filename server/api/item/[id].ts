@@ -1,23 +1,7 @@
-import { defineEventHandler, getRouterParams, createError, setHeader } from 'h3'
-import { isValidHnItemId } from '#shared/utils/hn'
 import { formatServerTiming } from '#shared/utils/serverTiming'
-import { fetchAlgoliaItem } from '../../utils/algolia'
-import {
-  normalizeStoryDetail,
-  type AlgoliaItemResponse,
-} from '../../utils/item'
-import { getErrorStatusCode } from '../../utils/error'
 
 export default defineEventHandler(async (event) => {
-  const params = getRouterParams(event)
-  const id = params.id
-
-  if (!isValidHnItemId(id)) {
-    throw createError({
-      statusCode: 400,
-      statusMessage: 'Valid story ID is required',
-    })
-  }
+  const id = requireHnItemIdParam(event)
 
   try {
     const algoliaStartedAt = performance.now()
@@ -51,17 +35,10 @@ export default defineEventHandler(async (event) => {
 
     return story
   } catch (error) {
-    if (getErrorStatusCode(error) === 404) {
-      throw createError({
-        statusCode: 404,
-        statusMessage: 'Story not found',
-      })
-    }
-
-    console.error('Error fetching story:', error)
-    throw createError({
-      statusCode: 500,
-      statusMessage: 'Failed to fetch story',
+    throw createUpstreamError(error, {
+      failureMessage: 'Failed to fetch story',
+      logMessage: 'Error fetching story:',
+      notFoundMessage: 'Story not found',
     })
   }
 })

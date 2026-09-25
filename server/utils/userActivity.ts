@@ -1,5 +1,5 @@
 import type { UserActivityPage, UserComment, UserPost } from '#shared/types'
-import { getHnItemUrl } from '../../shared/utils/hn'
+import { getFirstQueryValue, getHnItemUrl } from '#shared/utils/hn'
 import {
   searchAlgolia,
   type AlgoliaCommentHit,
@@ -27,12 +27,8 @@ const ACTIVITY_ATTRIBUTES: Record<ActivityType, string> = {
   story: 'objectID,title,url,points,num_comments,created_at,created_at_i',
 }
 
-const firstQueryValue = (value: unknown) => {
-  return Array.isArray(value) ? value[0] : value
-}
-
 const toBoundedInteger = (value: unknown, fallback: number, min: number, max: number) => {
-  const rawValue = firstQueryValue(value)
+  const rawValue = getFirstQueryValue(value)
   const parsedValue = typeof rawValue === 'string' ? Number.parseInt(rawValue, 10) : Number(rawValue)
 
   if (!Number.isFinite(parsedValue)) {
@@ -51,7 +47,7 @@ export const normalizeActivityHitsPerPage = (value: unknown) => {
 }
 
 export const normalizeActivityBefore = (value: unknown) => {
-  const rawValue = firstQueryValue(value)
+  const rawValue = getFirstQueryValue(value)
 
   if (typeof rawValue !== 'string' || rawValue.trim() === '') {
     return null

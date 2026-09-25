@@ -58,7 +58,7 @@ import {
   LucideLocateFixed,
 } from '@lucide/vue'
 import { discussionLanguage } from '#shared/utils/productLanguage'
-import type { CommentReaderMode } from './reader'
+import type { CommentReaderMode } from '~/types/commentReader'
 
 defineProps<{
   depth: number

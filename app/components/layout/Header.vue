@@ -45,7 +45,8 @@
 
 <script setup lang="ts">
 import { LucideMoon, LucideSun } from '@lucide/vue'
-import { feedThemeList, getFeedThemeStyle, isFeedEndpoint } from '~/composables/useFeedTheme';
+import { isHnFeed } from '#shared/utils/hn';
+import { feedThemeList, getFeedThemeStyle } from '~/composables/useFeedTheme';
 
 const colorMode = useColorMode();
 const route = useRoute();
@@ -57,7 +58,7 @@ const currentFeed = computed(() => {
   }
 
   const feedCandidate = route.path.split('/')[1];
-  return isFeedEndpoint(feedCandidate) ? feedCandidate : null;
+  return isHnFeed(feedCandidate) ? feedCandidate : null;
 });
 
 const toggleColorMode = () => {

@@ -1,7 +1,7 @@
 import type { Comment } from '#shared/types'
 import { decodeHtmlEntities, htmlToPlainText, truncateAtWordBoundary } from './html'
 
-export const COMMENT_LINK_CATEGORY_ORDER = [
+const COMMENT_LINK_CATEGORY_ORDER = [
   'documentation',
   'papers',
   'code',
@@ -30,12 +30,12 @@ export type CommentLink = {
   url: string
 }
 
-export type CommentLinkGroup = {
+type CommentLinkGroup = {
   category: CommentLinkCategory
   links: CommentLink[]
 }
 
-export type ExtractCommentLinksOptions = {
+type ExtractCommentLinksOptions = {
   excludedUrls?: Array<string | null | undefined>
   includeDescendants?: boolean
   maximumLinks?: number
@@ -173,7 +173,6 @@ const CATEGORY_HOSTS: Partial<Record<CommentLinkCategory, string[]>> = {
     'discuss.systems',
     'hachyderm.io',
     'lobste.rs',
-    'mastodon.social',
     'reddit.com',
     'stackoverflow.com',
     'stackexchange.com',

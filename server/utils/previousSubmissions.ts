@@ -1,5 +1,5 @@
-import type { SubmissionHistoryEntry } from '../../shared/types'
-import type { AlgoliaStoryHit } from './algolia'
+import type { SubmissionHistoryEntry } from '#shared/types'
+import { mapAlgoliaStorySummary, type AlgoliaStoryHit } from './algolia'
 
 export const SUBMISSION_HISTORY_CANDIDATE_LIMIT = 16
 
@@ -13,9 +13,7 @@ const TRACKING_QUERY_PARAMETERS = new Set([
   'msclkid',
 ])
 
-export type SubmissionHistorySource = {
-  url?: string | null
-}
+type SubmissionHistorySource = Pick<AlgoliaStoryHit, 'url'>
 
 const normalizePercentEncoding = (value: string) => {
   return value.replace(/%([0-9a-f]{2})/giu, (_match, hex: string) => {
@@ -104,13 +102,5 @@ export const selectSubmissionHistory = (
       || Number(first.objectID) - Number(second.objectID)
     ))
     .slice(0, SUBMISSION_HISTORY_CANDIDATE_LIMIT)
-    .map(hit => ({
-      title: hit.title ?? 'Untitled',
-      objectID: hit.objectID ?? '',
-      created_at: hit.created_at
-        ?? (hit.created_at_i ? new Date(hit.created_at_i * 1000).toISOString() : ''),
-      points: hit.points ?? 0,
-      num_comments: hit.num_comments ?? 0,
-      author: hit.author ?? 'Unknown',
-    }))
+    .map(mapAlgoliaStorySummary)
 }

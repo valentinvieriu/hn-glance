@@ -44,7 +44,7 @@
         @click="emit('markSeen')"
       >
         <LucideCheck class="h-3.5 w-3.5" aria-hidden="true" />
-        <span>{{ discussionLanguage.actions.markAllSeen }}</span>
+        <span class="max-[520px]:sr-only">{{ discussionLanguage.actions.markAllSeen }}</span>
       </button>
     </span>
   </nav>
@@ -142,16 +142,5 @@ const emit = defineEmits<{
 .dark .new-comments-controls,
 .dark .new-comments-button + .new-comments-button {
   border-color: rgb(56 189 248 / 0.2);
-}
-
-@media (max-width: 520px) {
-  .new-comments-mark-seen span {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip: rect(0, 0, 0, 0);
-    white-space: nowrap;
-  }
 }
 </style>

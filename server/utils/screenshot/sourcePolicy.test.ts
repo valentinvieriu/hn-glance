@@ -19,7 +19,6 @@ describe('screenshot source policy', () => {
     expect(createScreenshotSourceDecision('https://www.reuters.com/article', {})).toEqual({
       captureUrl: 'https://www.reuters.com/article',
       policy: 'capture',
-      sourceStrategy: 'direct',
     })
   })
 
@@ -31,7 +30,6 @@ describe('screenshot source policy', () => {
     expect(createScreenshotSourceDecision(sourceUrl, {})).toEqual({
       captureUrl: 'https://xcancel.com/example/status/1234567890',
       policy: 'capture',
-      sourceStrategy: 'xcancel',
     })
   })
 
@@ -41,7 +39,6 @@ describe('screenshot source policy', () => {
     })).toEqual({
       captureUrl: 'https://xcancel.example/private/example/status/1234567890',
       policy: 'capture',
-      sourceStrategy: 'xcancel',
     })
   })
 
@@ -49,7 +46,6 @@ describe('screenshot source policy', () => {
     expect(createScreenshotSourceDecision('https://x.com/example', {})).toEqual({
       captureUrl: 'https://x.com/example',
       policy: 'capture',
-      sourceStrategy: 'direct',
     })
   })
 
@@ -61,7 +57,6 @@ describe('screenshot source policy', () => {
     expect(createScreenshotSourceDecision(sourceUrl, {})).toEqual({
       captureUrl: sourceUrl,
       policy: 'capture',
-      sourceStrategy: 'direct',
     })
   })
 

@@ -1,4 +1,5 @@
 import type { CommentSort } from './comments'
+import { getFirstQueryValue } from './hn'
 
 export const APP_PREFERENCES_STORAGE_KEY = 'hn-glance:preferences'
 export const APP_PREFERENCES_VERSION = 1 as const
@@ -21,16 +22,14 @@ const isRecord = (value: unknown): value is Record<string, unknown> => {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-const getFirstValue = (value: unknown) => Array.isArray(value) ? value[0] : value
-
 export const parseCommentReaderMode = (value: unknown): CommentReaderMode | null => {
-  const mode = getFirstValue(value)
+  const mode = getFirstQueryValue(value)
 
   return mode === 'comment' || mode === 'path' ? mode : null
 }
 
 export const parseRootCommentOrder = (value: unknown): RootCommentOrder | null => {
-  const order = getFirstValue(value)
+  const order = getFirstQueryValue(value)
 
   return order === 'hn' || order === 'discussed' || order === 'recent'
     ? order

@@ -34,21 +34,21 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
 import type { CommentNavigationNode } from '#shared/utils/comments'
 import type { SeedPaletteStyle } from '~/composables/useSeedPalette'
+import type { CommentReaderMode, CommentReaderPosition } from '~/types/commentReader'
 import FocusedReader from './FocusedReader.vue'
 import ReaderToolbar from './ReaderToolbar.vue'
 import ReadingPath from './ReadingPath.vue'
-import type { CommentReaderMode, CommentReaderPosition } from './reader'
 
-const props = defineProps<{
+defineProps<{
   authorCommentCounts: ReadonlyMap<string, number>
   descendantCounts: ReadonlyMap<number, number>
   getPaletteStyle: (commentId: number, author: string) => SeedPaletteStyle
   mode: CommentReaderMode
   newCommentIds: ReadonlySet<number>
   node: CommentNavigationNode
+  parentAuthor?: string
   pathNodes: CommentNavigationNode[]
   scopePrefix: string
   selectedCommentId: number | null
@@ -60,8 +60,4 @@ const emit = defineEmits<{
   mode: [mode: CommentReaderMode]
   select: [commentId: number]
 }>()
-
-const parentAuthor = computed(() => props.node.parentId
-  ? props.pathNodes.at(-2)?.comment.author ?? 'parent'
-  : undefined)
 </script>

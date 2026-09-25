@@ -32,7 +32,6 @@
 
 @supports (font-variation-settings: normal) {
   :root {
-    font-family: var(--font-ui);
     font-variation-settings: normal;
   }
 }
@@ -116,6 +115,38 @@ button {
 .meta-text {
   font-size: 0.8125rem;
   line-height: 1.35;
+}
+
+/* Faint 48px grid behind page heroes, fading out downward. Shells tune the
+   fade with --grid-paper-mask-strength and --grid-paper-fade. */
+.grid-paper-backdrop {
+  position: relative;
+  isolation: isolate;
+}
+
+.grid-paper-backdrop::before {
+  --grid-paper-mask: linear-gradient(
+    180deg,
+    rgb(0 0 0 / var(--grid-paper-mask-strength, 0.5)),
+    transparent var(--grid-paper-fade, 70%)
+  );
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgb(15 23 42 / 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(15 23 42 / 0.04) 1px, transparent 1px);
+  background-size: 48px 48px;
+  -webkit-mask-image: var(--grid-paper-mask);
+  mask-image: var(--grid-paper-mask);
+}
+
+.dark .grid-paper-backdrop::before {
+  background-image:
+    linear-gradient(rgb(255 255 255 / 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(255 255 255 / 0.04) 1px, transparent 1px);
 }
 
 .feed-theme-surface {
@@ -484,3 +515,60 @@ button {
   padding: 0;
   background: transparent;
 }
+
+/* Story context source lists: shared row, list, and title treatment for
+   Similar Stories and From the Discussion. */
+.story-context-source-list {
+  margin-inline: -0.4rem;
+  border-top: 1px solid var(--story-context-border);
+}
+
+.story-context-source-row {
+  --source-identity-accent: var(--story-context-accent-strong);
+  --source-identity-border: var(--story-context-border);
+  --source-identity-surface: var(--story-context-accent-soft);
+  --source-identity-surface-dark: var(--story-context-accent-soft);
+  display: grid;
+  min-width: 0;
+  grid-template-columns: 2.85rem minmax(0, 1fr);
+  gap: 0.72rem;
+  padding: 0.78rem 0.4rem;
+  border-bottom: 1px solid var(--story-context-border);
+  background: transparent;
+}
+
+.story-context-source-title {
+  display: inline;
+  color: rgb(15 23 42);
+  font-family: var(--font-ui);
+  font-size: 0.98rem;
+  font-weight: 650;
+  line-height: 1.32;
+  text-decoration-color: transparent;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.2em;
+  transition: color 160ms ease, text-decoration-color 160ms ease;
+}
+
+.story-context-source-title:hover,
+.story-context-source-title:focus-visible {
+  color: var(--story-context-accent-strong);
+  text-decoration-line: underline;
+  text-decoration-color: var(--story-context-accent);
+}
+
+.dark .story-context-source-title {
+  color: rgb(241 245 249);
+}
+
+.dark .story-context-source-title:hover,
+.dark .story-context-source-title:focus-visible {
+  color: var(--story-context-accent);
+}
+
+@media (max-width: 480px) {
+  .story-context-source-row {
+    gap: 0.65rem;
+  }
+}
+/* End story context source lists */

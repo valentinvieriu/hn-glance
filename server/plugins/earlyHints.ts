@@ -1,5 +1,4 @@
 import type { H3Event } from 'h3'
-import { appendEarlyHintLinks, collectEarlyHintLinks } from '../utils/earlyHints'
 
 const earlyHintLinksByEvent = new WeakMap<H3Event, string[]>()
 

@@ -1,6 +1,6 @@
 import type { Comment, StoryDetail } from '#shared/types'
 
-export type AlgoliaItemComment = {
+type AlgoliaItemComment = {
   id: number
   created_at?: string | null
   author?: string | null

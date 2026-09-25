@@ -6,7 +6,7 @@
       class="reading-path-entry seed-palette-surface"
       :class="{
         'reading-path-entry-current': node.comment.id === selectedCommentId,
-        'seed-palette-quiet': (authorCommentCounts.get(node.comment.author) ?? 1) <= 1,
+        'seed-palette-quiet': isQuietAuthor(authorCommentCounts.get(node.comment.author) ?? 1),
       }"
       :style="getPaletteStyle(node.comment.id, node.comment.author)"
       data-reading-path-entry
@@ -21,7 +21,7 @@
         :author-comment-count="authorCommentCounts.get(node.comment.author) ?? 1"
         :is-new="newCommentIds.has(node.comment.id)"
         :node="node"
-        :parent-author="node.parentId ? nodes[index - 1]?.comment.author ?? 'parent' : undefined"
+        :parent-author="getParentAuthor(node, index)"
         presentation="path"
         :scope-id="`${scopePrefix}-reading-path-comment-${node.comment.id}`"
         :story-author="storyAuthor"
@@ -47,7 +47,10 @@
 <script setup lang="ts">
 import type { CommentNavigationNode } from '#shared/utils/comments'
 import { discussionLanguage } from '#shared/utils/productLanguage'
-import type { SeedPaletteStyle } from '~/composables/useSeedPalette'
+import {
+  isQuietAuthor,
+  type SeedPaletteStyle,
+} from '~/composables/useSeedPalette'
 import ReaderActions from './ReaderActions.vue'
 import ReaderComment from './ReaderComment.vue'
 
@@ -65,6 +68,12 @@ const props = defineProps<{
 const emit = defineEmits<{
   select: [commentId: number]
 }>()
+
+const getParentAuthor = (node: CommentNavigationNode, index: number) => {
+  return node.parentId
+    ? props.nodes[index - 1]?.comment.author ?? discussionLanguage.fallbacks.parentAuthor
+    : undefined
+}
 
 const getStepLabel = (index: number, commentId: number) => {
   return discussionLanguage.format.pathStep(

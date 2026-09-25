@@ -80,17 +80,8 @@
 </template>
 
 <script setup lang="ts">
-useCanonicalUrl('/terms')
-
 const title = 'Terms of Use — HN Glance'
 const description = 'Terms for using HN Glance, its public Hacker News data, external links, and article screenshot previews.'
 
-useSeoMeta({
-  title,
-  description,
-  ogTitle: title,
-  ogDescription: description,
-  twitterTitle: title,
-  twitterDescription: description,
-})
+usePageSeo({ title, description, path: '/terms' })
 </script>

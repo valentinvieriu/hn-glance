@@ -1,8 +1,7 @@
-import type {
-  ScreenshotRuntimeConfig,
-  ScreenshotSkipReason,
-  ScreenshotSourceStrategy,
-} from './types'
+import { getMediaType } from '#shared/utils/screenshot'
+import type { ScreenshotSkipReason } from '#shared/utils/screenshotJobs'
+import { parsePositiveIntegerConfig } from './runtimeConfig'
+import type { ScreenshotRuntimeConfig } from './types'
 
 const DEFAULT_XCANCEL_BASE_URL = 'https://xcancel.com'
 const DEFAULT_PROBE_TIMEOUT_MS = 1200
@@ -37,22 +36,11 @@ const BINARY_FILENAME_PATTERN = /\.(?:7z|avi|bz2|doc|docx|epub|gz|m4a|m4v|mkv|mo
 export type ScreenshotCaptureDecision = {
   captureUrl: string
   policy: 'capture'
-  sourceStrategy: ScreenshotSourceStrategy
 }
 
 type ContentProbeResult =
   | { captureUrl: string, policy: 'capture' }
   | { policy: 'skip', skipReason: ScreenshotSkipReason }
-
-const normalizePositiveInteger = (value: unknown, fallback: number) => {
-  const parsedValue = Number(value)
-
-  if (!Number.isFinite(parsedValue)) {
-    return fallback
-  }
-
-  return Math.max(1, Math.floor(parsedValue))
-}
 
 const normalizeHostname = (hostname: string) => {
   return hostname
@@ -62,7 +50,7 @@ const normalizeHostname = (hostname: string) => {
     .replace(/^www\./, '')
 }
 
-export const isPrivateIpv4Address = (hostname: string) => {
+const isPrivateIpv4Address = (hostname: string) => {
   const parts = hostname.split('.')
 
   if (parts.length !== 4) {
@@ -86,7 +74,7 @@ export const isPrivateIpv4Address = (hostname: string) => {
     || (first === 192 && second === 168)
 }
 
-export const isBlockedHostname = (hostname: string) => {
+const isBlockedHostname = (hostname: string) => {
   const normalizedHostname = normalizeHostname(hostname)
   const isIpv6Literal = normalizedHostname.includes(':')
   const ipv4MappedMatch = normalizedHostname.match(/^::ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/i)
@@ -196,18 +184,9 @@ export const createScreenshotSourceDecision = (
   const url = new URL(sourceUrl)
   const xcancelUrl = getXCancelStatusUrl(url, runtimeConfig)
 
-  if (xcancelUrl) {
-    return {
-      captureUrl: xcancelUrl,
-      policy: 'capture',
-      sourceStrategy: 'xcancel',
-    }
-  }
-
   return {
-    captureUrl: sourceUrl,
+    captureUrl: xcancelUrl ?? sourceUrl,
     policy: 'capture',
-    sourceStrategy: 'direct',
   }
 }
 
@@ -215,16 +194,15 @@ const isRedirectStatus = (status: number) => {
   return status === 301 || status === 302 || status === 303 || status === 307 || status === 308
 }
 
-const isPdfResponse = (headers: Headers) => {
-  const contentType = headers.get('Content-Type')?.toLowerCase().split(';')[0]?.trim()
-  const contentDisposition = headers.get('Content-Disposition')?.toLowerCase() ?? ''
-
-  return PDF_CONTENT_TYPES.has(contentType ?? '')
-    || /filename\*?=[^;]*\.pdf(?:["']|$|;)/i.test(contentDisposition)
+const getContentType = (headers: Headers) => {
+  return getMediaType(headers.get('Content-Type'))
 }
 
-const getContentType = (headers: Headers) => {
-  return headers.get('Content-Type')?.toLowerCase().split(';')[0]?.trim() ?? ''
+const isPdfResponse = (headers: Headers) => {
+  const contentDisposition = headers.get('Content-Disposition')?.toLowerCase() ?? ''
+
+  return PDF_CONTENT_TYPES.has(getContentType(headers))
+    || /filename\*?=[^;]*\.pdf(?:["']|$|;)/i.test(contentDisposition)
 }
 
 const isHtmlResponse = (headers: Headers) => {
@@ -234,7 +212,7 @@ const isHtmlResponse = (headers: Headers) => {
 }
 
 const isNonHtmlBinaryResponse = (headers: Headers) => {
-  const contentType = headers.get('Content-Type')?.toLowerCase().split(';')[0]?.trim()
+  const contentType = getContentType(headers)
   const contentDisposition = headers.get('Content-Disposition')?.toLowerCase() ?? ''
 
   if (!contentType) {
@@ -274,7 +252,7 @@ export const probeCaptureUrlContent = async (
   captureUrl: string,
   runtimeConfig: ScreenshotRuntimeConfig,
 ): Promise<ContentProbeResult> => {
-  const timeoutMs = normalizePositiveInteger(
+  const timeoutMs = parsePositiveIntegerConfig(
     runtimeConfig.screenshotPolicyProbeTimeoutMs,
     DEFAULT_PROBE_TIMEOUT_MS,
   )

@@ -5,7 +5,7 @@
     :status-message="pageErrorTitle"
   />
 
-  <div v-else class="user-shell seed-palette-surface min-h-full text-slate-900 dark:text-slate-100" :style="userPaletteStyle">
+  <div v-else class="user-shell grid-paper-backdrop seed-palette-surface min-h-full text-slate-900 dark:text-slate-100" :style="userPaletteStyle">
     <div class="layout-frame py-8 md:py-10">
       <div>
         <header class="user-hero layout-content">
@@ -86,126 +86,103 @@
           </div>
         </div>
 
-        <section v-show="activeTab === 'posts'" role="tabpanel" aria-label="Posts">
-          <div
-            v-if="postsInitialLoading"
-            key="posts-loading"
-            class="story-grid"
-            aria-busy="true"
-          >
-            <div
-              v-for="index in 6"
-              :key="`user-post-loading-${index}`"
-              class="user-post-skeleton"
-              aria-hidden="true"
-            >
-              <div class="user-post-skeleton-shot"></div>
-              <div class="user-post-skeleton-body">
-                <span class="skeleton-line w-28"></span>
-                <span class="skeleton-line w-11/12"></span>
-                <span class="skeleton-line w-8/12"></span>
+        <UserActivityPanel
+          v-show="activeTab === 'posts'"
+          :active="activeTab === 'posts'"
+          empty-text="No posts found."
+          :error-message="posts.errorMessage.value"
+          :has-more="posts.hasMore.value"
+          :is-empty="posts.items.value.length === 0"
+          :is-initial-loading="posts.isInitialLoading.value"
+          :is-loading-more="posts.isLoadingMore.value"
+          label="Posts"
+          loading-text="Loading posts"
+          @load-more="posts.loadMore"
+        >
+          <template #loading>
+            <div class="story-grid" aria-busy="true">
+              <div
+                v-for="index in 6"
+                :key="`user-post-loading-${index}`"
+                class="user-post-skeleton"
+                aria-hidden="true"
+              >
+                <div class="user-post-skeleton-shot"></div>
+                <div class="user-post-skeleton-body">
+                  <span class="skeleton-line w-28"></span>
+                  <span class="skeleton-line w-11/12"></span>
+                  <span class="skeleton-line w-8/12"></span>
+                </div>
               </div>
             </div>
-          </div>
+          </template>
 
-          <div v-else-if="posts.length === 0" key="posts-empty" class="activity-empty">
-            No posts found.
-          </div>
-
-          <div v-else key="posts-grid" class="story-grid">
+          <div class="story-grid">
             <StoryCard
-              v-for="post in posts"
+              v-for="post in posts.items.value"
               :key="post.objectID"
               :story="post"
             />
           </div>
+        </UserActivityPanel>
 
-          <div ref="postSentinelRef" class="load-sentinel" aria-hidden="true"></div>
-
-          <div v-if="postsErrorMessage" class="activity-error">
-            {{ postsErrorMessage }}
-          </div>
-
-          <div v-if="postsLoadingMore" class="activity-loading" aria-live="polite">
-            <LucideRefreshCw class="h-4 w-4 animate-spin" aria-hidden="true" />
-            <span>Loading posts</span>
-          </div>
-
-          <div v-else-if="postHasMore && posts.length > 0" class="activity-load-more">
-            <button type="button" class="activity-load-button" @click="loadMorePosts">
-              Load more
-            </button>
-          </div>
-        </section>
-
-        <section v-show="activeTab === 'comments'" class="layout-content" role="tabpanel" aria-label="Comments">
-          <div
-            v-if="commentsInitialLoading"
-            key="comments-loading"
-            class="space-y-4"
-            aria-busy="true"
-          >
-            <div
-              v-for="index in 6"
-              :key="`user-comment-loading-${index}`"
-              class="user-comment-skeleton"
-              aria-hidden="true"
-            >
-              <span class="skeleton-line w-9/12"></span>
-              <span class="skeleton-line w-full"></span>
-              <span class="skeleton-line w-10/12"></span>
+        <UserActivityPanel
+          v-show="activeTab === 'comments'"
+          class="layout-content"
+          :active="activeTab === 'comments'"
+          empty-text="No comments found."
+          :error-message="comments.errorMessage.value"
+          :has-more="comments.hasMore.value"
+          :is-empty="comments.items.value.length === 0"
+          :is-initial-loading="comments.isInitialLoading.value"
+          :is-loading-more="comments.isLoadingMore.value"
+          label="Comments"
+          loading-text="Loading comments"
+          @load-more="comments.loadMore"
+        >
+          <template #loading>
+            <div class="space-y-4" aria-busy="true">
+              <div
+                v-for="index in 6"
+                :key="`user-comment-loading-${index}`"
+                class="user-comment-skeleton"
+                aria-hidden="true"
+              >
+                <span class="skeleton-line w-9/12"></span>
+                <span class="skeleton-line w-full"></span>
+                <span class="skeleton-line w-10/12"></span>
+              </div>
             </div>
-          </div>
+          </template>
 
-          <div v-else-if="comments.length === 0" key="comments-empty" class="activity-empty">
-            No comments found.
-          </div>
-
-          <div v-else key="comments-list" class="space-y-4">
+          <div class="space-y-4">
             <UserCommentCard
-              v-for="comment in comments"
+              v-for="comment in comments.items.value"
               :key="comment.objectID"
               :comment="comment"
             />
           </div>
-
-          <div ref="commentSentinelRef" class="load-sentinel" aria-hidden="true"></div>
-
-          <div v-if="commentsErrorMessage" class="activity-error">
-            {{ commentsErrorMessage }}
-          </div>
-
-          <div v-if="commentsLoadingMore" class="activity-loading" aria-live="polite">
-            <LucideRefreshCw class="h-4 w-4 animate-spin" aria-hidden="true" />
-            <span>Loading comments</span>
-          </div>
-
-          <div v-else-if="commentHasMore && comments.length > 0" class="activity-load-more">
-            <button type="button" class="activity-load-button" @click="loadMoreComments">
-              Load more
-            </button>
-          </div>
-        </section>
+        </UserActivityPanel>
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, ref } from 'vue'
 import {
   LucideClock,
   LucideExternalLink,
   LucideFileText,
   LucideMessageSquare,
-  LucideRefreshCw,
   LucideTrendingUp,
 } from '@lucide/vue'
-import type { HNUserProfile, UserActivityPage, UserComment, UserPost } from '#shared/types'
+import type { HNUserProfile, UserComment, UserPost } from '#shared/types'
 import { formatCalendarDate, formatTimeAgo } from '#shared/utils/date'
-import { getHnUserPath, normalizeHnUsername } from '#shared/utils/hn'
+import { getHnUserPath, getHnUserUrl, normalizeHnUsername } from '#shared/utils/hn'
 import { useSanitizer } from '~/composables/useSanitizer'
 import { getSeedPaletteStyle } from '~/composables/useSeedPalette'
+import { useUserActivityFeed } from '~/composables/useUserActivityFeed'
 
 definePageMeta({
   validate: route => normalizeHnUsername(route.params.username) !== '',
@@ -213,266 +190,30 @@ definePageMeta({
 
 type ActivityTab = 'comments' | 'posts'
 
-const PAGE_SIZE = 30
-
 const route = useRoute()
 const { sanitize } = useSanitizer()
 const numberFormatter = new Intl.NumberFormat('en-US')
 
 const username = computed(() => normalizeHnUsername(route.params.username))
-const encodedUsername = computed(() => encodeURIComponent(username.value))
 const activeTab = ref<ActivityTab>('posts')
 
-const posts = ref<UserPost[]>([])
-const comments = ref<UserComment[]>([])
-const postTotal = ref(0)
-const commentTotal = ref(0)
-const postHasMore = ref(false)
-const commentHasMore = ref(false)
-const postNextPage = ref<number | null>(null)
-const commentNextPage = ref<number | null>(null)
-const postNextCursor = ref<number | null>(null)
-const commentNextCursor = ref<number | null>(null)
-const postsLoadingMore = ref(false)
-const commentsLoadingMore = ref(false)
-const postsErrorMessage = ref<string | null>(null)
-const commentsErrorMessage = ref<string | null>(null)
-const postSentinelRef = ref<HTMLElement | null>(null)
-const commentSentinelRef = ref<HTMLElement | null>(null)
-
-const profileDataKey = computed(() => `user-profile:${username.value || 'missing'}`)
-
-const profileAsyncData = await useAsyncData<HNUserProfile | null>(
-  profileDataKey,
+const { data: profile, pending: profilePending, error: profileFetchError } = await useAsyncData<HNUserProfile | null>(
+  () => `user-profile:${username.value || 'missing'}`,
   async () => {
     if (!username.value) {
       return null
     }
 
-    return await $fetch<HNUserProfile>(`/api/user/${encodedUsername.value}`)
+    return await $fetch<HNUserProfile>(`/api/user/${encodeURIComponent(username.value)}`)
   },
-  {
-    default: () => null,
-    watch: [username],
-  },
+  { default: () => null },
 )
 
-const { data: profile, pending: profilePending, error: profileFetchError } = profileAsyncData
-
 const profileUsername = computed(() => profile.value?.username ?? '')
-const encodedProfileUsername = computed(() => encodeURIComponent(profileUsername.value))
-const postsDataKey = computed(() => `user-posts:${profileUsername.value || 'missing'}:${PAGE_SIZE}`)
-const commentsDataKey = computed(() => `user-comments:${profileUsername.value || 'missing'}:${PAGE_SIZE}`)
+const posts = useUserActivityFeed<UserPost>('stories', profileUsername, 'Failed to load posts')
+const comments = useUserActivityFeed<UserComment>('comments', profileUsername, 'Failed to load comments')
 
-const [
-  initialPostsAsyncData,
-  initialCommentsAsyncData,
-] = await Promise.all([
-  useAsyncData<UserActivityPage<UserPost> | null>(
-    postsDataKey,
-    async () => {
-      if (!profileUsername.value) {
-        return null
-      }
-
-      return await $fetch<UserActivityPage<UserPost>>(`/api/user/${encodedProfileUsername.value}/stories`, {
-        query: {
-          hitsPerPage: PAGE_SIZE,
-          page: 0,
-        },
-      })
-    },
-    {
-      default: () => null,
-      watch: [profileUsername],
-    },
-  ),
-  useAsyncData<UserActivityPage<UserComment> | null>(
-    commentsDataKey,
-    async () => {
-      if (!profileUsername.value) {
-        return null
-      }
-
-      return await $fetch<UserActivityPage<UserComment>>(`/api/user/${encodedProfileUsername.value}/comments`, {
-        query: {
-          hitsPerPage: PAGE_SIZE,
-          page: 0,
-        },
-      })
-    },
-    {
-      default: () => null,
-      watch: [profileUsername],
-    },
-  ),
-])
-
-const { data: initialPostsData, pending: postsPending, error: postsFetchError } = initialPostsAsyncData
-const { data: initialCommentsData, pending: commentsPending, error: commentsFetchError } = initialCommentsAsyncData
-
-const mergeByObjectId = <T extends { objectID: string }>(currentItems: T[], incomingItems: T[]) => {
-  const seen = new Set(currentItems.map((item) => item.objectID))
-  const mergedItems = [...currentItems]
-
-  incomingItems.forEach((item) => {
-    if (!seen.has(item.objectID)) {
-      seen.add(item.objectID)
-      mergedItems.push(item)
-    }
-  })
-
-  return mergedItems
-}
-
-const applyPostsResponse = (response: UserActivityPage<UserPost> | null | undefined, append = false) => {
-  if (!response) {
-    return
-  }
-
-  posts.value = append ? mergeByObjectId(posts.value, response.items) : response.items
-  postTotal.value = response.nbHits
-  postHasMore.value = response.hasMore
-  postNextPage.value = response.nextPage
-  postNextCursor.value = response.nextCursor
-}
-
-const applyCommentsResponse = (response: UserActivityPage<UserComment> | null | undefined, append = false) => {
-  if (!response) {
-    return
-  }
-
-  comments.value = append ? mergeByObjectId(comments.value, response.items) : response.items
-  commentTotal.value = response.nbHits
-  commentHasMore.value = response.hasMore
-  commentNextPage.value = response.nextPage
-  commentNextCursor.value = response.nextCursor
-}
-
-watch(initialPostsData, (response) => applyPostsResponse(response), { immediate: true })
-watch(initialCommentsData, (response) => applyCommentsResponse(response), { immediate: true })
-
-watch(username, () => {
-  posts.value = []
-  comments.value = []
-  postTotal.value = 0
-  commentTotal.value = 0
-  postHasMore.value = false
-  commentHasMore.value = false
-  postNextPage.value = null
-  commentNextPage.value = null
-  postNextCursor.value = null
-  commentNextCursor.value = null
-  postsErrorMessage.value = null
-  commentsErrorMessage.value = null
-})
-
-watch(postsFetchError, (error) => {
-  postsErrorMessage.value = error?.message ?? null
-}, { immediate: true })
-
-watch(commentsFetchError, (error) => {
-  commentsErrorMessage.value = error?.message ?? null
-}, { immediate: true })
-
-const fetchActivityPage = async <T,>(
-  endpoint: 'comments' | 'stories',
-  nextPage: number | null,
-  nextCursor: number | null,
-) => {
-  const query: Record<string, number> = {
-    hitsPerPage: PAGE_SIZE,
-  }
-
-  if (nextPage !== null) {
-    query.page = nextPage
-  } else if (nextCursor !== null) {
-    query.before = nextCursor
-  } else {
-    query.page = 0
-  }
-
-  return await $fetch<UserActivityPage<T>>(`/api/user/${encodedUsername.value}/${endpoint}`, {
-    query,
-  })
-}
-
-const loadMorePosts = async () => {
-  if (!username.value || postsLoadingMore.value || !postHasMore.value) {
-    return
-  }
-
-  postsLoadingMore.value = true
-  postsErrorMessage.value = null
-
-  try {
-    const response = await fetchActivityPage<UserPost>('stories', postNextPage.value, postNextCursor.value)
-    applyPostsResponse(response, true)
-  } catch (error) {
-    postsErrorMessage.value = error instanceof Error ? error.message : 'Failed to load posts'
-  } finally {
-    postsLoadingMore.value = false
-  }
-}
-
-const loadMoreComments = async () => {
-  if (!username.value || commentsLoadingMore.value || !commentHasMore.value) {
-    return
-  }
-
-  commentsLoadingMore.value = true
-  commentsErrorMessage.value = null
-
-  try {
-    const response = await fetchActivityPage<UserComment>('comments', commentNextPage.value, commentNextCursor.value)
-    applyCommentsResponse(response, true)
-  } catch (error) {
-    commentsErrorMessage.value = error instanceof Error ? error.message : 'Failed to load comments'
-  } finally {
-    commentsLoadingMore.value = false
-  }
-}
-
-let postObserver: IntersectionObserver | null = null
-let commentObserver: IntersectionObserver | null = null
-
-const observeActivitySentinels = () => {
-  postObserver?.disconnect()
-  commentObserver?.disconnect()
-
-  if (!import.meta.client || !('IntersectionObserver' in window)) {
-    return
-  }
-
-  postObserver = new IntersectionObserver((entries) => {
-    if (entries.some((entry) => entry.isIntersecting) && activeTab.value === 'posts') {
-      loadMorePosts()
-    }
-  }, { rootMargin: '720px 0px' })
-
-  commentObserver = new IntersectionObserver((entries) => {
-    if (entries.some((entry) => entry.isIntersecting) && activeTab.value === 'comments') {
-      loadMoreComments()
-    }
-  }, { rootMargin: '720px 0px' })
-
-  if (postSentinelRef.value) {
-    postObserver.observe(postSentinelRef.value)
-  }
-
-  if (commentSentinelRef.value) {
-    commentObserver.observe(commentSentinelRef.value)
-  }
-}
-
-onMounted(() => {
-  nextTick(observeActivitySentinels)
-})
-
-onBeforeUnmount(() => {
-  postObserver?.disconnect()
-  commentObserver?.disconnect()
-})
+await Promise.all([posts.initialPage, comments.initialPage])
 
 const pageError = computed(() => {
   if (!username.value) {
@@ -498,13 +239,11 @@ const pageErrorStatusCode = computed(() => profileFetchError.value?.statusCode ?
 
 const displayUsername = computed(() => profile.value?.username || username.value)
 const userPaletteStyle = computed(() => getSeedPaletteStyle(displayUsername.value))
-const hnUserUrl = computed(() => `https://news.ycombinator.com/user?id=${encodeURIComponent(displayUsername.value)}`)
+const hnUserUrl = computed(() => getHnUserUrl(displayUsername.value))
 const formattedKarma = computed(() => `${numberFormatter.format(profile.value?.karma || 0)} karma`)
-const formattedPostTotal = computed(() => numberFormatter.format(postTotal.value))
-const formattedCommentTotal = computed(() => numberFormatter.format(commentTotal.value))
+const formattedPostTotal = computed(() => numberFormatter.format(posts.total.value))
+const formattedCommentTotal = computed(() => numberFormatter.format(comments.total.value))
 const sanitizedAbout = computed(() => sanitize(profile.value?.about || '', `user-about-${displayUsername.value}`))
-const postsInitialLoading = computed(() => postsPending.value && posts.value.length === 0)
-const commentsInitialLoading = computed(() => commentsPending.value && comments.value.length === 0)
 
 const joinedDate = computed(() => {
   if (!profile.value?.created_at) {
@@ -520,22 +259,12 @@ const joinedDate = computed(() => {
   return `${formatCalendarDate(createdAt)} (${formatTimeAgo(createdAt)})`
 })
 
-useCanonicalUrl(() => pageError.value ? null : getHnUserPath(displayUsername.value))
-
-useSeoMeta({
-  title: () => pageError.value
-    ? `${pageErrorTitle.value} — HN Glance`
-    : `${displayUsername.value} on HN Glance`,
-  description: () => pageError.value
-    ? 'Return to the current Hacker News feeds on HN Glance.'
-    : `Posts and comments by ${displayUsername.value} on Hacker News.`,
-  ogTitle: () => pageError.value
-    ? `${pageErrorTitle.value} — HN Glance`
-    : `${displayUsername.value} on HN Glance`,
-  ogDescription: () => pageError.value
-    ? 'Return to the current Hacker News feeds on HN Glance.'
-    : `Posts and comments by ${displayUsername.value} on Hacker News.`,
-  robots: () => pageError.value ? 'noindex, nofollow' : 'index, follow',
+// While the error page is shown, SiteErrorPage owns the title and robots tags.
+usePageSeo({
+  title: () => pageError.value ? undefined : `${displayUsername.value} on HN Glance`,
+  description: () => pageError.value ? undefined : `Posts and comments by ${displayUsername.value} on Hacker News.`,
+  path: () => pageError.value ? null : getHnUserPath(displayUsername.value),
+  robots: () => pageError.value ? undefined : 'index, follow',
 })
 
 if (import.meta.server && (profileFetchError.value || !profile.value)) {
@@ -553,8 +282,8 @@ if (import.meta.server && (profileFetchError.value || !profile.value)) {
 
 <style scoped>
 .user-shell {
-  position: relative;
-  isolation: isolate;
+  --grid-paper-mask-strength: 0.46;
+  --grid-paper-fade: 72%;
   background:
     radial-gradient(circle at 8% -9%, var(--seed-ring) 0, transparent 31rem),
     radial-gradient(circle at 90% -7%, rgb(249 115 22 / 0.14) 0, transparent 29rem),
@@ -566,26 +295,6 @@ if (import.meta.server && (profileFetchError.value || !profile.value)) {
     radial-gradient(circle at 8% -9%, var(--seed-ring) 0, transparent 31rem),
     radial-gradient(circle at 90% -7%, rgb(249 115 22 / 0.14) 0, transparent 29rem),
     linear-gradient(135deg, rgb(15 23 42) 0%, rgb(17 24 39) 52%, rgb(12 18 31) 100%);
-}
-
-.user-shell::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  pointer-events: none;
-  background-image:
-    linear-gradient(rgb(15 23 42 / 0.045) 1px, transparent 1px),
-    linear-gradient(90deg, rgb(15 23 42 / 0.04) 1px, transparent 1px);
-  background-size: 48px 48px;
-  -webkit-mask-image: linear-gradient(180deg, rgb(0 0 0 / 0.46), transparent 72%);
-  mask-image: linear-gradient(180deg, rgb(0 0 0 / 0.46), transparent 72%);
-}
-
-.dark .user-shell::before {
-  background-image:
-    linear-gradient(rgb(255 255 255 / 0.05) 1px, transparent 1px),
-    linear-gradient(90deg, rgb(255 255 255 / 0.04) 1px, transparent 1px);
 }
 
 .user-hero {
@@ -779,70 +488,6 @@ if (import.meta.server && (profileFetchError.value || !profile.value)) {
 
 .dark .activity-tab-count {
   background: rgb(255 255 255 / 0.1);
-}
-
-.activity-empty,
-.activity-error,
-.activity-loading,
-.activity-load-more {
-  display: flex;
-  justify-content: center;
-  margin-top: 1.25rem;
-  color: rgb(71 85 105);
-  font-size: 0.9rem;
-  font-weight: 600;
-}
-
-.dark .activity-empty,
-.dark .activity-error,
-.dark .activity-loading,
-.dark .activity-load-more {
-  color: rgb(203 213 225);
-}
-
-.activity-error {
-  color: rgb(185 28 28);
-}
-
-.dark .activity-error {
-  color: rgb(252 165 165);
-}
-
-.activity-loading {
-  align-items: center;
-  gap: 0.45rem;
-}
-
-.activity-load-button {
-  min-height: 2.35rem;
-  border: 1px solid var(--seed-metric-border);
-  border-radius: 0.45rem;
-  background:
-    linear-gradient(180deg, var(--seed-highlight), transparent 46%),
-    var(--seed-metric-bg);
-  padding: 0.55rem 0.95rem;
-  color: var(--seed-author-text);
-  font-size: 0.84rem;
-  font-weight: 700;
-  box-shadow:
-    0 1px 0 rgb(255 255 255 / 0.34) inset,
-    0 10px 24px var(--seed-shadow);
-}
-
-.activity-load-button:hover {
-  border-color: var(--seed-border-strong);
-  background:
-    linear-gradient(180deg, var(--seed-highlight), transparent 42%),
-    var(--seed-metric-bg-hover);
-  color: var(--seed-accent-strong);
-}
-
-.dark .activity-load-button {
-  background: rgb(15 23 42 / 0.66);
-}
-
-.load-sentinel {
-  height: 1px;
 }
 
 .user-post-skeleton,

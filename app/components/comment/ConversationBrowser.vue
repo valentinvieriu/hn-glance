@@ -19,7 +19,7 @@
         <span>{{ discussionLanguage.actions.overview }}</span>
       </button>
       <div class="conversation-browser-story-identity">
-        <h1 class="conversation-browser-story-title">{{ storyTitle }}</h1>
+        <h1 class="conversation-browser-story-title truncate">{{ storyTitle }}</h1>
         <div class="conversation-browser-story-meta">
           <a
             v-if="sourceUrl"
@@ -78,7 +78,7 @@
             :aria-current="commentId === selectedCommentId ? 'page' : undefined"
             @click="selectComment(commentId)"
           >
-            {{ navigationNodes.get(commentId)?.comment.author ?? 'Unknown' }}
+            {{ navigationNodes.get(commentId)?.comment.author ?? discussionLanguage.fallbacks.author }}
           </button>
         </template>
       </div>
@@ -129,6 +129,7 @@
           :mode="readerMode"
           :new-comment-ids="newCommentIds"
           :node="selectedNode"
+          :parent-author="parentAuthor"
           :path-nodes="pathNodes"
           scope-prefix="conversation-desktop"
           :selected-comment-id="selectedCommentId"
@@ -182,6 +183,7 @@
           :mode="readerMode"
           :new-comment-ids="newCommentIds"
           :node="selectedNode"
+          :parent-author="parentAuthor"
           :path-nodes="pathNodes"
           scope-prefix="conversation-mobile"
           :selected-comment-id="selectedCommentId"
@@ -199,9 +201,9 @@
             >
               <LucideArrowLeft class="h-4 w-4" aria-hidden="true" />
               <span>
-                {{ selectedNode.parentId
-                  ? discussionLanguage.format.parentCommentBy(parentAuthor)
-                  : discussionLanguage.terms.rootComments }}
+                {{ parentAuthor === undefined
+                  ? discussionLanguage.terms.rootComments
+                  : discussionLanguage.format.parentCommentBy(parentAuthor) }}
               </span>
             </button>
           </template>
@@ -262,19 +264,17 @@ import {
   type CommentNavigationNode,
 } from '#shared/utils/comments'
 import { discussionLanguage } from '#shared/utils/productLanguage'
-import type {
-  CommentThreadAuthorPalette,
-  SeedPaletteStyle,
-} from '~/composables/useSeedPalette'
 import {
-  getSeedPaletteStyle,
+  getAuthorPaletteStyle,
   getStoryContextPaletteStyle,
+  type CommentThreadAuthorPalette,
+  type SeedPaletteStyle,
 } from '~/composables/useSeedPalette'
+import type { CommentReaderMode, CommentReaderPosition } from '~/types/commentReader'
 import ConversationColumn from './ConversationColumn.vue'
 import ConversationList from './ConversationList.vue'
 import NewCommentsNavigation from './NewCommentsNavigation.vue'
 import ReaderPane from './ReaderPane.vue'
-import type { CommentReaderMode, CommentReaderPosition } from './reader'
 
 type ConversationColumnModel = {
   comments: Comment[]
@@ -367,8 +367,8 @@ const pathNodes = computed<CommentNavigationNode[]>(() => pathIds.value
   })
   .filter((node): node is CommentNavigationNode => Boolean(node)))
 const parentAuthor = computed(() => selectedNode.value?.parentId
-  ? pathNodes.value.at(-2)?.comment.author ?? 'parent'
-  : '')
+  ? pathNodes.value.at(-2)?.comment.author ?? discussionLanguage.fallbacks.parentAuthor
+  : undefined)
 const storyPaletteStyle = computed(() => getStoryContextPaletteStyle(props.storyId, props.storyDomain))
 const mobileRepliesHeadingId = computed(() => {
   return `focused-comment-${selectedNode.value?.comment.id ?? 'none'}-replies`
@@ -406,8 +406,7 @@ const columns = computed<ConversationColumnModel[]>(() => {
 const getPaletteStyle = (commentId: number, author: string): SeedPaletteStyle => {
   const rootId = props.navigationNodes.get(commentId)?.rootId ?? commentId
 
-  return props.threadAuthorPalettes.get(rootId)?.authorStyles.get(author)
-    ?? getSeedPaletteStyle(author, rootId)
+  return getAuthorPaletteStyle(props.threadAuthorPalettes.get(rootId), author, rootId)
 }
 
 const selectComment = (commentId: number) => {
@@ -772,15 +771,12 @@ onBeforeUnmount(recordReaderScroll)
 }
 
 .conversation-browser-story-title {
-  overflow: hidden;
   margin: 0;
   color: rgb(15 23 42);
   font-size: clamp(0.98rem, 1.4vw, 1.2rem);
   font-weight: 700;
   line-height: 1.2;
   letter-spacing: -0.015em;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .conversation-browser-story-meta {

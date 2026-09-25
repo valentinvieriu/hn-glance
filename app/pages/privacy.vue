@@ -98,17 +98,8 @@
 </template>
 
 <script setup lang="ts">
-useCanonicalUrl('/privacy')
-
 const title = 'Privacy Policy — HN Glance'
 const description = 'How HN Glance handles operational request data, browser preferences, public Hacker News data, and screenshot previews.'
 
-useSeoMeta({
-  title,
-  description,
-  ogTitle: title,
-  ogDescription: description,
-  twitterTitle: title,
-  twitterDescription: description,
-})
+usePageSeo({ title, description, path: '/privacy' })
 </script>

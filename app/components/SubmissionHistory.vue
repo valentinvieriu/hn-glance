@@ -5,25 +5,16 @@
     class="submission-history mt-10"
     data-testid="submission-history"
   >
-    <div class="story-context-section-header">
-      <div class="story-context-section-heading">
-        <span class="story-context-section-icon" aria-hidden="true">
-          <LucideHistory class="h-4 w-4" />
-        </span>
-        <h2
-          id="submission-history-title"
-          class="section-title mb-0 text-xl font-semibold text-gray-900 dark:text-gray-100"
-        >
-          HN History
-        </h2>
-      </div>
-      <span
-        class="story-context-section-count"
-        :aria-label="`${submissions.length} ${submissions.length === 1 ? 'submission' : 'submissions'}`"
-      >
-        {{ submissions.length }}
-      </span>
-    </div>
+    <StoryContextSectionHeader
+      id="submission-history-title"
+      title="HN History"
+      :count="submissions.length"
+      :count-label="`${submissions.length} ${submissions.length === 1 ? 'submission' : 'submissions'}`"
+    >
+      <template #icon>
+        <LucideHistory class="h-4 w-4" />
+      </template>
+    </StoryContextSectionHeader>
     <ol class="submission-history-list">
       <li
         v-for="submission in submissions"
@@ -51,7 +42,7 @@
             >
               {{ formatCompactTimeRelativeTo(submission.created_at, currentCreatedAt) }}
             </time>
-            <span class="submission-history-author">
+            <span class="submission-history-author truncate">
               by
               <NuxtLink
                 :to="getHnUserPath(submission.author)"
@@ -90,6 +81,7 @@ import { LucideHistory } from '@lucide/vue'
 import type { SubmissionHistoryEntry } from '#shared/types'
 import { formatCalendarDate, formatCompactTimeRelativeTo } from '#shared/utils/date'
 import { getHnUserPath } from '#shared/utils/hn'
+import StoryContextSectionHeader from './StoryContextSectionHeader.vue'
 
 defineProps<{
   currentCreatedAt: string
@@ -195,10 +187,7 @@ defineProps<{
 
 .submission-history-author {
   min-width: 0;
-  overflow: hidden;
   color: rgb(71 85 105);
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .submission-history-author-link {

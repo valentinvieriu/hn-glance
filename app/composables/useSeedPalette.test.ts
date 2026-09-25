@@ -1,8 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import type { Comment } from '#shared/types'
 import {
+  getAuthorPaletteStyle,
   getCommentThreadAuthorPalette,
+  getSeedPaletteStyle,
   getStoryContextPaletteStyle,
+  isQuietAuthor,
+  isStoryAuthor,
 } from './useSeedPalette'
 
 const STORY_CONTEXT_HUES = new Set(['205', '225', '245', '265', '285'])
@@ -76,5 +80,23 @@ describe('getCommentThreadAuthorPalette', () => {
 
     expect(getHue(extended, 'root')).toBe(getHue(initial, 'root'))
     expect(getHue(extended, 'alice')).toBe(getHue(initial, 'alice'))
+  })
+})
+
+describe('author voice helpers', () => {
+  it('prefers the thread palette and falls back to the requested seed context', () => {
+    const palette = getCommentThreadAuthorPalette(comment(1, 'root', [comment(2, 'alice')]))
+
+    expect(getAuthorPaletteStyle(palette, 'alice')).toBe(palette.authorStyles.get('alice'))
+    expect(getAuthorPaletteStyle(palette, 'bob')).toEqual(getSeedPaletteStyle('bob'))
+    expect(getAuthorPaletteStyle(undefined, 'bob', 42)).toEqual(getSeedPaletteStyle('bob', 42))
+  })
+
+  it('identifies the story author and one-off voices', () => {
+    expect(isStoryAuthor('alice', 'alice')).toBe(true)
+    expect(isStoryAuthor('alice', 'bob')).toBe(false)
+    expect(isStoryAuthor('', '')).toBe(false)
+    expect(isQuietAuthor(1)).toBe(true)
+    expect(isQuietAuthor(2)).toBe(false)
   })
 })

@@ -1,19 +1,5 @@
-import {
-  createError,
-  defineEventHandler,
-  getQuery,
-  getRouterParams,
-  setHeader,
-} from 'h3'
 import type { UserActivityPage } from '#shared/types'
-import { isValidHnUsername } from '#shared/utils/hn'
 import { formatServerTiming } from '#shared/utils/serverTiming'
-import {
-  normalizeActivityBefore,
-  normalizeActivityHitsPerPage,
-  normalizeActivityPage,
-  type ActivityQueryOptions,
-} from './userActivity'
 
 type UserActivityHandlerOptions<T> = {
   errorLogMessage: string
@@ -28,15 +14,7 @@ type UserActivityHandlerOptions<T> = {
 export const createUserActivityHandler = <T>(
   options: UserActivityHandlerOptions<T>,
 ) => defineEventHandler(async (event) => {
-  const { username } = getRouterParams(event)
-
-  if (!isValidHnUsername(username)) {
-    throw createError({
-      statusCode: 400,
-      statusMessage: 'Valid username is required',
-    })
-  }
-
+  const username = requireHnUsernameParam(event)
   const query = getQuery(event)
 
   try {

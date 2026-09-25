@@ -1,3 +1,5 @@
+import { hashSeed } from '#shared/utils/hash'
+
 export type StoryPlaceholderLayout =
   | 'layout-01'
   | 'layout-02'
@@ -121,17 +123,6 @@ const LAYOUT_PRIMITIVES: Record<StoryPlaceholderLayout, PrimitiveDefinition[]> =
 
 export const normalizeStoryPlaceholderDomain = (domain: string) => {
   return domain.trim().toLowerCase().replace(/^www\./, '') || 'news.ycombinator.com'
-}
-
-const hashSeed = (seed: string): number => {
-  let hash = 2166136261
-
-  for (const character of seed) {
-    hash ^= character.codePointAt(0) ?? 0
-    hash = Math.imul(hash, 16777619)
-  }
-
-  return hash >>> 0
 }
 
 const seededRange = (seed: string, salt: string, min: number, max: number): number => {

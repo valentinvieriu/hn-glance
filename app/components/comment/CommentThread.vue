@@ -13,7 +13,7 @@
         <div class="comment-header-primary">
           <span class="author-chip">
             <span class="author-dot" aria-hidden="true"></span>
-            <NuxtLink :to="getHnUserPath(comment.author)" class="author-name">
+            <NuxtLink :to="getHnUserPath(comment.author)" class="author-name truncate">
               {{ comment.author }}
             </NuxtLink>
           </span>
@@ -64,7 +64,7 @@
               @click.prevent="jumpToParent"
             >
               <LucideCornerDownRight class="comment-ancestry-icon" aria-hidden="true" />
-              <span class="comment-ancestry-author">{{ parentAuthor }}</span>
+              <span class="comment-ancestry-author truncate">{{ parentAuthor }}</span>
             </a>
             <a
               v-if="showRootLink"
@@ -75,7 +75,7 @@
               @click.prevent="jumpToRoot"
             >
               <LucideArrowUpToLine class="comment-ancestry-icon" aria-hidden="true" />
-              <span class="comment-ancestry-author">{{ rootAuthor }}</span>
+              <span class="comment-ancestry-author truncate">{{ rootAuthor }}</span>
             </a>
           </nav>
         </div>
@@ -172,11 +172,13 @@ import {
 } from '@lucide/vue'
 import type { Comment } from '#shared/types'
 import { formatTimeAgo } from '#shared/utils/date'
-import { getHnUserPath } from '#shared/utils/hn'
+import { getHnReplyUrl, getHnUserPath } from '#shared/utils/hn'
 import { discussionLanguage } from '#shared/utils/productLanguage'
 import CommentRichContent from './RichContent.vue'
 import {
-  getSeedPaletteStyle,
+  getAuthorPaletteStyle,
+  isQuietAuthor,
+  isStoryAuthor,
   type CommentThreadAuthorPalette,
 } from '~/composables/useSeedPalette'
 
@@ -205,8 +207,7 @@ const currentDepth = computed(() => props.currentDepth ?? 1)
 const siblingIndex = computed(() => props.siblingIndex ?? 0)
 const authorCommentCount = computed(() => props.authorCommentCounts.get(props.comment.author) ?? 1)
 const commentPaletteStyle = computed(() => {
-  return props.authorPalette.authorStyles.get(props.comment.author)
-    ?? getSeedPaletteStyle(props.comment.author)
+  return getAuthorPaletteStyle(props.authorPalette, props.comment.author)
 })
 const timeAgo = computed(() => formatTimeAgo(props.comment.created_at))
 
@@ -218,9 +219,7 @@ const parentCommentId = computed(() => props.parentCommentIds.get(props.comment.
 const rootCommentId = computed(() => props.rootCommentIds.get(props.comment.id) ?? props.comment.id)
 const childrenElementId = computed(() => `comment-children-${props.comment.id}`)
 
-const isOriginalPoster = computed(() => {
-  return Boolean(props.storyAuthor) && props.comment.author === props.storyAuthor
-})
+const isOriginalPoster = computed(() => isStoryAuthor(props.comment.author, props.storyAuthor))
 
 const parentAuthor = computed(() => {
   return parentCommentId.value ? props.commentAuthors.get(parentCommentId.value) ?? '' : ''
@@ -245,17 +244,13 @@ const showAncestryNavigation = computed(() => {
   return (showParentLink.value && Boolean(parentAuthor.value)) || showRootLink.value
 })
 
-// One-off voices keep a quieter version of their thread-assigned hue; repeat
-// participants receive the full accent so their later turns are easy to find.
-const isRecurringAuthor = computed(() => authorCommentCount.value > 1)
-
 const commentContainerClasses = computed(() => {
   return {
     'comment-top-level': currentDepth.value === 1,
     'comment-indent-capped': currentDepth.value >= COMMENT_INDENT_CAP_DEPTH,
     'comment-replies-hidden': areRepliesHidden.value,
     'comment-new': isNew.value,
-    'seed-palette-quiet': !isRecurringAuthor.value,
+    'seed-palette-quiet': isQuietAuthor(authorCommentCount.value),
   }
 })
 
@@ -291,9 +286,7 @@ const jumpToRoot = () => {
   void props.jumpToComment(rootCommentId.value)
 }
 
-const replyHref = computed(() => {
-  return `https://news.ycombinator.com/reply?id=${props.comment.id}&goto=item%3Fid%3D${props.comment.parent_id}%23${props.comment.id}`
-})
+const replyHref = computed(() => getHnReplyUrl(props.comment))
 </script>
 
 <style scoped>
@@ -413,9 +406,6 @@ const replyHref = computed(() => {
   position: relative;
   z-index: 1;
   color: inherit;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .author-name:hover {
@@ -519,9 +509,6 @@ const replyHref = computed(() => {
 
 .comment-ancestry-author {
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
   color: var(--seed-accent-strong);
   font-weight: 600;
 }

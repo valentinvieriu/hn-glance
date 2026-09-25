@@ -65,12 +65,14 @@ HN Glance uses Nuxt pages for the main routes and Nitro server routes for Hacker
 
 Frontend:
 
-- `app/pages/index.vue`, `app/pages/top.vue`, `app/pages/best.vue`, `app/pages/new.vue`, `app/pages/show.vue`: feed pages (`/` and `/top` both render the top feed without a redirect).
+- `app/pages/top.vue`, `app/pages/best.vue`, `app/pages/new.vue`, `app/pages/show.vue`: feed pages. `top.vue` declares `/` as a route alias, so `/` and `/top` both render the top feed without a redirect.
 - `app/pages/item/[id].vue`: story detail page with metadata, screenshot, comments, exact-source HN history, and similar stories.
-- `app/pages/user/[username].vue`: user profile/activity page with posts and comments.
+- `app/pages/user/[username].vue`: user profile/activity page with posts and comments; each list is a `useUserActivityFeed` instance rendered through `app/components/user/UserActivityPanel.vue`.
+- `app/layouts/default.vue`: the single app shell (header, main, footer, loading indicator) shared by pages and `app/error.vue`; `SiteErrorPage.vue` renders error content and owns error-page SEO.
 - `app/components/story/StoryGrid.vue`: feed layout and loading states.
 - `app/components/story/StoryCard.vue`: visual story card, source link, screenshot preview, title, and status row.
 - `app/components/story/StoryPlaceholderVisual.vue`: shared deterministic wireframe fallback for queued and unavailable screenshots.
+- `app/components/story/SourceScreenshotPreview.vue`: story-detail source screenshot with bounded retries and the full-size preview dialog.
 - `app/components/comment/CommentThread.vue`: nested comment renderer.
 - `app/components/comment/ConversationBrowser.vue`: discussion-focus projection with horizontally expanding sibling columns and a fixed rich comment reader; its supporting column, row, reader, and shared rich-content components live in the same directory.
 - `app/components/user/UserCommentCard.vue`: user activity comment card.
@@ -78,17 +80,21 @@ Frontend:
 - `app/components/RelatedStories.vue`: semantic “Similar Stories” list on detail pages.
 - `app/components/CommentLinks.vue`: value-ordered category groups of outbound links extracted from the comment tree, with deep links back to the comments that shared them.
 - `app/components/SourceIdentity.vue`: shared favicon-plus-preview identity block used by related-story and comment-link rows.
+- `app/components/StoryContextSectionHeader.vue`: shared icon, heading, and count header for the Similar Stories, HN history, and From the Discussion sections; their list rows share the `story-context-source-*` classes in `main.css`.
+- `app/types/commentReader.ts`: comment-reader position types, kept outside `app/components/` so Nuxt does not register a type-only module as a component.
 - `app/components/layout/Header.vue` and `app/components/layout/Footer.vue`: shared shell.
 
 Shared client logic:
 
 - `app/composables/useStories.ts`: feed loading, session-memory cache, and stale refresh state.
 - `app/composables/useFeedTheme.ts`: feed-specific labels, routes, and color theme variables.
+- `app/composables/usePageSeo.ts`: the one page-metadata entry point (title, description, Open Graph/Twitter mirrors, canonical URL, robots). Site-wide social image tags stay in `app.vue`.
 - `app/composables/useSeedPalette.ts`: deterministic card color palettes.
 - `app/composables/useStoryPlaceholder.ts`: non-semantic, story-seeded wireframe layout generation with bounded SVG geometry.
 - `app/composables/useSanitizer.ts`: safe rich-text rendering and HN comment post-processing.
 - `app/utils/storyScreenshotObserver.ts`: one shared client-side Intersection Observer for card screenshot preloading.
 - `app/utils/sourceFavicon.ts`: safe favicon URL derivation for source identity rows.
+- `app/utils/browserStorage.ts`: guarded local/session storage reads, writes, removals, and cross-tab key subscriptions.
 
 Server/API:
 
@@ -119,7 +125,8 @@ Server/API:
 Types and global styling:
 
 - `shared/types/index.ts`: shared story, comment, user, and activity types used by the Vue app and Nitro server.
-- `shared/utils/comments.ts`, `date.ts`, and `hn.ts`: framework-neutral comment analysis, date formatting, and HN identifier/path helpers.
+- `shared/utils/comments.ts`, `date.ts`, and `hn.ts`: framework-neutral comment analysis, date formatting, and HN identifier/path helpers. `hn.ts` also owns the canonical feed list (`HN_FEEDS`), HN Firebase URLs, reply/user URLs, and route query/hash parsing shared by the app, Nitro, the scheduler Worker, and the capture agent.
+- `shared/utils/url.ts` and `hash.ts`: source display-domain extraction and the FNV-1a seed hash behind palettes and placeholders.
 - `shared/utils/productLanguage.ts`: typed, framework-neutral semantic UI language for canonical discussion terms, actions, states, accessibility, and dynamic labels.
 - `shared/utils/commentLinks.ts`: bounded, framework-neutral extraction, deduplication, and value-ordered source categorization for outbound links shared in comments.
 - `app/assets/css/main.css`: base typography, rich-text rendering, quote/code/reference styles.

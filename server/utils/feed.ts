@@ -1,31 +1,19 @@
-import { createError, defineEventHandler, setHeaders, type H3Event } from 'h3'
-import { defineCachedFunction } from 'nitropack/runtime'
+import type { H3Event } from 'h3'
+import { getHnFeedIdsUrl, type HnFeed } from '#shared/utils/hn'
 import { formatServerTiming } from '#shared/utils/serverTiming'
-import { fetchStories } from './fetchStories'
 
-const FIREBASE_API_URL = 'https://hacker-news.firebaseio.com/v0'
 const MAX_ITEMS = 100
 const FEED_CACHE_MAX_AGE_SECONDS = 120
 const FEED_CACHE_STALE_MAX_AGE_SECONDS = 600
-
-type FeedName = 'best' | 'new' | 'show' | 'top'
-
-const firebaseFeedPaths: Record<FeedName, string> = {
-  best: 'beststories',
-  new: 'newstories',
-  show: 'showstories',
-  top: 'topstories',
-}
 
 const isStoryIdList = (value: unknown): value is number[] => {
   return Array.isArray(value) && value.every((id) => Number.isSafeInteger(id) && id > 0)
 }
 
-const createCachedFeedLoader = (feed: FeedName) => defineCachedFunction(
+const createCachedFeedLoader = (feed: HnFeed) => defineCachedFunction(
   async (_event: H3Event) => {
-    const feedPath = firebaseFeedPaths[feed]
     const firebaseIdsStartedAt = performance.now()
-    const storyIdsResponse = await $fetch<unknown>(`${FIREBASE_API_URL}/${feedPath}.json`)
+    const storyIdsResponse = await $fetch<unknown>(getHnFeedIdsUrl(feed))
     const firebaseIdsDuration = performance.now() - firebaseIdsStartedAt
 
     if (!isStoryIdList(storyIdsResponse)) {
@@ -80,7 +68,7 @@ const createCachedFeedLoader = (feed: FeedName) => defineCachedFunction(
   },
 )
 
-export const createFeedHandler = (feed: FeedName) => {
+export const createFeedHandler = (feed: HnFeed) => {
   const loadFeed = createCachedFeedLoader(feed)
 
   return defineEventHandler(async (event) => {

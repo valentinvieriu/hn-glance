@@ -1,20 +1,10 @@
 import { DISCUSSION_VISITS_STORAGE_KEY } from '#shared/utils/discussionVisits'
 import { useDiscussionVisits } from '~/composables/useDiscussionVisits'
+import { onBrowserStorageKeyChange } from '~/utils/browserStorage'
 
 export default defineNuxtPlugin(() => {
   const { syncFromStorage } = useDiscussionVisits()
+  const stopStorageSync = onBrowserStorageKeyChange(DISCUSSION_VISITS_STORAGE_KEY, syncFromStorage)
 
-  const handleStorage = (event: StorageEvent) => {
-    if (event.key === DISCUSSION_VISITS_STORAGE_KEY) {
-      syncFromStorage(event.newValue)
-    }
-  }
-
-  window.addEventListener('storage', handleStorage)
-
-  if (import.meta.hot) {
-    import.meta.hot.dispose(() => {
-      window.removeEventListener('storage', handleStorage)
-    })
-  }
+  import.meta.hot?.dispose(stopStorageSync)
 })

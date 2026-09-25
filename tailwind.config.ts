@@ -11,7 +11,6 @@ export default {
         display: ['Source Sans 3', ...defaultTheme.fontFamily.sans],
       },
       colors: {
-        'natural-wood': '#DEB887',
         'gray-900': '#1a202c',
         'gray-700': '#4a5568',
         'gray-600': '#718096',

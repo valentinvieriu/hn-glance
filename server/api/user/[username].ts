@@ -1,27 +1,8 @@
-import { createError, defineEventHandler, getRouterParams, setHeader } from 'h3'
 import type { HNUserProfile } from '#shared/types'
-import { isValidHnUsername } from '#shared/utils/hn'
 import { formatServerTiming } from '#shared/utils/serverTiming'
-import { fetchAlgoliaUser } from '../../utils/algolia'
-import { getErrorStatusCode } from '../../utils/error'
-import { fetchHnUserExists } from '../../utils/hnUser'
-
-type AlgoliaUserProfile = {
-  username?: string | null
-  created_at?: string | null
-  karma?: number | null
-  about?: string | null
-}
 
 export default defineEventHandler(async (event) => {
-  const { username } = getRouterParams(event)
-
-  if (!isValidHnUsername(username)) {
-    throw createError({
-      statusCode: 400,
-      statusMessage: 'Valid username is required',
-    })
-  }
+  const username = requireHnUsernameParam(event)
 
   try {
     const hnUserStartedAt = performance.now()
@@ -36,7 +17,7 @@ export default defineEventHandler(async (event) => {
     }
 
     const algoliaUserStartedAt = performance.now()
-    const profile = await fetchAlgoliaUser<AlgoliaUserProfile>(username)
+    const profile = await fetchAlgoliaUser(username)
     const algoliaUserDuration = performance.now() - algoliaUserStartedAt
 
     if (!profile?.username) {
@@ -76,17 +57,10 @@ export default defineEventHandler(async (event) => {
 
     return userProfile
   } catch (error) {
-    if (getErrorStatusCode(error) === 404) {
-      throw createError({
-        statusCode: 404,
-        statusMessage: 'User not found',
-      })
-    }
-
-    console.error('Error fetching user profile:', error)
-    throw createError({
-      statusCode: 500,
-      statusMessage: 'Failed to fetch user profile',
+    throw createUpstreamError(error, {
+      failureMessage: 'Failed to fetch user profile',
+      logMessage: 'Error fetching user profile:',
+      notFoundMessage: 'User not found',
     })
   }
 })

@@ -1,25 +1,15 @@
 <template>
   <section class="related-stories mt-10" aria-labelledby="similar-stories-title">
-    <div class="story-context-section-header">
-      <div class="story-context-section-heading">
-        <span class="story-context-section-icon" aria-hidden="true">
-          <LucideWaypoints class="h-4 w-4" />
-        </span>
-        <h2
-          id="similar-stories-title"
-          class="section-title mb-0 text-xl font-semibold text-gray-900 dark:text-gray-100"
-        >
-          Similar Stories
-        </h2>
-      </div>
-      <span
-        v-if="stories.length > 0"
-        class="story-context-section-count"
-        :aria-label="`${stories.length} similar ${stories.length === 1 ? 'story' : 'stories'}`"
-      >
-        {{ stories.length }}
-      </span>
-    </div>
+    <StoryContextSectionHeader
+      id="similar-stories-title"
+      title="Similar Stories"
+      :count="stories.length"
+      :count-label="`${stories.length} similar ${stories.length === 1 ? 'story' : 'stories'}`"
+    >
+      <template #icon>
+        <LucideWaypoints class="h-4 w-4" />
+      </template>
+    </StoryContextSectionHeader>
     <div
       v-if="status === 'idle' || status === 'pending'"
       class="related-stories-state meta-text"
@@ -35,13 +25,13 @@
     <ol
       v-else
       id="similar-stories-list"
-      class="related-story-list"
+      class="related-story-list story-context-source-list"
       :class="{ 'is-expanded': isExpanded }"
     >
       <li
         v-for="(story, index) in stories"
         :key="story.objectID"
-        class="related-story-row story-context-interactive-row story-context-palette"
+        class="related-story-row story-context-source-row story-context-interactive-row story-context-palette"
         :class="{ 'is-mobile-extra': index >= MOBILE_VISIBLE_STORIES }"
         :style="relatedPaletteStyle(story)"
       >
@@ -54,7 +44,7 @@
           <h3>
             <NuxtLink
               :to="`/item/${story.objectID}`"
-              class="related-story-title story-context-primary-link"
+              class="story-context-source-title story-context-primary-link"
             >
               {{ story.title }}
             </NuxtLink>
@@ -68,10 +58,10 @@
               class="related-story-source story-context-secondary-link"
               :aria-label="`Open source on ${getStoryDomain(story)}`"
             >
-              <span>{{ getStoryDomain(story) }}</span>
+              <span class="truncate">{{ getStoryDomain(story) }}</span>
             </a>
             <span v-else class="related-story-source-fallback">HN discussion</span>
-            <span class="related-story-author">
+            <span class="related-story-author truncate">
               by
               <NuxtLink
                 :to="getHnUserPath(story.author)"
@@ -119,7 +109,9 @@ import type { RelatedStory } from '#shared/types'
 import { formatCompactTimeAgo } from '#shared/utils/date'
 import { getHnItemUrl, getHnUserPath } from '#shared/utils/hn'
 import { getScreenshotPath } from '#shared/utils/screenshot'
+import { getUrlDomain } from '#shared/utils/url'
 import { getStoryContextPaletteStyle } from '~/composables/useSeedPalette'
+import StoryContextSectionHeader from './StoryContextSectionHeader.vue'
 
 const MOBILE_VISIBLE_STORIES = 4
 const isExpanded = ref(false)
@@ -130,15 +122,7 @@ defineProps<{
   stories: RelatedStory[]
 }>()
 
-const getStoryDomain = (story: RelatedStory) => {
-  if (!story.url) return 'Hacker News'
-
-  try {
-    return new URL(story.url).hostname.replace(/^www\./, '')
-  } catch {
-    return 'Hacker News'
-  }
-}
+const getStoryDomain = (story: RelatedStory) => getUrlDomain(story.url, 'Hacker News')
 
 const relatedPaletteStyle = (story: RelatedStory) => {
   return getStoryContextPaletteStyle(story.objectID, getStoryDomain(story))
@@ -157,54 +141,17 @@ const relatedPaletteStyle = (story: RelatedStory) => {
 }
 
 .related-story-list {
-  margin: 0;
-  margin-inline: -0.4rem;
+  margin-block: 0;
   padding: 0;
-  border-top: 1px solid var(--story-context-border);
   list-style: none;
 }
 
-.related-story-row {
-  --source-identity-accent: var(--story-context-accent-strong);
-  --source-identity-border: var(--story-context-border);
-  --source-identity-surface: var(--story-context-accent-soft);
-  --source-identity-surface-dark: var(--story-context-accent-soft);
-  display: grid;
-  min-width: 0;
-  grid-template-columns: 2.85rem minmax(0, 1fr);
-  gap: 0.72rem;
-  padding: 0.78rem 0.4rem;
-  border-bottom: 1px solid var(--story-context-border);
-  background: transparent;
-}
-
-.related-story-row:has(.story-context-primary-link:hover),
 .related-story-row:has(.story-context-primary-link:focus-visible) {
   background: var(--story-context-accent-soft);
 }
 
 .related-story-content {
   min-width: 0;
-}
-
-.related-story-title {
-  display: inline;
-  color: rgb(15 23 42);
-  font-family: var(--font-ui);
-  font-size: 0.98rem;
-  font-weight: 650;
-  line-height: 1.32;
-  text-decoration-color: transparent;
-  text-decoration-thickness: 1px;
-  text-underline-offset: 0.2em;
-  transition: color 160ms ease, text-decoration-color 160ms ease;
-}
-
-.related-story-title:hover,
-.related-story-title:focus-visible {
-  color: var(--story-context-accent-strong);
-  text-decoration-line: underline;
-  text-decoration-color: var(--story-context-accent);
 }
 
 .related-story-source-line {
@@ -227,12 +174,6 @@ const relatedPaletteStyle = (story: RelatedStory) => {
   font-weight: 700;
 }
 
-.related-story-source span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .related-story-source:hover,
 .related-story-source:focus-visible {
   text-decoration: underline;
@@ -252,9 +193,6 @@ const relatedPaletteStyle = (story: RelatedStory) => {
 
 .related-story-author {
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .related-story-author-link {
@@ -279,12 +217,6 @@ const relatedPaletteStyle = (story: RelatedStory) => {
   font-weight: 650;
 }
 
-.dark .related-story-title {
-  color: rgb(241 245 249);
-}
-
-.dark .related-story-title:hover,
-.dark .related-story-title:focus-visible,
 .dark .related-story-source {
   color: var(--story-context-accent);
 }
@@ -325,12 +257,6 @@ const relatedPaletteStyle = (story: RelatedStory) => {
 
   .related-stories-toggle {
     display: inline-flex;
-  }
-}
-
-@media (max-width: 480px) {
-  .related-story-row {
-    gap: 0.65rem;
   }
 }
 </style>

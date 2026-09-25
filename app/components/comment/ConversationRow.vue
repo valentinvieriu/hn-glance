@@ -6,7 +6,7 @@
       'conversation-row-selected': selected,
       'conversation-row-current': current,
       'conversation-row-new': isNew,
-      'seed-palette-quiet': authorCommentCount <= 1,
+      'seed-palette-quiet': isQuietAuthor(authorCommentCount),
     }"
     :style="paletteStyle"
     :aria-current="current ? 'true' : undefined"
@@ -77,7 +77,11 @@ import {
   discussionLanguage,
   type DiscussionRowState,
 } from '#shared/utils/productLanguage'
-import type { SeedPaletteStyle } from '~/composables/useSeedPalette'
+import {
+  isQuietAuthor,
+  isStoryAuthor,
+  type SeedPaletteStyle,
+} from '~/composables/useSeedPalette'
 
 const props = defineProps<{
   authorCommentCount: number
@@ -96,13 +100,11 @@ const emit = defineEmits<{
 }>()
 
 const directReplyCount = computed(() => props.comment.children?.length ?? 0)
-const isOriginalPoster = computed(() => {
-  return Boolean(props.storyAuthor) && props.comment.author === props.storyAuthor
-})
+const isOriginalPoster = computed(() => isStoryAuthor(props.comment.author, props.storyAuthor))
 const preview = computed(() => getCommentPreview(props.comment.text))
-const replyLabel = computed(() => directReplyCount.value > 0
-  ? discussionLanguage.format.replySummary(directReplyCount.value, props.descendantCount)
-  : '')
+const replyLabel = computed(() => {
+  return discussionLanguage.format.replySummaryIfAny(directReplyCount.value, props.descendantCount)
+})
 const timeAgo = computed(() => formatTimeAgo(props.comment.created_at))
 const contentMarkers = computed(() => {
   const text = props.comment.text || ''

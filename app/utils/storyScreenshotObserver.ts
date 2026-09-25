@@ -6,7 +6,7 @@ let loadObserver: IntersectionObserver | null = null
 const getLoadObserver = () => {
   if (
     loadObserver
-    || typeof window === 'undefined'
+    || !import.meta.client
     || !('IntersectionObserver' in window)
   ) {
     return loadObserver

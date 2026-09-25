@@ -1,4 +1,6 @@
-export type FeedEndpoint = 'top' | 'best' | 'new' | 'show'
+import { HN_FEEDS, type HnFeed } from '#shared/utils/hn'
+
+export type FeedEndpoint = HnFeed
 
 type FeedTheme = {
   key: FeedEndpoint
@@ -8,8 +10,6 @@ type FeedTheme = {
   path: string
   hues: [number, number, number]
 }
-
-const feedThemeOrder: FeedEndpoint[] = ['top', 'best', 'new', 'show']
 
 const feedThemes: Record<FeedEndpoint, FeedTheme> = {
   top: {
@@ -46,9 +46,9 @@ const feedThemes: Record<FeedEndpoint, FeedTheme> = {
   },
 }
 
-export const feedThemeList = feedThemeOrder.map((feed) => feedThemes[feed])
+export const feedThemeList = HN_FEEDS.map((feed) => feedThemes[feed])
 
-const feedThemeStyles = new Map(feedThemeOrder.map<[
+const feedThemeStyles = new Map(HN_FEEDS.map<[
   FeedEndpoint,
   Record<string, string>,
 ]>((feed) => {
@@ -60,10 +60,6 @@ const feedThemeStyles = new Map(feedThemeOrder.map<[
     '--feed-hue-c': `${hueC}`,
   }]
 }))
-
-export const isFeedEndpoint = (value: string | undefined): value is FeedEndpoint => {
-  return Boolean(value && value in feedThemes)
-}
 
 export const getFeedTheme = (feed: FeedEndpoint) => feedThemes[feed]
 

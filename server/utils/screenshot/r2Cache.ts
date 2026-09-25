@@ -11,11 +11,11 @@ import {
   SCREENSHOT_PREVIEW_WIDTH,
   SCREENSHOT_RETENTION_DAYS,
   SCREENSHOT_RETENTION_SECONDS,
-} from '../../../shared/utils/screenshot'
-import type { ScreenshotSourceRoute } from '../../../shared/utils/screenshot'
+  SCREENSHOT_STORAGE_PREFIX,
+  type ScreenshotSourceRoute,
+} from '#shared/utils/screenshot'
+import { parsePositiveIntegerConfig } from './runtimeConfig'
 
-export const R2_SCREENSHOT_PREFIX = 'screenshots/v9/items/'
-const DEFAULT_R2_TTL_DAYS = SCREENSHOT_RETENTION_DAYS
 const MS_PER_DAY = 24 * 60 * 60 * 1000
 const SECONDS_PER_DAY = 24 * 60 * 60
 
@@ -29,7 +29,7 @@ type R2ScreenshotMetadata = {
   variant?: ScreenshotVariant
 }
 
-export type R2ScreenshotHead = {
+type R2ScreenshotHead = {
   capturedAt: Date | null
   contentType: string
   isFresh: boolean
@@ -43,8 +43,7 @@ export type R2Screenshot = R2ScreenshotHead & {
 }
 
 const normalizeTtlDays = (value: unknown) => {
-  const parsedValue = Number(value)
-  return Number.isFinite(parsedValue) ? Math.max(1, Math.floor(parsedValue)) : DEFAULT_R2_TTL_DAYS
+  return parsePositiveIntegerConfig(value, SCREENSHOT_RETENTION_DAYS)
 }
 
 export const getRemainingR2TtlSeconds = (
@@ -66,7 +65,7 @@ export const getRemainingR2TtlSeconds = (
 }
 
 export const getR2PreviewScreenshotKey = (storyId: string) => {
-  return `${R2_SCREENSHOT_PREFIX}${storyId}/preview-${SCREENSHOT_PREVIEW_WIDTH}x${SCREENSHOT_PREVIEW_HEIGHT}-q${SCREENSHOT_PREVIEW_QUALITY}.webp`
+  return `${SCREENSHOT_STORAGE_PREFIX}${storyId}/preview-${SCREENSHOT_PREVIEW_WIDTH}x${SCREENSHOT_PREVIEW_HEIGHT}-q${SCREENSHOT_PREVIEW_QUALITY}.webp`
 }
 
 const getCapturedAt = (metadata: R2ScreenshotMetadata) => {
@@ -132,7 +131,6 @@ export const writeR2Screenshot = async (
   key: string,
   storyId: string,
   result: ScreenshotResult,
-  variant: ScreenshotVariant,
 ) => {
   const bucket = env?.SCREENSHOTS_BUCKET
 
@@ -152,7 +150,7 @@ export const writeR2Screenshot = async (
       provider: result.provider,
       sourceRoute: result.sourceRoute,
       storyId,
-      variant,
+      variant: 'original',
     }),
   })
 }

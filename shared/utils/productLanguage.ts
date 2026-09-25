@@ -8,7 +8,6 @@ const pluralize = (
 ) => `${count} ${count === 1 ? singular : plural}`
 
 const terms = {
-  branch: 'Branch',
   commentReader: 'Comment reader',
   currentComment: 'Current comment',
   discussion: 'Discussion',
@@ -16,7 +15,6 @@ const terms = {
   parentComment: 'Parent comment',
   readingMode: 'Reading mode',
   readingPath: 'Reading path',
-  replies: 'Replies',
   rootComment: 'Root comment',
   rootComments: 'Root comments',
 } as const
@@ -53,6 +51,12 @@ const messages = {
 
 const context = {
   replyingTo: 'Replying to',
+} as const
+
+// Stand-ins for author names that are missing from the loaded discussion.
+const fallbacks = {
+  author: 'Unknown',
+  parentAuthor: 'parent',
 } as const
 
 const sort = {
@@ -93,6 +97,7 @@ export const discussionLanguage = {
   states,
   messages,
   context,
+  fallbacks,
   sort,
   sections,
   format: {
@@ -147,6 +152,11 @@ export const discussionLanguage = {
     },
     repliesTo: (author: string) => `Replies to ${author}`,
     replySummary,
+    // Empty for a comment without replies so callers can offer their own
+    // end-of-branch wording.
+    replySummaryIfAny: (directReplyCount: number, descendantCount: number) => {
+      return directReplyCount > 0 ? replySummary(directReplyCount, descendantCount) : ''
+    },
     rootCommentBy: (author: string) => `Root comment by ${author}`,
     rootCommentCount: (count: number) => pluralize(count, 'root comment'),
     rowLabel: (
@@ -187,8 +197,4 @@ export const discussionLanguage = {
     readingPath: terms.readingPath,
     startDiscussionOnHackerNews: 'Add the first comment on Hacker News (opens in a new tab)',
   },
-} as const
-
-export const productLanguage = {
-  discussion: discussionLanguage,
 } as const

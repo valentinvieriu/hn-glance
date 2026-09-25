@@ -1,4 +1,5 @@
 import type { Comment } from '#shared/types'
+import { hashSeed as hashString } from '#shared/utils/hash'
 
 export type SeedPaletteStyle = Record<string, string>
 
@@ -15,15 +16,7 @@ const THREAD_HUE_CANDIDATE_COUNT = 36
 const normalizeHue = (hue: number) => ((hue % 360) + 360) % 360
 
 const hashSeed = (seed: string | number | null | undefined): number => {
-  const value = String(seed ?? DEFAULT_SEED)
-  let hash = 2166136261
-
-  for (const character of value) {
-    hash ^= character.codePointAt(0) ?? 0
-    hash = Math.imul(hash, 16777619)
-  }
-
-  return hash >>> 0
+  return hashString(String(seed ?? DEFAULT_SEED))
 }
 
 const getSeedHue = (
@@ -165,6 +158,26 @@ export const getSeedPaletteStyle = (
     '--seed-hue': `${hue}`,
   }
 }
+
+/**
+ * Resolves an author's thread-assigned palette, falling back to a seed hue
+ * when the author has no assignment in that thread palette.
+ */
+export const getAuthorPaletteStyle = (
+  palette: CommentThreadAuthorPalette | undefined,
+  author: string,
+  fallbackContextSeed?: string | number | null,
+): SeedPaletteStyle => {
+  return palette?.authorStyles.get(author) ?? getSeedPaletteStyle(author, fallbackContextSeed)
+}
+
+export const isStoryAuthor = (author: string, storyAuthor: string | null | undefined) => {
+  return Boolean(storyAuthor) && author === storyAuthor
+}
+
+// One-off voices keep a quieter version of their thread-assigned hue; repeat
+// participants receive the full accent so their later turns are easy to find.
+export const isQuietAuthor = (authorCommentCount: number) => authorCommentCount <= 1
 
 export const getStoryContextPaletteStyle = (
   storyId: string | number | null | undefined,

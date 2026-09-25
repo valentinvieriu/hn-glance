@@ -1,26 +1,7 @@
-import { createError, defineEventHandler, getRouterParams, setHeader, setHeaders, type H3Event } from 'h3'
+import type { H3Event } from 'h3'
 import type { StoryContextResponse } from '#shared/types'
 import { isValidHnItemId } from '#shared/utils/hn'
 import { formatServerTiming, type ServerTimingMetric } from '#shared/utils/serverTiming'
-import {
-  searchAlgoliaHits,
-  type AlgoliaCommentHit,
-  type AlgoliaSearchOrder,
-  type AlgoliaStoryHit,
-} from '../../utils/algolia'
-import { getErrorStatusCode } from '../../utils/error'
-import {
-  buildTitleQuery,
-  rankRelatedStories,
-  type RelatedSearchKind,
-  type RelatedSourceStory,
-  type SearchResult,
-} from '../../utils/relatedStories'
-import {
-  canonicalizeSubmissionUrl,
-  selectSubmissionHistory,
-  SUBMISSION_HISTORY_CANDIDATE_LIMIT,
-} from '../../utils/previousSubmissions'
 
 const RELATED_STORY_ATTRIBUTES = 'objectID,title,created_at,created_at_i,points,num_comments,author,url'
 const SOURCE_STORY_ATTRIBUTES = 'title,url,created_at_i'
@@ -36,7 +17,6 @@ const setRelatedCacheHeaders = (event: H3Event) => {
 
 const fetchStoryHits = async (
   params: Record<string, string>,
-  weight: number,
   kind: RelatedSearchKind,
   order: AlgoliaSearchOrder = 'relevance',
 ): Promise<SearchResult> => {
@@ -46,10 +26,10 @@ const fetchStoryHits = async (
       getRankingInfo: 'true',
       ...params,
     }, order)
-    return { hits, kind, weight }
+    return { hits, kind }
   } catch (error) {
     console.warn('Failed to fetch related story candidates:', error)
-    return { hits: [], kind, weight }
+    return { hits: [], kind }
   }
 }
 
@@ -77,7 +57,7 @@ const fetchCommentLinkedStories = async (query: string, excludeId: string): Prom
     }
 
     if (rankedStoryIds.length === 0) {
-      return { hits: [], kind: 'comment', weight: 26 }
+      return { hits: [], kind: 'comment' }
     }
 
     const order = new Map(rankedStoryIds.map((storyId, index) => [storyId, index]))
@@ -92,11 +72,10 @@ const fetchCommentLinkedStories = async (query: string, excludeId: string): Prom
     return {
       hits: hits.sort((a, b) => (order.get(a.objectID ?? '') ?? 99) - (order.get(b.objectID ?? '') ?? 99)),
       kind: 'comment',
-      weight: 26
     }
   } catch (error) {
     console.warn('Failed to fetch comment-linked related stories:', error)
-    return { hits: [], kind: 'comment', weight: 26 }
+    return { hits: [], kind: 'comment' }
   }
 }
 
@@ -127,8 +106,7 @@ const fetchSourceStory = async (id: string) => {
 }
 
 export default defineEventHandler(async (event) => {
-  const params = getRouterParams(event)
-  const id = params.id
+  const id = getRouterParam(event, 'id')
 
   if (!isValidHnItemId(id)) {
     throw createError({
@@ -150,7 +128,6 @@ export default defineEventHandler(async (event) => {
     }
 
     const titleQuery = buildTitleQuery(story.title)
-    const optionalTitleWords = titleQuery
     const submissionUrlQuery = canonicalizeSubmissionUrl(story.url)
 
     if (!titleQuery && !submissionUrlQuery) {
@@ -171,25 +148,25 @@ export default defineEventHandler(async (event) => {
     if (titleQuery) {
       searches.push(fetchStoryHits({
         query: titleQuery,
-        optionalWords: optionalTitleWords,
+        optionalWords: titleQuery,
         tags: 'story',
         restrictSearchableAttributes: 'title',
         hitsPerPage: '24'
-      }, 80, 'title'))
+      }, 'title'))
 
       searches.push(fetchStoryHits({
         query: titleQuery,
-        optionalWords: optionalTitleWords,
+        optionalWords: titleQuery,
         tags: 'story',
         restrictSearchableAttributes: 'title',
         hitsPerPage: '18'
-      }, 62, 'recent-title', 'date'))
+      }, 'recent-title', 'date'))
 
       searches.push(fetchStoryHits({
         query: titleQuery,
         tags: 'story',
         hitsPerPage: '18'
-      }, 52, 'full-text'))
+      }, 'full-text'))
 
       searches.push(fetchCommentLinkedStories(titleQuery, id))
     }
@@ -205,9 +182,7 @@ export default defineEventHandler(async (event) => {
     ])
     const relatedSearchesDuration = performance.now() - relatedSearchesStartedAt
     const relatedRankStartedAt = performance.now()
-    const relatedStories = rankRelatedStories(results, story, id, {
-      excludeExactSourceUrl: true,
-    })
+    const relatedStories = rankRelatedStories(results, story, id)
     const relatedRankDuration = performance.now() - relatedRankStartedAt
     const historyMatchStartedAt = performance.now()
     const submissionHistory = selectSubmissionHistory(submissionHistoryHits, story)

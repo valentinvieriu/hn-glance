@@ -1,44 +1,12 @@
-import {
-  createError,
-  defineEventHandler,
-  getRouterParams,
-} from 'h3'
-import { useRuntimeConfig } from '#imports'
-import { isValidHnItemId } from '#shared/utils/hn'
 import { SCREENSHOT_PROFILE_VERSION } from '#shared/utils/screenshot'
 import type { ScreenshotPrepareResponse } from '#shared/utils/screenshotJobs'
-import { requireScreenshotAgent } from '../../../../utils/screenshot/agentAuth'
-import { resolveScreenshotJob } from '../../../../utils/screenshot/jobResolution'
-import {
-  getR2PreviewScreenshotKey,
-  headR2Screenshot,
-} from '../../../../utils/screenshot/r2Cache'
-import { resolveScreenshotRuntimeConfig } from '../../../../utils/screenshot/runtimeConfig'
-import { probeCaptureUrlContent } from '../../../../utils/screenshot/sourcePolicy'
-import type { ScreenshotRuntimeConfig } from '../../../../utils/screenshot/types'
 
 export default defineEventHandler(async (event): Promise<ScreenshotPrepareResponse> => {
   const env = await requireScreenshotAgent(event)
-  const storyId = getRouterParams(event).id
+  const storyId = requireHnItemIdParam(event)
+  requireScreenshotStorage(env)
 
-  if (!isValidHnItemId(storyId)) {
-    throw createError({
-      statusCode: 400,
-      statusMessage: 'Valid story ID is required',
-    })
-  }
-
-  if (!env?.SCREENSHOTS_BUCKET) {
-    throw createError({
-      statusCode: 503,
-      statusMessage: 'Screenshot storage is unavailable',
-    })
-  }
-
-  const runtimeConfig = resolveScreenshotRuntimeConfig(
-    useRuntimeConfig(event) as ScreenshotRuntimeConfig,
-    env,
-  )
+  const runtimeConfig = useScreenshotRuntimeConfig(event, env)
   const previewKey = getR2PreviewScreenshotKey(storyId)
   const preview = await headR2Screenshot(
     env,

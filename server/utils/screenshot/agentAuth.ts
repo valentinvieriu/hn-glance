@@ -1,6 +1,5 @@
 import { timingSafeEqual as compareTimingSafe } from 'node:crypto'
-import { createError, getRequestHeader, type H3Event } from 'h3'
-import type { ScreenshotEnv } from './types'
+import type { H3Event } from 'h3'
 
 const hashValue = async (value: string) => {
   return await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value))
@@ -16,7 +15,7 @@ const timingSafeEqual = async (provided: string, expected: string) => {
 }
 
 export const requireScreenshotAgent = async (event: H3Event) => {
-  const env = event.context.cloudflare?.env as ScreenshotEnv | undefined
+  const env = getScreenshotEnv(event)
   const expectedToken = typeof env?.HN_GLANCE_SCREENSHOT_AGENT_TOKEN === 'string'
     ? env.HN_GLANCE_SCREENSHOT_AGENT_TOKEN.trim()
     : ''

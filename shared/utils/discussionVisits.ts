@@ -8,7 +8,7 @@ export const MAX_DISCUSSION_VISIT_STORIES = 100
 export const MAX_DISCUSSION_VISIT_COMMENT_IDS = 20_000
 export const MAX_DISCUSSION_VISIT_COMMENT_IDS_PER_STORY = 5_000
 
-export type DiscussionVisitEntry = {
+type DiscussionVisitEntry = {
   lastVisitedAt: number
   seenCommentIds: number[]
 }
@@ -18,7 +18,7 @@ export type DiscussionVisits = {
   version: typeof DISCUSSION_VISITS_VERSION
 }
 
-export type DiscussionVisitStart = {
+type DiscussionVisitStart = {
   hadBaseline: boolean
   isTracked: boolean
   newCommentIds: number[]
@@ -107,7 +107,7 @@ export const createEmptyDiscussionVisits = (): DiscussionVisits => ({
   version: DISCUSSION_VISITS_VERSION,
 })
 
-export const parseDiscussionVisits = (value: unknown): DiscussionVisits => {
+const parseDiscussionVisits = (value: unknown): DiscussionVisits => {
   const visits = createEmptyDiscussionVisits()
 
   if (!isRecord(value) || value.version !== DISCUSSION_VISITS_VERSION || !isRecord(value.stories)) {
