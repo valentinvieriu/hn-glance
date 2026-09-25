@@ -93,6 +93,7 @@ Shared client logic:
 - `app/composables/useStoryPlaceholder.ts`: non-semantic, story-seeded wireframe layout generation with bounded SVG geometry.
 - `app/composables/useSanitizer.ts`: safe rich-text rendering and HN comment post-processing.
 - `app/utils/storyScreenshotObserver.ts`: one shared client-side Intersection Observer for card screenshot preloading.
+- `app/utils/storyCardParallax.ts`: touch-device card screenshot parallax with one shared Intersection Observer, passive scroll listener, resize listener, and batched read-then-write animation frame for all cards.
 - `app/utils/sourceFavicon.ts`: safe favicon URL derivation for source identity rows.
 - `app/utils/browserStorage.ts`: guarded local/session storage reads, writes, removals, and cross-tab key subscriptions.
 
@@ -465,7 +466,9 @@ Preserve these guardrails:
   URL, or Nuxt Image's Cloudflare provider.
 - Do not raise daily admissions, storage ceiling, retention, dimensions,
   quality, or byte limits without recalculating Queue and R2 free-tier usage.
-- Feed cards share one Intersection Observer.
+- Feed cards share one Intersection Observer for screenshot preloading and one
+  parallax module for touch scrolling; do not add per-card scroll, resize, or
+  observer listeners.
 - Keep feed cards continuously paintable. Do not add `content-visibility: auto`
   to `StoryCard`; Chromium can flash the filtered screenshot layers while
   scrolling. Screenshot request deferral remains owned by the shared observer.

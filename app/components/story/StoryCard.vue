@@ -137,6 +137,7 @@ import { formatCompactTimeAgo } from '#shared/utils/date'
 import { getHnItemUrl, getHnUserPath } from '#shared/utils/hn'
 import { getUrlDomain } from '#shared/utils/url'
 import { observeStoryScreenshot, unobserveStoryScreenshot } from '~/utils/storyScreenshotObserver'
+import { observeStoryCardParallax, unobserveStoryCardParallax } from '~/utils/storyCardParallax'
 
 const props = withDefaults(defineProps<{
   priority?: boolean
@@ -189,16 +190,7 @@ const cardRef = ref<HTMLElement | null>(null)
 const imageRef = ref<HTMLImageElement | null>(null)
 const imageSrc = ref<string | null>(props.priority ? screenshotSrc : null)
 const imageState = ref<'queued' | 'loading' | 'loaded' | 'failed'>(props.priority ? 'loading' : 'queued')
-const isTouchDevice = ref(false)
-const isInView = ref(false)
-const isTouchScrollAnimationActive = computed(() => isTouchDevice.value && isInView.value)
-let scrollAnimationFrameId: number | null = null
-let scrollObserver: IntersectionObserver | null = null
-let resizeTimeoutId: ReturnType<typeof setTimeout> | null = null
-let isListeningForTouchScroll = false
-let windowHeight = 0
-
-const MAX_IMAGE_TRANSLATE_PERCENT = 20
+const isTouchScrollAnimationActive = ref(false)
 
 const imageIsVisible = computed(() => {
   if (props.priority) {
@@ -239,108 +231,12 @@ const loadScreenshot = () => {
   imageSrc.value = screenshotSrc
 }
 
-const updateImageScrollTransform = () => {
-  if (!isInView.value || !isTouchDevice.value || !cardRef.value) {
-    return
-  }
-
-  const rect = cardRef.value.getBoundingClientRect()
-  const progress = Math.max(0, Math.min(1, (windowHeight - rect.top) / (rect.height + windowHeight)))
-  const offset = -MAX_IMAGE_TRANSLATE_PERCENT * progress
-
-  cardRef.value.style.setProperty('--story-card-image-offset', `${offset}%`)
-}
-
-const scheduleImageScrollUpdate = () => {
-  if (!isInView.value || !isTouchDevice.value || scrollAnimationFrameId !== null) {
-    return
-  }
-
-  scrollAnimationFrameId = requestAnimationFrame(() => {
-    scrollAnimationFrameId = null
-    updateImageScrollTransform()
-  })
-}
-
-const addTouchScrollListener = () => {
-  if (isListeningForTouchScroll) {
-    return
-  }
-
-  window.addEventListener('scroll', scheduleImageScrollUpdate, { passive: true })
-  isListeningForTouchScroll = true
-}
-
-const removeTouchScrollListener = () => {
-  if (!isListeningForTouchScroll) {
-    return
-  }
-
-  window.removeEventListener('scroll', scheduleImageScrollUpdate)
-  isListeningForTouchScroll = false
-}
-
-const handleViewportResize = () => {
-  if (resizeTimeoutId !== null) {
-    clearTimeout(resizeTimeoutId)
-  }
-
-  resizeTimeoutId = setTimeout(() => {
-    resizeTimeoutId = null
-    windowHeight = window.innerHeight || document.documentElement.clientHeight
-    scheduleImageScrollUpdate()
-  }, 150)
-}
-
-const setupTouchScrollAnimation = () => {
-  const hasCoarsePointer = window.matchMedia('(pointer: coarse)').matches
-  const hasTouchInput = 'ontouchstart' in window || navigator.maxTouchPoints > 0
-  const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-
-  isTouchDevice.value = (hasCoarsePointer || hasTouchInput) && !prefersReducedMotion
-  if (!isTouchDevice.value) {
-    return
-  }
-
-  windowHeight = window.innerHeight || document.documentElement.clientHeight
-  window.addEventListener('resize', handleViewportResize)
-
-  if (!('IntersectionObserver' in window)) {
-    isInView.value = true
-    addTouchScrollListener()
-    scheduleImageScrollUpdate()
-    return
-  }
-
-  scrollObserver = new IntersectionObserver(
-    ([entry]) => {
-      isInView.value = entry?.isIntersecting ?? false
-
-      if (isInView.value) {
-        addTouchScrollListener()
-        scheduleImageScrollUpdate()
-        return
-      }
-
-      removeTouchScrollListener()
-      if (scrollAnimationFrameId !== null) {
-        cancelAnimationFrame(scrollAnimationFrameId)
-        scrollAnimationFrameId = null
-      }
-    },
-    {
-      threshold: [0, 0.1, 0.5, 1],
-      rootMargin: '25% 0px',
-    },
-  )
-
-  if (cardRef.value) {
-    scrollObserver.observe(cardRef.value)
-  }
-}
-
 onMounted(() => {
-  setupTouchScrollAnimation()
+  if (cardRef.value) {
+    observeStoryCardParallax(cardRef.value, (isInView) => {
+      isTouchScrollAnimationActive.value = isInView
+    })
+  }
 
   if (props.priority) {
     if (imageRef.value?.complete) {
@@ -357,17 +253,7 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   unobserveStoryScreenshot(cardRef.value)
-  scrollObserver?.disconnect()
-  removeTouchScrollListener()
-  window.removeEventListener('resize', handleViewportResize)
-
-  if (scrollAnimationFrameId !== null) {
-    cancelAnimationFrame(scrollAnimationFrameId)
-  }
-
-  if (resizeTimeoutId !== null) {
-    clearTimeout(resizeTimeoutId)
-  }
+  unobserveStoryCardParallax(cardRef.value)
 })
 </script>
 

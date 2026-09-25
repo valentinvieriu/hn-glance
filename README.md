@@ -325,6 +325,7 @@ Use `npm run check` as the baseline check before shipping changes.
 - `server/plugins/removeInlinedStylesheets.ts`: removes duplicate Nuxt stylesheet links after SSR has inlined the same critical CSS.
 - `app/composables/`: shared client logic such as story loading and sanitization.
 - `app/utils/storyScreenshotObserver.ts`: shared feed-card screenshot preload observer.
+- `app/utils/storyCardParallax.ts`: shared touch-scroll parallax driver for feed cards.
 - `app/assets/css/main.css`: global typography and rich-text styling.
 - Typography uses Source Sans 3 for the interface and Source Serif 4 for
   comments, quoted text, and story prose, with self-hosted variable weights.
