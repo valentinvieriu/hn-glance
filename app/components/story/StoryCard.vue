@@ -31,7 +31,8 @@
           <span class="story-domain-chip">{{ storyDomain }}</span>
           <LucideExternalLink class="story-source-icon" aria-hidden="true" />
         </NuxtLink>
-        <span class="story-card-time">
+        <!-- Cards hydrate lazily, so the relative age may have advanced since SSR. -->
+        <span class="story-card-time" data-allow-mismatch="text">
           <LucideClock class="w-4 h-4" aria-hidden="true" />
           {{ formatCompactTimeAgo(story.created_at) }}
         </span>

@@ -82,11 +82,14 @@
           </div>
 
           <div class="story-grid">
-            <StoryCard
+            <!-- Cards hydrate as they approach the viewport, so first load
+                 does not hydrate the whole feed in one main-thread task. -->
+            <LazyStoryCard
               v-for="(story, index) in stories"
               :key="story.objectID"
               :story="story"
               :priority="index === 0"
+              :hydrate-on-visible="STORY_CARD_HYDRATION"
             />
           </div>
         </div>
@@ -103,6 +106,8 @@ import type { FeedEndpoint } from '~/composables/useFeedTheme';
 import { getScreenshotPath } from '#shared/utils/screenshot';
 import { createFeedStructuredData } from '#shared/utils/structuredData';
 import { LucideRefreshCw } from '@lucide/vue';
+
+const STORY_CARD_HYDRATION: IntersectionObserverInit = { rootMargin: '600px 0px' };
 
 const props = defineProps<{ endpoint: FeedEndpoint }>();
 const { stories, isLoading, isRefreshing, error } = useStories(props.endpoint);

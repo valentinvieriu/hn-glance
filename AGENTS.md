@@ -69,7 +69,7 @@ Frontend:
 - `app/pages/item/[id].vue`: story detail page with metadata, screenshot, comments, exact-source HN history, and similar stories.
 - `app/pages/user/[username].vue`: user profile/activity page with posts and comments; each list is a `useUserActivityFeed` instance rendered through `app/components/user/UserActivityPanel.vue`.
 - `app/layouts/default.vue`: the single app shell (header, main, footer, loading indicator) shared by pages and `app/error.vue`; `SiteErrorPage.vue` renders error content and owns error-page SEO.
-- `app/components/story/StoryGrid.vue`: feed layout and loading states.
+- `app/components/story/StoryGrid.vue`: feed layout and loading states. Cards render as `LazyStoryCard` with `hydrate-on-visible`, so first load hydrates only cards near the viewport instead of the whole feed in one main-thread task.
 - `app/components/story/StoryCard.vue`: visual story card, source link, screenshot preview, title, and status row.
 - `app/components/story/StoryPlaceholderVisual.vue`: shared deterministic wireframe fallback for queued and unavailable screenshots.
 - `app/components/story/SourceScreenshotPreview.vue`: story-detail source screenshot with bounded retries and the full-size preview dialog.
