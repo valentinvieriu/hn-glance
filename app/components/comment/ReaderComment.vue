@@ -126,7 +126,7 @@ const emitParent = () => {
 .comment-reader-comment-focused {
   --comment-reader-gutter: clamp(1.15rem, 3vw, 2.5rem);
   width: 100%;
-  max-width: 42rem;
+  max-width: var(--comment-reader-max-width, 42rem);
   margin-inline: auto;
 }
 
@@ -255,14 +255,14 @@ a.comment-reader-comment-time:focus-visible {
 .comment-reader-comment-body {
   padding: 0.85rem 0 1.8rem;
   color: rgb(30 41 59);
-  font-size: 1.06rem;
+  font-size: calc(1.06rem * var(--comment-reader-scale, 1));
   line-height: 1.7;
   overflow-wrap: anywhere;
 }
 
 .comment-reader-comment-focused .comment-reader-comment-body {
   padding: 1.05rem var(--comment-reader-gutter) 1.25rem;
-  font-size: 1.1rem;
+  font-size: calc(1.1rem * var(--comment-reader-scale, 1));
   line-height: 1.72;
 }
 

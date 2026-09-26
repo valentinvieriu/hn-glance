@@ -21,7 +21,6 @@
         :author-comment-count="authorCommentCounts.get(node.comment.author) ?? 1"
         :is-new="newCommentIds.has(node.comment.id)"
         :node="node"
-        :parent-author="getParentAuthor(node, index)"
         presentation="path"
         :scope-id="`${scopePrefix}-reading-path-comment-${node.comment.id}`"
         :story-author="storyAuthor"
@@ -35,7 +34,6 @@
         <ReaderActions
           v-if="node.comment.id === selectedCommentId"
           class="reading-path-actions"
-          :descendant-count="descendantCounts.get(node.comment.id) ?? 0"
           :node="node"
           @select="emit('select', $event)"
         />
@@ -56,7 +54,6 @@ import ReaderComment from './ReaderComment.vue'
 
 const props = defineProps<{
   authorCommentCounts: ReadonlyMap<string, number>
-  descendantCounts: ReadonlyMap<number, number>
   getPaletteStyle: (commentId: number, author: string) => SeedPaletteStyle
   newCommentIds: ReadonlySet<number>
   nodes: CommentNavigationNode[]
@@ -68,12 +65,6 @@ const props = defineProps<{
 const emit = defineEmits<{
   select: [commentId: number]
 }>()
-
-const getParentAuthor = (node: CommentNavigationNode, index: number) => {
-  return node.parentId
-    ? props.nodes[index - 1]?.comment.author ?? discussionLanguage.fallbacks.parentAuthor
-    : undefined
-}
 
 const getStepLabel = (index: number, commentId: number) => {
   return discussionLanguage.format.pathStep(
@@ -87,7 +78,7 @@ const getStepLabel = (index: number, commentId: number) => {
 .reading-path {
   --reading-path-gutter: clamp(1.15rem, 3vw, 2.5rem);
   width: 100%;
-  max-width: 42rem;
+  max-width: var(--comment-reader-max-width, 42rem);
   margin: 0 auto;
   padding: 0;
   list-style: none;

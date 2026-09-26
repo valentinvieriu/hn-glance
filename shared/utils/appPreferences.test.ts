@@ -16,7 +16,7 @@ describe('app preferences', () => {
     expect(createDefaultAppPreferences()).toEqual({
       discussion: {
         readerMode: 'comment',
-        rootCommentOrder: 'hn',
+        rootCommentOrder: 'recent',
       },
       version: APP_PREFERENCES_VERSION,
     })
@@ -26,7 +26,9 @@ describe('app preferences', () => {
     expect(parseCommentReaderMode('comment')).toBe('comment')
     expect(parseCommentReaderMode(['path', 'comment'])).toBe('path')
     expect(parseCommentReaderMode('unknown')).toBeNull()
-    expect(parseRootCommentOrder('hn')).toBe('hn')
+    expect(parseRootCommentOrder('oldest')).toBe('oldest')
+    // Legacy value: Algolia's order, which is oldest-first.
+    expect(parseRootCommentOrder('hn')).toBe('oldest')
     expect(parseRootCommentOrder(['discussed', 'recent'])).toBe('discussed')
     expect(parseRootCommentOrder('unknown')).toBeNull()
   })
@@ -41,7 +43,7 @@ describe('app preferences', () => {
     })).toEqual({
       discussion: {
         readerMode: 'path',
-        rootCommentOrder: 'hn',
+        rootCommentOrder: 'recent',
       },
       version: APP_PREFERENCES_VERSION,
     })

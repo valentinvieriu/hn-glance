@@ -1,13 +1,8 @@
 <template>
-  <header
+  <div
     class="comment-reader-toolbar"
-    :class="{ 'comment-reader-toolbar-path': mode === 'path' }"
+    :class="`comment-reader-toolbar-${placement}`"
   >
-    <div class="comment-reader-toolbar-title">
-      <LucideBookOpenText class="h-3.5 w-3.5" aria-hidden="true" />
-      <span>{{ discussionLanguage.terms.commentReader }}</span>
-    </div>
-
     <div
       class="comment-reader-mode-control"
       role="group"
@@ -35,34 +30,41 @@
     </div>
 
     <div v-if="mode === 'path'" class="comment-reader-jumps">
-      <button type="button" @click="emit('start')">
+      <button
+        type="button"
+        :aria-label="discussionLanguage.actions.goToRootComment"
+        :title="discussionLanguage.actions.goToRootComment"
+        @click="emit('start')"
+      >
         <LucideArrowUpToLine class="h-3.5 w-3.5" aria-hidden="true" />
-        {{ discussionLanguage.actions.goToRootComment }}
+        <span class="comment-reader-jump-label">{{ discussionLanguage.actions.goToRootComment }}</span>
       </button>
-      <button type="button" @click="emit('current')">
+      <button
+        type="button"
+        :aria-label="discussionLanguage.actions.goToCurrentComment"
+        :title="discussionLanguage.actions.goToCurrentComment"
+        @click="emit('current')"
+      >
         <LucideLocateFixed class="h-3.5 w-3.5" aria-hidden="true" />
-        {{ discussionLanguage.actions.goToCurrentComment }}
+        <span class="comment-reader-jump-label">{{ discussionLanguage.actions.goToCurrentComment }}</span>
       </button>
     </div>
-
-    <span class="comment-reader-depth">
-      {{ discussionLanguage.format.depth(depth) }}
-    </span>
-  </header>
+  </div>
 </template>
 
 <script setup lang="ts">
 import {
   LucideArrowUpToLine,
-  LucideBookOpenText,
   LucideLocateFixed,
 } from '@lucide/vue'
 import { discussionLanguage } from '#shared/utils/productLanguage'
 import type { CommentReaderMode } from '~/types/commentReader'
 
 defineProps<{
-  depth: number
   mode: CommentReaderMode
+  // `bar` sits in the discussion-focus path bar; `reader` heads a reader that
+  // has no path bar beside it, such as the narrow-screen one.
+  placement: 'bar' | 'reader'
 }>()
 
 const emit = defineEmits<{
@@ -74,30 +76,32 @@ const emit = defineEmits<{
 
 <style scoped>
 .comment-reader-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.55rem;
+}
+
+.comment-reader-toolbar-bar {
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
+  padding-left: 0.5rem;
+  border-left: 1px solid rgb(148 163 184 / 0.3);
+}
+
+.comment-reader-toolbar-bar .comment-reader-jump-label {
+  display: none;
+}
+
+.comment-reader-toolbar-reader {
   position: sticky;
   z-index: 5;
   top: 0;
-  display: flex;
-  min-height: 3.2rem;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 0.55rem;
-  padding: 0.48rem clamp(0.75rem, 2vw, 1.25rem);
+  min-height: 2.9rem;
+  padding: 0.42rem 0.7rem;
   border-bottom: 1px solid rgb(148 163 184 / 0.26);
   background: color-mix(in oklch, rgb(248 250 252) 97%, var(--story-context-accent-soft));
   box-shadow: 0 8px 18px -20px rgb(15 23 42 / 0.6);
-}
-
-.comment-reader-toolbar-title {
-  display: inline-flex;
-  flex: 0 0 auto;
-  align-items: center;
-  gap: 0.32rem;
-  color: rgb(100 116 139);
-  font-size: 0.69rem;
-  font-weight: 760;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
 }
 
 .comment-reader-mode-control,
@@ -120,7 +124,7 @@ const emit = defineEmits<{
 }
 
 .comment-reader-mode-toggle {
-  padding: 0.16rem;
+  padding: 0.14rem;
   border: 1px solid rgb(148 163 184 / 0.28);
   border-radius: 999px;
   background: rgb(148 163 184 / 0.09);
@@ -129,11 +133,11 @@ const emit = defineEmits<{
 .comment-reader-mode-toggle button,
 .comment-reader-jumps button {
   display: inline-flex;
-  min-height: 1.8rem;
+  min-height: 1.7rem;
   align-items: center;
   justify-content: center;
   gap: 0.26rem;
-  padding: 0.25rem 0.48rem;
+  padding: 0.22rem 0.48rem;
   border-radius: 999px;
   color: rgb(71 85 105);
   font-size: 0.71rem;
@@ -152,11 +156,9 @@ const emit = defineEmits<{
   gap: 0.08rem;
 }
 
-.comment-reader-toolbar-path .comment-reader-jumps {
-  order: 3;
-  width: 100%;
-  padding-top: 0.15rem;
-  border-top: 1px solid rgb(148 163 184 / 0.16);
+.comment-reader-toolbar-bar .comment-reader-jumps button {
+  width: 1.8rem;
+  padding: 0;
 }
 
 .comment-reader-jumps button {
@@ -176,23 +178,15 @@ const emit = defineEmits<{
   outline-offset: 1px;
 }
 
-.comment-reader-depth {
-  flex: 0 0 auto;
-  margin-left: auto;
-  color: rgb(100 116 139);
-  font-size: 0.67rem;
-  font-weight: 760;
-  letter-spacing: 0.055em;
-  text-transform: uppercase;
+.dark .comment-reader-toolbar-bar {
+  border-color: rgb(148 163 184 / 0.3);
 }
 
-.dark .comment-reader-toolbar {
+.dark .comment-reader-toolbar-reader {
   border-color: rgb(71 85 105 / 0.42);
   background: color-mix(in oklch, rgb(13 20 33) 98%, var(--story-context-accent-soft));
 }
 
-.dark .comment-reader-toolbar-title,
-.dark .comment-reader-depth,
 .dark .comment-reader-mode-label,
 .dark .comment-reader-mode-toggle button {
   color: rgb(148 163 184);
@@ -203,40 +197,14 @@ const emit = defineEmits<{
   background: rgb(15 23 42 / 0.56);
 }
 
-.dark .comment-reader-toolbar-path .comment-reader-jumps {
-  border-color: rgb(71 85 105 / 0.32);
-}
-
 .dark .comment-reader-mode-toggle button[aria-pressed="true"],
 .dark .comment-reader-jumps button {
   color: var(--story-context-accent-strong);
 }
 
 @media (max-width: 640px) {
-  .comment-reader-toolbar {
-    flex-wrap: wrap;
-    padding-inline: 0.7rem;
-  }
-
-  .comment-reader-toolbar-title {
-    display: none;
-  }
-
-  .comment-reader-mode-toggle {
-    min-width: 0;
-  }
-
-  .comment-reader-mode-control {
-    order: 1;
-  }
-
-  .comment-reader-jumps {
-    order: 3;
+  .comment-reader-toolbar-reader .comment-reader-jumps {
     width: 100%;
-  }
-
-  .comment-reader-depth {
-    order: 2;
   }
 }
 </style>

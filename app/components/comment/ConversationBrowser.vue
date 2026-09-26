@@ -1,5 +1,6 @@
 <template>
   <section
+    ref="root"
     class="conversation-browser story-context-palette"
     :style="storyPaletteStyle"
     role="dialog"
@@ -82,14 +83,51 @@
           </button>
         </template>
       </div>
+      <ReaderToolbar
+        class="conversation-browser-reader-controls"
+        :mode="readerMode"
+        placement="bar"
+        @current="scrollReadingPathTo('current')"
+        @mode="emit('readerMode', $event)"
+        @start="scrollReadingPathTo('start')"
+      />
+      <label class="conversation-browser-sort">
+        <LucideArrowDownUp class="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+        <span class="sr-only">{{ discussionLanguage.sort.comments }}</span>
+        <select
+          :value="commentSort"
+          :aria-label="discussionLanguage.sort.comments"
+          @change="changeSort"
+        >
+          <option v-for="sort in COMMENT_SORTS" :key="sort" :value="sort">
+            {{ discussionLanguage.sort[sort] }}
+          </option>
+        </select>
+      </label>
+      <button
+        type="button"
+        class="conversation-browser-navigation-toggle"
+        :aria-pressed="!showNavigation"
+        :aria-label="showNavigation
+          ? discussionLanguage.actions.hideNavigation
+          : discussionLanguage.actions.showNavigation"
+        :title="showNavigation
+          ? discussionLanguage.actions.hideNavigation
+          : discussionLanguage.actions.showNavigation"
+        @click="toggleNavigation"
+      >
+        <LucidePanelLeftClose v-if="showNavigation" class="h-4 w-4" aria-hidden="true" />
+        <LucidePanelLeftOpen v-else class="h-4 w-4" aria-hidden="true" />
+      </button>
     </nav>
 
     <div
       ref="desktopBody"
       class="conversation-browser-desktop-body"
-      @keydown="handleColumnKeydown"
+      :class="{ 'conversation-browser-desktop-body-reader-only': !showNavigation }"
     >
       <div
+        v-show="showNavigation"
         ref="columnStrip"
         class="conversation-browser-column-strip"
         @wheel="handleColumnWheel"
@@ -128,11 +166,14 @@
           :get-palette-style="getPaletteStyle"
           :mode="readerMode"
           :new-comment-ids="newCommentIds"
+          :new-descendant-counts="newDescendantCounts"
           :node="selectedNode"
           :parent-author="parentAuthor"
           :path-nodes="pathNodes"
           scope-prefix="conversation-desktop"
           :selected-comment-id="selectedCommentId"
+          :show-replies="!showNavigation"
+          :show-toolbar="false"
           :story-author="storyAuthor"
           @jump="scrollReadingPathTo"
           @mode="emit('readerMode', $event)"
@@ -182,11 +223,14 @@
           :get-palette-style="getPaletteStyle"
           :mode="readerMode"
           :new-comment-ids="newCommentIds"
+          :new-descendant-counts="newDescendantCounts"
           :node="selectedNode"
           :parent-author="parentAuthor"
           :path-nodes="pathNodes"
           scope-prefix="conversation-mobile"
           :selected-comment-id="selectedCommentId"
+          show-replies
+          show-toolbar
           :story-author="storyAuthor"
           @jump="scrollReadingPathTo"
           @mode="emit('readerMode', $event)"
@@ -208,38 +252,6 @@
             </button>
           </template>
         </ReaderPane>
-
-        <section
-          v-if="readerMode === 'comment'"
-          class="conversation-browser-mobile-replies"
-          :aria-labelledby="mobileRepliesHeadingId"
-        >
-          <header class="conversation-browser-mobile-section-header">
-            <div>
-              <h2 :id="mobileRepliesHeadingId">
-                {{ discussionLanguage.format.repliesTo(selectedNode.comment.author) }}
-              </h2>
-              <p>{{ discussionLanguage.format.directReplyCount(selectedChildren.length) }}</p>
-            </div>
-          </header>
-          <ConversationList
-            v-if="selectedChildren.length"
-            class="conversation-browser-mobile-list"
-            :author-comment-counts="authorCommentCounts"
-            :comments="selectedChildren"
-            :current-comment-id="null"
-            :descendant-counts="descendantCounts"
-            :get-palette-style="getPaletteStyle"
-            :new-comment-ids="newCommentIds"
-            :new-descendant-counts="newDescendantCounts"
-            :selected-id="null"
-            :story-author="storyAuthor"
-            @select="selectMobileComment"
-          />
-          <p v-else class="conversation-browser-terminal">
-            {{ discussionLanguage.messages.endOfBranch }}
-          </p>
-        </section>
       </template>
       <p v-else class="conversation-browser-mobile-empty">
         {{ discussionLanguage.messages.noCommentsYet }}
@@ -251,17 +263,22 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import {
+  LucideArrowDownUp,
   LucideArrowLeft,
   LucideChevronRight,
   LucideExternalLink,
   LucideMessageSquare,
   LucideMinimize2,
   LucidePanelLeft,
+  LucidePanelLeftClose,
+  LucidePanelLeftOpen,
 } from '@lucide/vue'
 import type { Comment } from '#shared/types'
 import {
+  COMMENT_SORTS,
   getCommentPathFromIndex,
   type CommentNavigationNode,
+  type CommentSort,
 } from '#shared/utils/comments'
 import { discussionLanguage } from '#shared/utils/productLanguage'
 import {
@@ -275,6 +292,7 @@ import ConversationColumn from './ConversationColumn.vue'
 import ConversationList from './ConversationList.vue'
 import NewCommentsNavigation from './NewCommentsNavigation.vue'
 import ReaderPane from './ReaderPane.vue'
+import ReaderToolbar from './ReaderToolbar.vue'
 
 type ConversationColumnModel = {
   comments: Comment[]
@@ -287,6 +305,7 @@ type ConversationColumnModel = {
 const props = defineProps<{
   authorCommentCounts: ReadonlyMap<string, number>
   commentCount: number
+  commentSort: CommentSort
   descendantCounts: ReadonlyMap<number, number>
   navigationNodes: ReadonlyMap<number, CommentNavigationNode>
   newCommentCount: number
@@ -311,6 +330,7 @@ const emit = defineEmits<{
   previousNew: []
   readerMode: [mode: CommentReaderMode]
   select: [commentId: number]
+  sort: [sort: CommentSort]
 }>()
 
 const columnScrollPositions = new Map<string, number>()
@@ -321,7 +341,11 @@ const mobileScroll = ref<HTMLElement | null>(null)
 const overviewButton = ref<HTMLButtonElement | null>(null)
 const pathBar = ref<HTMLElement | null>(null)
 const readerScroll = ref<HTMLElement | null>(null)
+const root = ref<HTMLElement | null>(null)
 const showMobileRootIndex = ref(false)
+// Presentation state for this visit: the columns can step aside for reading and
+// keep their selections and scroll positions while hidden.
+const showNavigation = ref(true)
 
 const pathIds = computed(() => {
   if (!props.selectedCommentId) {
@@ -358,7 +382,6 @@ const selectedNode = computed<CommentNavigationNode | null>(() => {
     siblingIndex,
   }
 })
-const selectedChildren = computed(() => selectedNode.value?.comment.children ?? [])
 const pathNodes = computed<CommentNavigationNode[]>(() => pathIds.value
   .map((commentId) => {
     return commentId === props.selectedCommentId
@@ -370,9 +393,6 @@ const parentAuthor = computed(() => selectedNode.value?.parentId
   ? pathNodes.value.at(-2)?.comment.author ?? discussionLanguage.fallbacks.parentAuthor
   : undefined)
 const storyPaletteStyle = computed(() => getStoryContextPaletteStyle(props.storyId, props.storyDomain))
-const mobileRepliesHeadingId = computed(() => {
-  return `focused-comment-${selectedNode.value?.comment.id ?? 'none'}-replies`
-})
 const columns = computed<ConversationColumnModel[]>(() => {
   const result: ConversationColumnModel[] = [{
     comments: props.rootComments,
@@ -435,6 +455,7 @@ const openConversationIndex = () => {
     return
   }
 
+  showNavigation.value = true
   columnStrip.value?.scrollTo({ left: 0, behavior: 'auto' })
   pathBar.value?.scrollTo({ left: 0, behavior: 'auto' })
   revealPathRow(0)
@@ -490,6 +511,27 @@ const handleColumnWheel = (event: WheelEvent) => {
 
   event.preventDefault()
   strip.scrollLeft = nextScrollLeft
+}
+
+const changeSort = (event: Event) => {
+  const sort = (event.target as HTMLSelectElement).value
+
+  if ((COMMENT_SORTS as readonly string[]).includes(sort)) {
+    emit('sort', sort as CommentSort)
+  }
+}
+
+const toggleNavigation = () => {
+  showNavigation.value = !showNavigation.value
+
+  // The reader changes width, so the current comment moves within the path.
+  if (props.readerMode === 'path') {
+    void revealReadingPathTarget('current', 'auto')
+  }
+
+  if (showNavigation.value) {
+    void revealActiveColumn()
+  }
 }
 
 const navigateMobileBack = () => {
@@ -610,19 +652,103 @@ const focusColumnRow = (columnIndex: number, position: 'first' | 'selected') => 
       ? '[data-conversation-row][data-path-active="true"]'
       : '[data-conversation-row]'
 
-    column?.querySelector<HTMLElement>(selector)?.focus()
+    const row = column?.querySelector<HTMLElement>(selector)
+    const commentId = Number(row?.dataset.commentId)
+
+    row?.focus()
+
+    // Entering a column previews its first reply, as moving within one does.
+    if (position === 'first' && Number.isSafeInteger(commentId)) {
+      selectComment(commentId)
+    }
   })
 }
 
-const handleColumnKeydown = (event: KeyboardEvent) => {
+const revealCurrentRow = () => {
+  window.requestAnimationFrame(() => {
+    const row = desktopBody.value?.querySelector<HTMLElement>(
+      '.conversation-column [data-current-comment="true"]',
+    )?.closest<HTMLElement>('li')
+    const scrollElement = row?.closest<HTMLElement>('.conversation-column-scroll')
+
+    if (!row || !scrollElement) {
+      return
+    }
+
+    const scrollBounds = scrollElement.getBoundingClientRect()
+    const rowBounds = row.getBoundingClientRect()
+
+    if (rowBounds.top < scrollBounds.top) {
+      scrollElement.scrollTop += rowBounds.top - scrollBounds.top - 10
+    } else if (rowBounds.bottom > scrollBounds.bottom) {
+      scrollElement.scrollTop += rowBounds.bottom - scrollBounds.bottom + 10
+    }
+  })
+}
+
+/**
+ * Arrow keys walk the discussion from anywhere in focus, not only from a
+ * focused column row, so the reader stays navigable with the columns hidden.
+ */
+const handleTreeKeydown = (event: KeyboardEvent) => {
+  const node = selectedNode.value
+
+  if (!node) {
+    return
+  }
+
+  const nextCommentId = {
+    ArrowDown: node.nextSiblingId,
+    ArrowLeft: node.parentId,
+    ArrowRight: node.comment.children?.[0]?.id ?? null,
+    ArrowUp: node.previousSiblingId,
+  }[event.key]
+
+  if (!nextCommentId) {
+    return
+  }
+
+  event.preventDefault()
+
+  if (window.matchMedia('(max-width: 1023px)').matches) {
+    selectMobileComment(nextCommentId)
+  } else {
+    selectComment(nextCommentId)
+  }
+}
+
+const handleKeydown = (event: KeyboardEvent) => {
+  const target = event.target as HTMLElement
+
+  // Clicking reader text leaves focus on the body, outside this dialog.
+  if (event.defaultPrevented || (target !== document.body && !root.value?.contains(target))) {
+    return
+  }
+
+  if (
+    event.altKey || event.ctrlKey || event.metaKey || event.shiftKey
+    || target.closest('input, select, textarea, [contenteditable="true"]')
+  ) {
+    return
+  }
+
+  const row = target.closest<HTMLElement>('[data-conversation-row]')
+
+  if (row?.closest('.conversation-column')) {
+    handleColumnKeydown(event, row)
+  } else if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key)) {
+    handleTreeKeydown(event)
+  }
+}
+
+const handleColumnKeydown = (event: KeyboardEvent, target: HTMLElement) => {
   if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) {
     return
   }
 
-  const target = (event.target as HTMLElement).closest<HTMLElement>('[data-conversation-row]')
-  const column = target?.closest<HTMLElement>('.conversation-column')
+  const column = target.closest<HTMLElement>('.conversation-column')
 
-  if (!target || !column) {
+  if (!column) {
     return
   }
 
@@ -642,7 +768,15 @@ const handleColumnKeydown = (event: KeyboardEvent) => {
       : event.key === 'End'
         ? rows.length - 1
         : Math.min(Math.max(rowIndex + (event.key === 'ArrowDown' ? 1 : -1), 0), rows.length - 1)
-    rows[nextIndex]?.focus()
+    const nextRow = rows[nextIndex]
+    const nextCommentId = Number(nextRow?.dataset.commentId)
+
+    // Like Finder, moving through a column previews each comment in the reader.
+    nextRow?.focus()
+
+    if (Number.isSafeInteger(nextCommentId) && nextCommentId !== props.selectedCommentId) {
+      selectComment(nextCommentId)
+    }
     return
   }
 
@@ -658,11 +792,15 @@ const handleColumnKeydown = (event: KeyboardEvent) => {
   }
 
   if (event.key === 'ArrowLeft' && columnIndex > 0) {
-    const parentId = props.navigationNodes.get(commentId)?.parentId
+    const previousSelectionId = Number(desktopBody.value
+      ?.querySelector<HTMLElement>(
+        `.conversation-column[data-column-index="${columnIndex - 1}"] [data-conversation-row][data-path-active="true"]`,
+      )
+      ?.dataset.commentId)
 
-    if (parentId) {
+    if (Number.isSafeInteger(previousSelectionId)) {
       event.preventDefault()
-      selectComment(parentId)
+      selectComment(previousSelectionId)
       focusColumnRow(columnIndex - 1, 'selected')
     }
   }
@@ -675,7 +813,7 @@ watch(() => props.selectedCommentId, () => {
     void restoreReaderScroll()
   }
 
-  void revealActiveColumn()
+  void revealActiveColumn().then(revealCurrentRow)
 })
 
 watch(() => props.readerMode, (mode) => {
@@ -690,6 +828,7 @@ watch(() => props.readerMode, (mode) => {
 })
 
 onMounted(() => {
+  document.addEventListener('keydown', handleKeydown)
   overviewButton.value?.focus({ preventScroll: true })
 
   if (props.readerMode === 'path') {
@@ -699,7 +838,10 @@ onMounted(() => {
   void revealActiveColumn()
 })
 
-onBeforeUnmount(recordReaderScroll)
+onBeforeUnmount(() => {
+  document.removeEventListener('keydown', handleKeydown)
+  recordReaderScroll()
+})
 </script>
 
 <style scoped>
@@ -880,6 +1022,65 @@ onBeforeUnmount(recordReaderScroll)
   grid-template-columns: minmax(0, 1fr) minmax(31rem, 40rem);
 }
 
+.conversation-browser-desktop-body-reader-only {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+/* With the columns hidden, the reader keeps a readable line length and spends
+   the freed width on larger type rather than on longer lines. */
+.conversation-browser-desktop-body-reader-only .conversation-browser-reader-scroll {
+  --comment-reader-max-width: 48rem;
+  --comment-reader-scale: 1.1;
+  border-left: 0;
+}
+
+.conversation-browser-sort {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 0.3rem;
+  padding-left: 0.5rem;
+  border-left: 1px solid rgb(148 163 184 / 0.3);
+  color: rgb(71 85 105);
+  font-size: 0.76rem;
+  font-weight: 650;
+}
+
+.conversation-browser-sort select {
+  padding: 0.2rem 0.3rem;
+  border-radius: 0.3rem;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.conversation-browser-sort select:hover,
+.conversation-browser-sort select:focus-visible {
+  background: var(--story-context-accent-soft);
+}
+
+.conversation-browser-navigation-toggle {
+  display: inline-grid;
+  width: 1.9rem;
+  height: 1.9rem;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 0.4rem;
+  color: rgb(71 85 105);
+}
+
+.conversation-browser-navigation-toggle:hover,
+.conversation-browser-navigation-toggle:focus-visible {
+  background: var(--story-context-accent-soft);
+  color: var(--story-context-accent-strong);
+}
+
+.dark .conversation-browser-sort,
+.dark .conversation-browser-navigation-toggle {
+  color: rgb(203 213 225);
+}
+
 .conversation-browser-column-strip {
   display: flex;
   min-width: 0;
@@ -956,6 +1157,11 @@ onBeforeUnmount(recordReaderScroll)
 }
 
 @media (max-width: 1023px) {
+  .conversation-browser-navigation-toggle,
+  .conversation-browser-reader-controls {
+    display: none;
+  }
+
   .conversation-browser-story-bar {
     grid-template-columns: auto minmax(0, 1fr) auto;
     gap: 0.55rem;
@@ -996,8 +1202,7 @@ onBeforeUnmount(recordReaderScroll)
     padding: 0 0 2rem;
   }
 
-  .conversation-browser-mobile-index,
-  .conversation-browser-mobile-replies {
+  .conversation-browser-mobile-index {
     width: min(100%, 44rem);
     margin-inline: auto;
   }
@@ -1046,17 +1251,6 @@ onBeforeUnmount(recordReaderScroll)
     gap: 0.58rem;
   }
 
-  .conversation-browser-mobile-replies {
-    margin-top: 1.1rem;
-  }
-
-  .conversation-browser-terminal {
-    margin: 0;
-    padding: 1rem 0;
-    color: rgb(100 116 139);
-    font-size: 0.9rem;
-  }
-
   .conversation-browser-mobile-empty {
     width: min(100%, 44rem);
     margin: 0 auto;
@@ -1074,7 +1268,6 @@ onBeforeUnmount(recordReaderScroll)
   }
 
   .dark .conversation-browser-mobile-section-header p,
-  .dark .conversation-browser-terminal,
   .dark .conversation-browser-mobile-empty {
     color: rgb(148 163 184);
   }

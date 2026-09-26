@@ -1,7 +1,7 @@
 import type { MaybeRefOrGetter } from 'vue'
 import { computed, onMounted, ref, toValue, watch } from 'vue'
 import type { Comment } from '#shared/types'
-import { sortCommentThreads, type CommentTreeSummary } from '#shared/utils/comments'
+import { sortCommentTree, type CommentTreeSummary } from '#shared/utils/comments'
 import {
   DEFAULT_COMMENT_READER_MODE,
   DEFAULT_ROOT_COMMENT_ORDER,
@@ -14,8 +14,8 @@ import { getCommentIdFromHash, getFirstQueryValue, normalizeHnItemId } from '#sh
 import { useAppPreferences } from '~/composables/useAppPreferences'
 
 /**
- * Story-detail discussion state owned by the URL: root-comment order
- * (`sort`), discussion focus (`view=discussion`), reader mode (`reader`), and
+ * Story-detail discussion state owned by the URL: comment order at every
+ * level (`sort`), discussion focus (`view=discussion`), reader mode (`reader`), and
  * the current comment (`comment`, falling back to the `#comment-<id>` hash).
  * Explicit query values win; missing ones are filled from the durable
  * preferences once they hydrate, and only user actions change preferences.
@@ -71,7 +71,7 @@ export const useDiscussionRoute = ({ rootComments, summary }: {
       void router.replace({ query, hash: route.hash })
     },
   })
-  const sortedComments = computed(() => sortCommentThreads(
+  const sortedComments = computed(() => sortCommentTree(
     toValue(rootComments),
     commentSort.value,
     toValue(summary),

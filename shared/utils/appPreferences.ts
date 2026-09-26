@@ -8,7 +8,7 @@ export type CommentReaderMode = 'comment' | 'path'
 export type RootCommentOrder = CommentSort
 
 export const DEFAULT_COMMENT_READER_MODE: CommentReaderMode = 'comment'
-export const DEFAULT_ROOT_COMMENT_ORDER: RootCommentOrder = 'hn'
+export const DEFAULT_ROOT_COMMENT_ORDER: RootCommentOrder = 'recent'
 
 export type AppPreferences = {
   discussion: {
@@ -31,7 +31,13 @@ export const parseCommentReaderMode = (value: unknown): CommentReaderMode | null
 export const parseRootCommentOrder = (value: unknown): RootCommentOrder | null => {
   const order = getFirstQueryValue(value)
 
-  return order === 'hn' || order === 'discussed' || order === 'recent'
+  // `hn` named Algolia's order, which is oldest-first; old links and stored
+  // preferences keep meaning what they showed.
+  if (order === 'hn') {
+    return 'oldest'
+  }
+
+  return order === 'oldest' || order === 'discussed' || order === 'recent'
     ? order
     : null
 }

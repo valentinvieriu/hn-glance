@@ -74,7 +74,7 @@ Frontend:
 - `app/components/story/StoryPlaceholderVisual.vue`: shared deterministic wireframe fallback for queued and unavailable screenshots.
 - `app/components/story/SourceScreenshotPreview.vue`: story-detail source screenshot with bounded retries and the full-size preview dialog.
 - `app/components/comment/CommentThread.vue`: nested comment renderer.
-- `app/components/comment/ConversationBrowser.vue`: discussion-focus projection with horizontally expanding sibling columns and a fixed rich comment reader; its supporting column, row, reader, and shared rich-content components live in the same directory.
+- `app/components/comment/ConversationBrowser.vue`: discussion-focus projection with horizontally expanding sibling columns and a fixed rich comment reader; its supporting column, row, reader, reply-list, and shared rich-content components live in the same directory.
 - `app/components/user/UserCommentCard.vue`: user activity comment card.
 - `app/components/SubmissionHistory.vue`: compact exact-source HN timeline that marks the current submission.
 - `app/components/RelatedStories.vue`: semantic “Similar Stories” list on detail pages.
@@ -88,7 +88,7 @@ Shared client logic:
 
 - `app/composables/useStories.ts`: feed loading, session-memory cache, and stale refresh state.
 - `app/composables/useFeedTheme.ts`: feed-specific labels, routes, and color theme variables.
-- `app/composables/useDiscussionRoute.ts`: story-detail URL state (root-comment `sort`, `view=discussion` focus, `reader` mode, and current `comment`), preference fill-in for missing query values, and focus entry/exit.
+- `app/composables/useDiscussionRoute.ts`: story-detail URL state (comment `sort` at every level, `view=discussion` focus, `reader` mode, and current `comment`), preference fill-in for missing query values, and focus entry/exit.
 - `app/composables/useCommentDisclosure.ts`: overview reply disclosure plus jump-to-comment (ancestor reveal, scroll, focus, highlight) and `#comment-<id>` hash handling outside focus.
 - `app/composables/useNewComments.ts`: per-visit frozen new-comment set, toolbar-dwell acknowledgement, new-comment navigation, and Mark all seen, built on `useDiscussionVisits`.
 - `app/composables/usePageSeo.ts`: the one page-metadata entry point (title, description, Open Graph/Twitter mirrors, canonical URL, robots). Site-wide social image tags stay in `app.vue`.
@@ -316,13 +316,14 @@ introducing a component-local storage path.
 | Shareable navigation | URL query or hash | Story sort, discussion focus, explicit reading mode, current comment. Survives copied links and browser history. |
 | Per-entry presentation | Vue memory or `history.state` | Scroll geometry, column position, and transient disclosure for the current page/history entry. |
 | Same-tab session state | `sessionStorage` | Feed payload cache and per-feed return context. Ends with the browser tab session. |
-| Durable preferences | The versioned `hn-glance:preferences` object in `localStorage` | Color-independent UI choices such as reading mode and root-comment order. |
+| Durable preferences | The versioned `hn-glance:preferences` object in `localStorage` | Color-independent UI choices such as reading mode and comment order. |
 | Durable revisit history | A separate bounded and expiring `localStorage` store | Seen comment identities and story revisit timestamps. Never an unbounded activity log. |
 
 Resolution precedence is **explicit URL state → stored preference → product
 default**. Discussion-focus URLs encode both `reader=comment` and `reader=path`,
-and story-detail URLs resolve root-comment order to `sort=hn`,
-`sort=discussed`, or `sort=recent`. Absence cannot represent an explicit mode
+and story-detail URLs resolve comment order to `sort=recent`,
+`sort=discussed`, or `sort=oldest`; the legacy `sort=hn` value parses as
+`oldest`, which is what Algolia's order always was. Absence cannot represent an explicit mode
 or order because the same shared URL could otherwise resolve differently for
 different readers. Leaving discussion focus may remove focus-only query
 parameters while retaining the preference for the next entry.
@@ -330,7 +331,7 @@ parameters while retaining the preference for the next entry.
 Keep these domains separate because they express different user promises and
 require different retention, privacy, and failure behavior:
 
-- app preferences own the durable discussion reader-mode and root-comment-order
+- app preferences own the durable discussion reader-mode and comment-order
   preferences;
 - the route owns explicit discussion focus, current-comment identity, sorting,
   and reader mode;
@@ -391,18 +392,39 @@ Current rendering uses `useSanitizer.ts` to:
 - Convert plain-text conventions HN never marks up: `*emphasis*`, backtick
   `code` spans, and manual `-`/`1.` lists.
 
-Every comment renders at every depth. `app/pages/item/[id].vue` analyzes the tree once for totals, author activity, descendant counts, latest activity, and reply-disclosure defaults; `CommentThread.vue` uses that shared summary to collapse only deep, large reply branches behind disclosure controls while keeping every comment reachable. Root comments can be reordered with a URL-backed `?sort=` control: HN order (default), most discussed, or recent activity. The selected order is also the durable preference for story-detail pages opened without explicit sort state.
+Every comment renders at every depth. `app/pages/item/[id].vue` analyzes the tree once for totals, author activity, descendant counts, latest activity, and reply-disclosure defaults; `CommentThread.vue` uses that shared summary to collapse only deep, large reply branches behind disclosure controls while keeping every comment reachable. Comments can be reordered with a URL-backed `?sort=` control: recent activity (default), most discussed, or oldest first. `useDiscussionRoute` applies the order at every level of the tree, and the page builds the focus navigation index from that sorted tree, so the overview, focus columns, and sibling navigation share one order. Algolia returns replies oldest-first rather than in HN's ranking, so do not label that order "HN order"; measured against HN's ranking, recent activity and most discussed surface HN's top comments far better. The selected order is also the durable preference for story-detail pages opened without explicit sort state, and discussion focus offers the same control.
 
 The normal story overview keeps that recursive tree unchanged. Its discussion
 focus entry control adds `?view=discussion` and opens
 `ConversationBrowser.vue`, which uses the same analysis index and already
 loaded comments. Column 1 contains all sorted root comments; every later column
 contains the direct replies to the current comment in the preceding column.
+Arrow keys follow Finder: Up and Down select as they move, so the reader
+previews each sibling, Right enters and selects the first reply, and Left
+returns to the previous column's selection. Outside the columns, including
+with the columns hidden or after clicking reader text, the same keys walk the
+tree from the current comment (previous or next reply, first reply, parent
+comment); form controls keep their own arrow keys. The columns can be hidden
+for reading and keep their selections and scroll positions while hidden.
+Reading text keeps a readable line length, so the freed width goes to larger
+reader type, and `ReaderReplies.vue` lists the current comment's direct
+replies under the reader wherever the reply column is absent: with the columns
+hidden and on narrow screens.
 The reading path stays highlighted, the URL focus query identifies the current
 comment, and the shared `ReaderComment.vue` renderer owns its complete sanitized
 body. `ReaderPane.vue` switches between the Current comment and Reading path
 reader modes; the latter projects the full root-comment-to-current ancestry as
-one rich-text transcript. That mode opens at the current comment, offers Go to
+one rich-text transcript that ends at the current comment, so the reader, the
+breadcrumb, and the columns always agree on where the reader is. The path does
+not repeat "Replying to" because the previous entry is the parent comment.
+On desktop the Reading mode control and path jumps sit in the path bar rather
+than in a reader toolbar, and depth is not repeated beside the breadcrumb. The
+reader footer offers only previous and next replies, the sibling position, and
+Reply on HN; the breadcrumb, the "Replying to" link, and the Left arrow already
+reach parent and root comments. Every comment
+with replies opens its reply column in every reader mode, even a one-reply
+column, so the navigator remains a stable map. That mode opens at the current
+comment, offers Go to
 root comment and Go to current comment jumps, and reuses
 `CommentLinks.vue` plus `SourceIdentity.vue` for compact link previews; do not
 add a second link extractor, favicon implementation, or upstream metadata
@@ -410,8 +432,8 @@ request. Reader previews must set non-recursive extraction so each entry shows
 only its own links; recursive aggregation belongs only to the story-level From
 the Discussion section. Exiting focus restores the normal `#comment-<id>` deep link. On narrow
 screens the same model becomes a one-level reader with explicit parent and
-direct-reply navigation, or the vertically scrolling reading path, instead of
-nested horizontal gestures.
+direct-reply navigation, or the vertically scrolling reading path followed by
+the direct replies, instead of nested horizontal gestures.
 
 Story detail pages also extract a bounded set of safe HTTP(S) links from the
 already-loaded comment tree. `CommentLinks.vue` shows all extracted links in

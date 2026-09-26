@@ -7,6 +7,7 @@ import {
   getSmartCommentDisclosure,
   revealCommentPath,
   sortCommentThreads,
+  sortCommentTree,
   summarizeCommentTree,
   toggleCommentReplies,
 } from './comments'
@@ -146,8 +147,13 @@ describe('comment thread sorting', () => {
   comments[2]!.children[0]!.created_at = '2026-07-15T00:00:00Z'
   const summary = summarizeCommentTree(comments)
 
-  it('preserves the API order for HN order', () => {
-    expect(sortCommentThreads(comments, 'hn', summary)).toBe(comments)
+  it('sorts by posting time for oldest first, independent of API order', () => {
+    const reversed = [...comments].reverse().map((item, index) => ({
+      ...item,
+      created_at: `2026-07-0${index + 1}T00:00:00Z`,
+    }))
+
+    expect(sortCommentThreads(reversed, 'oldest', summary).map(item => item.id)).toEqual([6, 3, 1])
   })
 
   it('sorts complete branches by descendant count with stable ties', () => {
@@ -157,6 +163,17 @@ describe('comment thread sorting', () => {
 
   it('sorts branches by their newest nested activity', () => {
     expect(sortCommentThreads(comments, 'recent', summary).map(item => item.id)).toEqual([1, 6, 3])
+  })
+
+  it('applies the order to replies at every level without mutating the tree', () => {
+    const olderReply = comment(11, 'bob')
+    const newerReply = { ...comment(12, 'carol'), created_at: '2026-07-20T00:00:00Z' }
+    const nested = [comment(10, 'alice', [olderReply, newerReply])]
+    const sorted = sortCommentTree(nested, 'recent', summarizeCommentTree(nested))
+
+    expect(sorted[0]!.children.map(item => item.id)).toEqual([12, 11])
+    expect(nested[0]!.children.map(item => item.id)).toEqual([11, 12])
+    expect(sorted[0]!.children[1]).toBe(olderReply)
   })
 })
 

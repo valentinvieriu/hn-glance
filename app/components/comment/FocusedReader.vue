@@ -13,7 +13,6 @@
   >
     <ReaderActions
       class="focused-comment-reader-footer"
-      :descendant-count="descendantCount"
       :node="node"
       @select="emit('select', $event)"
     />
@@ -28,7 +27,6 @@ import ReaderComment from './ReaderComment.vue'
 
 defineProps<{
   authorCommentCount: number
-  descendantCount: number
   isNew: boolean
   node: CommentNavigationNode
   paletteStyle: SeedPaletteStyle

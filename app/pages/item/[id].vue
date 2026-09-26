@@ -110,15 +110,15 @@
                 class="comments-sort-control text-gray-700 dark:text-gray-300"
               >
                 <LucideArrowDownUp class="h-4 w-4 shrink-0" aria-hidden="true" />
-                <span class="sr-only">{{ discussionLanguage.sort.rootComments }}</span>
+                <span class="sr-only">{{ discussionLanguage.sort.comments }}</span>
                 <select
                   v-model="commentSort"
                   class="comments-sort-select"
-                  :aria-label="discussionLanguage.sort.rootComments"
+                  :aria-label="discussionLanguage.sort.comments"
                 >
-                  <option value="hn">{{ discussionLanguage.sort.hn }}</option>
-                  <option value="discussed">{{ discussionLanguage.sort.discussed }}</option>
-                  <option value="recent">{{ discussionLanguage.sort.recent }}</option>
+                  <option v-for="sort in COMMENT_SORTS" :key="sort" :value="sort">
+                    {{ discussionLanguage.sort[sort] }}
+                  </option>
                 </select>
               </label>
               <button
@@ -187,6 +187,7 @@
         v-if="isDiscussionFocusActive && storyId"
         :author-comment-counts="authorCommentCounts"
         :comment-count="commentCount"
+        :comment-sort="commentSort"
         :descendant-counts="descendantCommentCounts"
         :navigation-nodes="commentNavigationNodes"
         :new-comment-count="newCommentCount"
@@ -208,6 +209,7 @@
         @previous-new="navigateToPreviousNewComment"
         @reader-mode="setDiscussionReaderMode"
         @select="selectFocusedComment"
+        @sort="commentSort = $event"
       />
       </template>
     </div>
@@ -227,7 +229,7 @@ import {
   type CommentThreadAuthorPalette,
 } from '~/composables/useSeedPalette';
 import type { StoryContextResponse, StoryDetail } from '#shared/types'
-import { summarizeCommentTree } from '#shared/utils/comments'
+import { COMMENT_SORTS, summarizeCommentTree } from '#shared/utils/comments'
 import { formatTimeAgo } from '#shared/utils/date'
 import {
   getHnItemUrl,
@@ -362,7 +364,6 @@ const commentCount = computed(() => commentSummary.value.total)
 const authorCommentCounts = computed(() => commentSummary.value.authorCounts)
 const commentAuthors = computed(() => commentSummary.value.commentAuthors)
 const descendantCommentCounts = computed(() => commentSummary.value.descendantCounts)
-const commentNavigationNodes = computed(() => commentSummary.value.navigationNodes)
 const parentCommentIds = computed(() => commentSummary.value.parentCommentIds)
 const rootCommentIds = computed(() => commentSummary.value.rootCommentIds)
 
@@ -381,6 +382,8 @@ const {
   rootComments: () => story.value?.children ?? [],
   summary: commentSummary,
 })
+// Focus columns and sibling navigation follow the reader's comment order.
+const commentNavigationNodes = computed(() => summarizeCommentTree(sortedComments.value).navigationNodes)
 
 const {
   areAllCommentsExpanded,

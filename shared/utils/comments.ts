@@ -10,7 +10,10 @@ const DEFAULT_COMMENT_DEPTH = 3
  */
 const HIDDEN_REPLY_SUBTREE_MIN_DESCENDANTS = 4
 
-export type CommentSort = 'hn' | 'discussed' | 'recent'
+export type CommentSort = 'oldest' | 'discussed' | 'recent'
+
+/** Display order of the comment-order control. */
+export const COMMENT_SORTS: readonly CommentSort[] = ['recent', 'discussed', 'oldest']
 
 export type CommentTreeSummary = {
   authorCounts: ReadonlyMap<string, number>
@@ -215,11 +218,14 @@ export const sortCommentThreads = (
   sort: CommentSort,
   summary: Pick<CommentTreeSummary, 'descendantCounts' | 'latestActivityTimestamps'>,
 ): Comment[] => {
-  if (sort === 'hn') {
-    return comments
-  }
-
   const originalIndexes = new Map(comments.map((comment, index) => [comment.id, index]))
+
+  if (sort === 'oldest') {
+    return [...comments].sort((left, right) => {
+      return (Date.parse(left.created_at) || 0) - (Date.parse(right.created_at) || 0)
+        || (originalIndexes.get(left.id) ?? 0) - (originalIndexes.get(right.id) ?? 0)
+    })
+  }
 
   return [...comments].sort((left, right) => {
     const leftValue = sort === 'discussed'
@@ -231,6 +237,23 @@ export const sortCommentThreads = (
 
     return rightValue - leftValue
       || (originalIndexes.get(left.id) ?? 0) - (originalIndexes.get(right.id) ?? 0)
+  })
+}
+
+/**
+ * Applies the reader's comment order at every level of the discussion, so the
+ * overview, the focus columns, and sibling navigation share one order. Comments
+ * without replies keep their identity; the rest are shallow copies.
+ */
+export const sortCommentTree = (
+  comments: Comment[],
+  sort: CommentSort,
+  summary: Pick<CommentTreeSummary, 'descendantCounts' | 'latestActivityTimestamps'>,
+): Comment[] => {
+  return sortCommentThreads(comments, sort, summary).map((comment) => {
+    return comment.children?.length
+      ? { ...comment, children: sortCommentTree(comment.children, sort, summary) }
+      : comment
   })
 }
 

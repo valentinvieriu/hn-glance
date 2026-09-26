@@ -30,8 +30,8 @@ synthesizes an HN discussion permalink to make them eligible for a feed card.
 - Presents each story with a visual page preview, title, source, freshness, author, points, and comment count.
 - Opens an HN Glance story page for the card, with metadata, comments, screenshot, exact-source HN history, similar stories, and value-grouped links shared in the discussion.
 - Opens the original source from the source/domain link.
-- Renders HN comments with safer rich text, nested branches, quote handling, reference links, expand controls, and root-comment sorting by HN order, discussion size, or recent activity.
-- Offers an optional discussion focus for deep branches: each column is a sibling set along the selected reading path, while the comment reader can show either the current comment or the complete root-comment-to-current reading path.
+- Renders HN comments with safer rich text, nested branches, quote handling, reference links, expand controls, and comment sorting at every level by recent activity, discussion size, or oldest first.
+- Offers an optional discussion focus for deep branches: each column is a sibling set along the selected reading path, browsable with Finder-style arrow keys, while the comment reader can show either the current comment or the complete root-comment-to-current reading path. The columns can be hidden while reading: the reader then sets larger type, lists the direct replies under the current comment, and keeps arrow-key navigation.
 - Includes user activity pages for posts and comments.
 - Supports responsive layouts and dark mode.
 - Avoids analytics and marketing cookies.
@@ -62,8 +62,7 @@ Those paths are intentionally asymmetric. The source preview is an inspection
 surface that helps a reader decide whether to open the publisher's page. Links
 from the discussion form an index into external resources and the comments that
 introduced them. The HN discussion is the sustained reading surface HN Glance
-can present end to end while preserving HN ordering, authorship, and reply
-context.
+can present end to end while preserving authorship and reply context.
 
 The overview remains the default, including its familiar nested comment tree.
 When a discussion becomes too deep to scan comfortably through indentation,
@@ -171,7 +170,7 @@ surprising. The product contract is:
 
 - A copied discussion link opens the same comment and reading mode for every
   reader.
-- Explicitly chosen reading-mode and root-comment-order preferences carry to
+- Explicitly chosen reading-mode and comment-order preferences carry to
   the next discussion and browser restart unless an opened link specifies a
   different value.
 - Back and Forward restore the state of that history entry instead of applying
@@ -195,15 +194,16 @@ chosen:
 
 An explicit URL value overrides a stored preference, which overrides the
 product default. Focused discussion URLs therefore encode both reading modes
-explicitly, and story-detail URLs resolve root-comment order to an explicit
-`sort=hn`, `sort=discussed`, or `sort=recent` value. The same shared URL then
+explicitly, and story-detail URLs resolve comment order to an explicit
+`sort=recent`, `sort=discussed`, or `sort=oldest` value (legacy `sort=hn`
+links open as `oldest`). The same shared URL then
 opens the same presentation for every reader, while a new story without an
 explicit choice can inherit the reader's preference.
 
 The app-wide preference boundary lives in `app/composables/useAppPreferences.ts`.
 It stores one validated, versioned `hn-glance:preferences` object rather than
 scattering feature-specific localStorage keys through components. The first
-durable discussion preferences are reading mode and root-comment order. A
+durable discussion preferences are reading mode and comment order. A
 client plugin hydrates the shared state after mount so server rendering remains
 deterministic; unavailable or malformed storage falls back to in-memory
 defaults without blocking the discussion.

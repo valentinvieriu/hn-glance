@@ -24,6 +24,7 @@ const actions = {
   focusDiscussion: 'Focus discussion',
   goToCurrentComment: 'Go to current comment',
   goToRootComment: 'Go to root comment',
+  hideNavigation: 'Hide navigation',
   hideDeepReplies: 'Hide deep replies',
   markAllSeen: 'Mark all seen',
   nextNewComment: 'Next new comment',
@@ -31,6 +32,7 @@ const actions = {
   previousNewComment: 'Previous new comment',
   replyOnHackerNews: 'Reply on HN',
   returnToOverview: 'Return to overview',
+  showNavigation: 'Show navigation',
   showRootComments: 'Show root comments',
   startDiscussionOnHackerNews: 'Start the discussion on HN',
 } as const
@@ -60,10 +62,10 @@ const fallbacks = {
 } as const
 
 const sort = {
-  hn: 'HN order',
+  oldest: 'Oldest first',
   discussed: 'Most discussed',
   recent: 'Recent activity',
-  rootComments: 'Sort root comments',
+  comments: 'Sort comments',
 } as const
 
 const sections = {

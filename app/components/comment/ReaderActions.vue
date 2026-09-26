@@ -5,31 +5,15 @@
       :aria-label="discussionLanguage.accessibility.commentNavigation"
     >
       <button
-        v-if="node.parentId"
-        type="button"
-        class="comment-reader-action"
-        @click="emitParent"
-      >
-        <LucideCornerDownRight class="h-3.5 w-3.5" aria-hidden="true" />
-        {{ discussionLanguage.terms.parentComment }}
-      </button>
-      <button
-        v-if="node.rootId !== node.comment.id"
-        type="button"
-        class="comment-reader-action"
-        @click="emit('select', node.rootId)"
-      >
-        <LucideArrowUpToLine class="h-3.5 w-3.5" aria-hidden="true" />
-        {{ discussionLanguage.terms.rootComment }}
-      </button>
-      <button
         v-if="node.previousSiblingId"
         type="button"
         class="comment-reader-action"
+        :aria-label="previousLabel"
+        :title="previousLabel"
         @click="emit('select', node.previousSiblingId)"
       >
-        <LucideArrowLeft class="h-3.5 w-3.5" aria-hidden="true" />
-        {{ previousLabel }}
+        <LucideArrowUp class="h-3.5 w-3.5" aria-hidden="true" />
+        <span class="comment-reader-action-label">{{ previousLabel }}</span>
       </button>
       <span v-if="node.siblingCount > 1" class="comment-reader-position">
         {{ positionLabel }}
@@ -38,37 +22,32 @@
         v-if="node.nextSiblingId"
         type="button"
         class="comment-reader-action"
+        :aria-label="nextLabel"
+        :title="nextLabel"
         @click="emit('select', node.nextSiblingId)"
       >
-        {{ nextLabel }}
-        <LucideArrowRight class="h-3.5 w-3.5" aria-hidden="true" />
+        <LucideArrowDown class="h-3.5 w-3.5" aria-hidden="true" />
+        <span class="comment-reader-action-label">{{ nextLabel }}</span>
       </button>
     </div>
-    <div class="comment-reader-destinations">
-      <span v-if="replyCountLabel" class="comment-reader-replies">
-        {{ replyCountLabel }}
-      </span>
-      <a
-        :href="replyHref"
-        target="_blank"
-        rel="noopener noreferrer"
-        class="comment-reader-reply-link"
-        :aria-label="discussionLanguage.format.replyOnHackerNews(node.comment.author)"
-      >
-        {{ discussionLanguage.actions.replyOnHackerNews }}
-        <LucideExternalLink class="h-3.5 w-3.5" aria-hidden="true" />
-      </a>
-    </div>
+    <a
+      :href="replyHref"
+      target="_blank"
+      rel="noopener noreferrer"
+      class="comment-reader-reply-link"
+      :aria-label="discussionLanguage.format.replyOnHackerNews(node.comment.author)"
+    >
+      {{ discussionLanguage.actions.replyOnHackerNews }}
+      <LucideExternalLink class="h-3.5 w-3.5" aria-hidden="true" />
+    </a>
   </footer>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
 import {
-  LucideArrowLeft,
-  LucideArrowRight,
-  LucideArrowUpToLine,
-  LucideCornerDownRight,
+  LucideArrowDown,
+  LucideArrowUp,
   LucideExternalLink,
 } from '@lucide/vue'
 import type { CommentNavigationNode } from '#shared/utils/comments'
@@ -78,8 +57,10 @@ import {
   type DiscussionSiblingKind,
 } from '#shared/utils/productLanguage'
 
+// Parent and root comments stay reachable through the breadcrumb, the
+// "Replying to" link, and the Left arrow, so the footer carries only the
+// sibling step that has no other visible control once the columns are hidden.
 const props = defineProps<{
-  descendantCount: number
   node: CommentNavigationNode
 }>()
 
@@ -87,12 +68,6 @@ const emit = defineEmits<{
   select: [commentId: number]
 }>()
 
-const replyCountLabel = computed(() => {
-  return discussionLanguage.format.replySummaryIfAny(
-    props.node.comment.children?.length ?? 0,
-    props.descendantCount,
-  )
-})
 const siblingKind = computed<DiscussionSiblingKind>(() => {
   return props.node.parentId ? 'reply' : 'root-comment'
 })
@@ -110,28 +85,24 @@ const positionLabel = computed(() => {
   )
 })
 const replyHref = computed(() => getHnReplyUrl(props.node.comment))
-
-const emitParent = () => {
-  if (props.node.parentId) {
-    emit('select', props.node.parentId)
-  }
-}
 </script>
 
 <style scoped>
 .comment-reader-actions {
-  display: grid;
-  gap: 0.6rem;
-  padding: 0.8rem 0 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.75rem;
+  padding: 0.6rem 0 1.6rem;
   border-top: 1px solid rgb(148 163 184 / 0.22);
 }
 
-.comment-reader-actions-navigation,
-.comment-reader-destinations {
+.comment-reader-actions-navigation {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 0.35rem 0.55rem;
+  gap: 0.35rem 0.45rem;
 }
 
 .comment-reader-action,
@@ -160,24 +131,23 @@ const emitParent = () => {
   outline-offset: 2px;
 }
 
-.comment-reader-position,
-.comment-reader-replies {
+.comment-reader-position {
   color: rgb(100 116 139);
   font-size: 0.76rem;
   font-weight: 650;
-}
-
-.comment-reader-destinations {
-  justify-content: space-between;
-  padding-top: 0.15rem;
 }
 
 .dark .comment-reader-actions {
   border-color: rgb(71 85 105 / 0.42);
 }
 
-.dark .comment-reader-position,
-.dark .comment-reader-replies {
+.dark .comment-reader-position {
   color: rgb(148 163 184);
+}
+
+@media (max-width: 520px) {
+  .comment-reader-action-label {
+    display: none;
+  }
 }
 </style>
