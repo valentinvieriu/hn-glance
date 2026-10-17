@@ -1,4 +1,5 @@
-import type { RelatedStory } from '#shared/types'
+import type { RelatedStory, SearchMatch, SearchStory } from '#shared/types'
+import type { SearchSort } from '#shared/utils/search'
 import {
   mapAlgoliaStorySummary,
   type AlgoliaRankingInfo,
@@ -23,6 +24,18 @@ export type RelatedSearchKind = 'title' | 'recent-title' | 'full-text' | 'commen
 export type SearchResult = {
   hits: AlgoliaStoryHit[]
   kind: RelatedSearchKind
+  /** The channel failed upstream, so its empty hits are not a real "no match". */
+  failed?: boolean
+  /** Comments that retrieved each story, keyed by story ID, best first. */
+  commentEvidence?: Record<string, CommentEvidence[]>
+}
+
+export type CommentEvidence = {
+  id: string
+  /** Full comment HTML, used to validate the match. */
+  text: string
+  /** Short plain-text excerpt around the match. */
+  snippet: string
 }
 
 type CandidateEvidence = RelatedStoryCandidate & {
@@ -84,6 +97,9 @@ const normalizeToken = (value: string) => {
     .toLocaleLowerCase('en-US')
     .replace(/^[._-]+|[._-]+$/gu, '')
 
+  // Dotted names ("node.js", "docs.rs") are identities, not plurals.
+  if (token.includes('.')) return token
+
   if (token.length > 4 && token.endsWith('ies')) {
     return `${token.slice(0, -3)}y`
   }
@@ -95,24 +111,42 @@ const normalizeToken = (value: string) => {
   return token
 }
 
-const isUsefulToken = (token: string) => {
-  if (!token || STOPWORDS.has(token)) return false
+type TokenizeOptions = {
+  stopwords: ReadonlySet<string>
+  /** Typed queries keep every short term, such as the languages C and R. */
+  keepShortTokens: boolean
+}
+
+const RELATED_TOKENIZE: TokenizeOptions = { stopwords: STOPWORDS, keepShortTokens: false }
+
+const isUsefulToken = (token: string, { stopwords, keepShortTokens }: TokenizeOptions) => {
+  if (!token || stopwords.has(token)) return false
   if (/\d/u.test(token)) return true
   if (/[^\x00-\x7F]/u.test(token)) return true
-  if (token.length >= 3) return true
+  if (token.length >= 3 || keepShortTokens) return true
   return SHORT_TECH_TERMS.has(token)
 }
 
-const addToken = (tokens: string[], seen: Set<string>, value: string, maxTokens: number) => {
+const addToken = (
+  tokens: string[],
+  seen: Set<string>,
+  value: string,
+  maxTokens: number,
+  options: TokenizeOptions,
+) => {
   const token = normalizeToken(value)
 
-  if (!isUsefulToken(token) || seen.has(token) || tokens.length >= maxTokens) return
+  if (!isUsefulToken(token, options) || seen.has(token) || tokens.length >= maxTokens) return
 
   seen.add(token)
   tokens.push(token)
 }
 
-const tokenize = (value: string, maxTokens = RELATED_TOKEN_LIMIT): string[] => {
+const tokenize = (
+  value: string,
+  maxTokens = RELATED_TOKEN_LIMIT,
+  options: TokenizeOptions = RELATED_TOKENIZE,
+): string[] => {
   const words = stripHtml(value)
     .replace(/&[#\p{L}\p{N}]+;/gu, ' ')
     .match(/[\p{L}\p{N}][\p{L}\p{N}+#._-]*/gu) ?? []
@@ -120,7 +154,7 @@ const tokenize = (value: string, maxTokens = RELATED_TOKEN_LIMIT): string[] => {
   const seen = new Set<string>()
 
   for (const word of words) {
-    addToken(tokens, seen, word, maxTokens)
+    addToken(tokens, seen, word, maxTokens, options)
 
     const styledParts = word
       .replace(/([\p{Ll}\p{N}])([\p{Lu}])/gu, '$1 $2')
@@ -128,19 +162,19 @@ const tokenize = (value: string, maxTokens = RELATED_TOKEN_LIMIT): string[] => {
     const compoundParts = styledParts.flatMap(part => part.split(/[-_]+/u))
 
     for (const part of compoundParts) {
-      addToken(tokens, seen, part, maxTokens)
+      addToken(tokens, seen, part, maxTokens, options)
     }
 
     for (const part of compoundParts) {
       if (part.includes('.') && !/^\d+(?:\.\d+)+$/u.test(part)) {
         for (const dotPart of part.split('.')) {
-          addToken(tokens, seen, dotPart, maxTokens)
+          addToken(tokens, seen, dotPart, maxTokens, options)
         }
       }
 
       const alphaPrefix = part.match(/^[\p{L}]{2,}(?=\d)/u)?.[0]
       if (alphaPrefix) {
-        addToken(tokens, seen, alphaPrefix, maxTokens)
+        addToken(tokens, seen, alphaPrefix, maxTokens, options)
       }
     }
 
@@ -323,8 +357,28 @@ const toRelatedStory = (hit: AlgoliaStoryHit): RelatedStoryCandidate | null => {
   }
 }
 
-const selectDiverseStories = (scoredCandidates: ScoredCandidate[]) => {
-  const selected: ScoredCandidate[] = []
+type DiversityOptions = {
+  limit: number
+  getHostLimit: (host: string) => number
+  /**
+   * Similar Stories collapses near-identical titles from any host. Search
+   * collapses them only within one host, because different sources with the
+   * same title can be very different pages.
+   */
+  similarTitlesAcrossHosts: boolean
+}
+
+const RELATED_DIVERSITY: DiversityOptions = {
+  limit: MAX_RELATED_STORIES,
+  getHostLimit: () => MAX_STORIES_PER_HOST,
+  similarTitlesAcrossHosts: true,
+}
+
+const selectDiverseStories = <T extends ScoredCandidate>(
+  scoredCandidates: T[],
+  { limit, getHostLimit, similarTitlesAcrossHosts }: DiversityOptions = RELATED_DIVERSITY,
+) => {
+  const selected: T[] = []
   const seenUrls = new Set<string>()
   const hostCounts = new Map<string, number>()
 
@@ -332,32 +386,24 @@ const selectDiverseStories = (scoredCandidates: ScoredCandidate[]) => {
     const host = normalizeHost(scored.candidate.url)
 
     if (scored.canonicalUrl && seenUrls.has(scored.canonicalUrl)) continue
-    if (host && (hostCounts.get(host) ?? 0) >= MAX_STORIES_PER_HOST) continue
+    if (host && (hostCounts.get(host) ?? 0) >= getHostLimit(host)) continue
     if (selected.some(existing => (
-      getSetSimilarity(scored.tokens, existing.tokens) >= TITLE_SIMILARITY_THRESHOLD
+      (similarTitlesAcrossHosts || normalizeHost(existing.candidate.url) === host)
+      && getSetSimilarity(scored.tokens, existing.tokens) >= TITLE_SIMILARITY_THRESHOLD
     ))) continue
 
     selected.push(scored)
 
     if (scored.canonicalUrl) seenUrls.add(scored.canonicalUrl)
     if (host) hostCounts.set(host, (hostCounts.get(host) ?? 0) + 1)
-    if (selected.length === MAX_RELATED_STORIES) break
+    if (selected.length === limit) break
   }
 
   return selected
 }
 
-export const rankRelatedStories = (
-  results: SearchResult[],
-  source: RelatedSourceStory,
-  excludeId: string,
-) => {
-  const sourceTitle = cleanTitle(source.title ?? '')
-  const sourceTokens = tokenize(sourceTitle)
-  const sourceBigrams = getBigrams(sourceTokens)
-  const sourceAnchors = getAnchorTokens(sourceTitle, source.url)
-  const sourceHost = normalizeHost(source.url)
-  const exactSourceUrl = canonicalizeSubmissionUrl(source.url)
+/** Merges the retrieval channels into one candidate per story, keeping each channel's best rank. */
+const collectCandidates = (results: SearchResult[], excludeId?: string) => {
   const candidates = new Map<string, CandidateEvidence>()
 
   for (const result of results) {
@@ -382,6 +428,22 @@ export const rankRelatedStories = (
       }
     })
   }
+
+  return candidates
+}
+
+export const rankRelatedStories = (
+  results: SearchResult[],
+  source: RelatedSourceStory,
+  excludeId: string,
+) => {
+  const sourceTitle = cleanTitle(source.title ?? '')
+  const sourceTokens = tokenize(sourceTitle)
+  const sourceBigrams = getBigrams(sourceTokens)
+  const sourceAnchors = getAnchorTokens(sourceTitle, source.url)
+  const sourceHost = normalizeHost(source.url)
+  const exactSourceUrl = canonicalizeSubmissionUrl(source.url)
+  const candidates = collectCandidates(results, excludeId)
 
   if (sourceTokens.length === 0) return []
 
@@ -460,4 +522,402 @@ export const rankRelatedStories = (
     ))
     .map(({ candidate }) => candidate)
     .map(({ created_at_i: _createdAt, ranks: _ranks, rankingInfo: _rankingInfo, ...story }) => story)
+}
+
+const MAX_SEARCH_STORIES = 30
+const MAX_SEARCH_STORIES_PER_HOST = 4
+const MAX_SEARCH_DISCUSSION_MATCHES = 6
+const SEARCH_PREFIX_MIN_LENGTH = 6
+const SEARCH_WORD_LIMIT = 12
+const SEARCH_TITLE_TOKEN_LIMIT = 64
+const SEARCH_COMMENT_TOKEN_LIMIT = 600
+const SEARCH_COMMENT_TEXT_LIMIT = 6000
+const FIVE_YEARS_IN_SECONDS = 5 * 365.25 * 24 * 60 * 60
+
+// Typed queries are deliberate, so only grammatical words are dropped. Title
+// noise such as "video", "guide", "pdf", or "show" can be exactly what a
+// reader wants, so search also matches raw titles rather than `cleanTitle`.
+const SEARCH_STOPWORDS = new Set([
+  'a', 'an', 'and', 'are', 'as', 'at', 'be', 'by', 'for', 'from', 'how',
+  'i', 'in', 'into', 'is', 'it', 'its', 'of', 'on', 'or', 'our', 'that',
+  'the', 'their', 'this', 'to', 'was', 'we', 'what', 'when', 'where',
+  'which', 'why', 'with', 'you', 'your',
+  // Contraction fragments split off by the tokenizer ("Zig's", "don't").
+  'd', 'll', 'm', 're', 's', 't', 've',
+])
+
+const SEARCH_TOKENIZE: TokenizeOptions = { stopwords: SEARCH_STOPWORDS, keepShortTokens: true }
+const SEARCH_WORD_PATTERN = /[\p{L}\p{N}][\p{L}\p{N}+#._-]*/gu
+const DOMAIN_TOKEN_PATTERN = /^[\p{L}\p{N}-]+(?:\.[\p{L}\p{N}-]+)*\.\p{L}{2,}$/u
+
+export type SearchRankingOptions = {
+  sort: SearchSort
+  /** Search window start in Unix seconds; null searches all time. */
+  rangeStart: number | null
+  nowSeconds: number
+  /** Quoted phrases whose words must appear together in a matching title. */
+  phrases?: string[]
+  /** Words no result title or source may contain. */
+  excluded?: string[]
+  /**
+   * The fallback pass for multi-word queries with too few complete matches:
+   * stories missing one term qualify, always ranked below complete matches.
+   */
+  allowPartial?: boolean
+  /**
+   * Retrieval already applied the whole query as filters (such as `by:pg`),
+   * so every candidate qualifies without text terms.
+   */
+  filterOnly?: boolean
+  /** An author filter asks for one person's sources, so hosts are not capped. */
+  uncappedHosts?: boolean
+  /**
+   * Upstream hit counts per term. Rarity across HN weights terms better than
+   * the candidate pool, which retrieval skews toward the query's own terms.
+   */
+  termFrequencies?: Record<string, number>
+}
+
+/**
+ * One typed word. It matches whole ("local-first") or through all of its own
+ * parts ("local" and "first"), so splitting a word never adds requirements.
+ */
+type SearchTerm = {
+  token: string
+  parts: string[]
+}
+
+type SearchScoredCandidate = ScoredCandidate & {
+  match: SearchMatch
+  comment?: CommentEvidence
+}
+
+// Search lowercases before tokenizing, so camel-case splitting (a Similar
+// Stories recall aid) cannot make capitalization change what matches, and
+// "java" does not match "JavaScript".
+const lowercase = (value: string) => value.toLocaleLowerCase('en-US')
+
+const tokenizeSearchText = (value: string, maxTokens: number) => {
+  return tokenize(lowercase(value), maxTokens, SEARCH_TOKENIZE)
+}
+
+const getSearchTerms = (value: string): SearchTerm[] => {
+  const words = stripHtml(lowercase(value)).replace(/&[#\p{L}\p{N}]+;/gu, ' ').match(SEARCH_WORD_PATTERN) ?? []
+  const terms: SearchTerm[] = []
+  const seen = new Set<string>()
+
+  for (const word of words) {
+    const [token, ...parts] = tokenize(word, SEARCH_WORD_LIMIT, SEARCH_TOKENIZE)
+
+    if (!token || seen.has(token)) continue
+
+    seen.add(token)
+    // A domain is one identity; "github.com" must not match "github" plus "com".
+    terms.push({ token, parts: DOMAIN_TOKEN_PATTERN.test(token) ? [] : parts })
+
+    if (terms.length === SEARCH_WORD_LIMIT) break
+  }
+
+  return terms
+}
+
+/**
+ * Host terms a query can match: each label except the TLD ("github") and each
+ * registrable suffix ("blog.github.com", "github.com"), so a domain query
+ * matches its host and genuine subdomains only.
+ */
+const getHostSearchTokens = (url: string) => {
+  try {
+    const labels = new URL(url).hostname.toLowerCase().replace(/^www\./u, '').split('.')
+    const suffixes = labels.slice(0, -1).map((_label, index) => labels.slice(index).join('.'))
+
+    return [...labels.slice(0, -1), ...suffixes].map(normalizeToken).filter(Boolean)
+  } catch {
+    return []
+  }
+}
+
+// Algolia also matches prefixes and typos ("zig" finds "Zigbee"). Results must
+// contain each query term, so only long plain words may complete as a prefix;
+// dotted names such as domains match exactly.
+const tokenMatches = (queryToken: string, candidateTokens: Set<string>) => {
+  if (candidateTokens.has(queryToken)) return true
+  if (queryToken.length < SEARCH_PREFIX_MIN_LENGTH || queryToken.includes('.')) return false
+
+  for (const token of candidateTokens) {
+    if (token.startsWith(queryToken)) return true
+  }
+
+  return false
+}
+
+/**
+ * A split word ("local-first") also matches through its parts. Given a title's
+ * token stream, the parts must be adjacent ("local first"), so "small local
+ * models first" does not match.
+ */
+const termMatches = (term: SearchTerm, candidateTokens: Set<string>, stream?: string[]) => {
+  if (tokenMatches(term.token, candidateTokens)) return true
+  if (term.parts.length === 0) return false
+
+  return stream
+    ? containsSequence(stream, term.parts)
+    : term.parts.every(part => tokenMatches(part, candidateTokens))
+}
+
+// A partial match may miss only a light term: with "kubernetes alternatives
+// for small teams", missing "small" is acceptable, missing "kubernetes" is not.
+const PARTIAL_MIN_COVERAGE = 0.65
+const COMPLETE_MATCH_BONUS = 40
+
+/** Relative rarity: the most common query term weighs 1, rarer terms more. */
+const getUpstreamTermWeights = (terms: SearchTerm[], frequencies: number[]) => {
+  const mostCommon = Math.max(...frequencies)
+
+  return new Map(terms.map((term, index) => [
+    term.token,
+    1 + Math.log((mostCommon + 1) / ((frequencies[index] ?? 0) + 1)),
+  ]))
+}
+
+/** The term tokens ranking requires for a query, for per-term upstream lookups. */
+export const getSearchTermTokens = (query: string) => getSearchTerms(query).map(term => term.token)
+
+const containsSequence = (words: string[], sequence: string[]) => {
+  if (sequence.length === 0) return true
+
+  for (let start = 0; start + sequence.length <= words.length; start += 1) {
+    if (sequence.every((word, offset) => words[start + offset] === word)) return true
+  }
+
+  return false
+}
+
+/** Expects score order; keeps the first candidate for each canonical source URL. */
+const keepStrongestPerSource = <T extends ScoredCandidate>(rankedCandidates: T[]) => {
+  const seenUrls = new Set<string>()
+
+  return rankedCandidates.filter((scored) => {
+    if (!scored.canonicalUrl) return true
+    if (seenUrls.has(scored.canonicalUrl)) return false
+
+    seenUrls.add(scored.canonicalUrl)
+    return true
+  })
+}
+
+type TokenizedComment = {
+  comment: CommentEvidence
+  tokens: Set<string>
+}
+
+const getTokenizedComments = (results: SearchResult[]) => {
+  const tokenizedComments = new Map<string, TokenizedComment[]>()
+
+  for (const result of results) {
+    for (const [storyId, comments] of Object.entries(result.commentEvidence ?? {})) {
+      const entries = tokenizedComments.get(storyId) ?? []
+
+      for (const comment of comments) {
+        entries.push({
+          comment,
+          tokens: new Set(tokenizeSearchText(
+            comment.text.slice(0, SEARCH_COMMENT_TEXT_LIMIT),
+            SEARCH_COMMENT_TOKEN_LIMIT,
+          )),
+        })
+      }
+
+      tokenizedComments.set(storyId, entries)
+    }
+  }
+
+  return tokenizedComments
+}
+
+export const rankSearchStories = (
+  results: SearchResult[],
+  query: string,
+  {
+    sort,
+    rangeStart,
+    nowSeconds,
+    phrases = [],
+    excluded = [],
+    allowPartial = false,
+    filterOnly = false,
+    uncappedHosts = false,
+    termFrequencies,
+  }: SearchRankingOptions,
+): SearchStory[] => {
+  const terms = getSearchTerms(query)
+
+  if (terms.length === 0 && !filterOnly) return []
+
+  const phraseSequences = phrases
+    .map(phrase => getSearchTerms(phrase).map(term => term.token))
+    .filter(sequence => sequence.length > 1)
+  const excludedTerms = excluded.flatMap(word => getSearchTerms(word))
+  const termTokens = terms.map(term => term.token)
+  const queryPhrase = termTokens.join(' ')
+  const queryBigrams = getBigrams(termTokens)
+  const queryAnchors = getAnchorTokens(query)
+  const anchorTerms = terms.filter(term => queryAnchors.has(term.token))
+  const recencyScale = rangeStart === null
+    ? FIVE_YEARS_IN_SECONDS
+    : Math.max(nowSeconds - rangeStart, 1)
+  const candidates = collectCandidates(results)
+  const tokenizedComments = getTokenizedComments(results)
+  const titleWords = new Map<string, string[]>()
+  const titleStreams = new Map<string, string[]>()
+  const matchTokens = new Map<string, Set<string>>()
+  const documentFrequency = new Map<string, number>()
+
+  for (const candidate of candidates.values()) {
+    const stream = tokenizeSearchText(candidate.title, SEARCH_TITLE_TOKEN_LIMIT)
+    const searchable = new Set([...stream, ...getHostSearchTokens(candidate.url)])
+    titleWords.set(candidate.objectID, getSearchTerms(candidate.title).map(term => term.token))
+    titleStreams.set(candidate.objectID, stream)
+    matchTokens.set(candidate.objectID, searchable)
+
+    for (const term of terms) {
+      if (termMatches(term, searchable, stream)) {
+        documentFrequency.set(term.token, (documentFrequency.get(term.token) ?? 0) + 1)
+      }
+    }
+  }
+
+  const upstreamFrequencies = terms.map(term => termFrequencies?.[term.token])
+  const termWeights = upstreamFrequencies.every(frequency => frequency !== undefined)
+    ? getUpstreamTermWeights(terms, upstreamFrequencies as number[])
+    : new Map(terms.map(term => [
+      term.token,
+      1 + Math.log((candidates.size + 1) / ((documentFrequency.get(term.token) ?? 0) + 1)),
+    ]))
+  const totalWeight = terms.reduce((total, term) => total + (termWeights.get(term.token) ?? 1), 0)
+  // The rarest term is the query's topic ("kubernetes" in "kubernetes
+  // alternatives for small teams"); a partial match may never drop it.
+  const rarestTerm = terms.reduce<SearchTerm | undefined>((rarest, term) => (
+    !rarest || (termWeights.get(term.token) ?? 0) > (termWeights.get(rarest.token) ?? 0) ? term : rarest
+  ), undefined)
+
+  // Every term is required by default. The partial pass admits a story missing
+  // one light term, never the rarest one.
+  const evaluate = (searchable: Set<string>, stream?: string[]) => {
+    if (terms.length === 0) return { coverage: 1, complete: true, qualifies: true }
+
+    const matchedTerms = terms.filter(term => termMatches(term, searchable, stream))
+    const matchedWeight = matchedTerms.reduce((total, term) => total + (termWeights.get(term.token) ?? 1), 0)
+    const coverage = totalWeight > 0 ? matchedWeight / totalWeight : 0
+    const complete = matchedTerms.length === terms.length
+    const partial = allowPartial
+      && terms.length >= 2
+      && matchedTerms.length >= terms.length - 1
+      && rarestTerm !== undefined
+      && matchedTerms.includes(rarestTerm)
+      && coverage >= PARTIAL_MIN_COVERAGE
+    const qualifies = anchorTerms.every(term => matchedTerms.includes(term)) && (complete || partial)
+
+    return { coverage, complete, qualifies }
+  }
+
+  const scoredCandidates: SearchScoredCandidate[] = []
+
+  for (const candidate of candidates.values()) {
+    // Search results are a discovery surface: only stories with a source URL.
+    if (!candidate.url.trim()) continue
+    if (rangeStart !== null && candidate.created_at_i < rangeStart) continue
+
+    const words = titleWords.get(candidate.objectID) ?? []
+    const searchable = matchTokens.get(candidate.objectID) ?? new Set<string>()
+
+    if (excludedTerms.some(term => termMatches(term, searchable))) continue
+
+    const titleEvaluation = evaluate(searchable, titleStreams.get(candidate.objectID))
+    const titleMatch = titleEvaluation.qualifies
+      && phraseSequences.every(sequence => containsSequence(words, sequence))
+    const discussionRank = candidate.ranks.get('comment')
+    // A discussion match must contain the query in a retrieved comment, with
+    // the same rules as titles; Algolia's own comment matching is looser.
+    const matchingComment = !titleMatch && discussionRank !== undefined
+      ? (tokenizedComments.get(candidate.objectID) ?? [])
+        .find(({ tokens }) => evaluate(tokens).qualifies)?.comment
+      : undefined
+
+    if (!titleMatch && !matchingComment) continue
+
+    const { coverage, complete } = titleEvaluation
+
+    const candidateBigrams = getBigrams(words)
+    const bigramMatches = Array.from(queryBigrams).filter(bigram => candidateBigrams.has(bigram)).length
+    const phraseMatch = terms.length > 1 && words.join(' ').includes(queryPhrase)
+    const relevance = titleMatch
+      ? coverage * 100
+        + (complete ? COMPLETE_MATCH_BONUS : 0)
+        + Math.min(2, bigramMatches) * 8
+        + (phraseMatch ? 15 : 0)
+        + getRetrievalScore(candidate, terms.length)
+      : 30 + getRankScore(discussionRank) * 20
+    const age = Math.max(nowSeconds - candidate.created_at_i, 0)
+    const score = relevance
+      + getPopularityScore(candidate) * 2
+      + Math.exp(-age / recencyScale) * 8
+
+    scoredCandidates.push({
+      candidate,
+      // Exact-source identity: unlike Similar Stories' looser key, it keeps
+      // ports and meaningful parameters such as `ref` or `source`.
+      canonicalUrl: canonicalizeSubmissionUrl(candidate.url) || candidate.url,
+      match: titleMatch ? 'title' : 'discussion',
+      comment: matchingComment,
+      score,
+      tokens: new Set(words),
+    })
+  }
+
+  // A query naming a host ("github", "github.com") asks for that host, so it is not capped.
+  const getHostLimit = (host: string) => {
+    const hostTokens = getHostSearchTokens(`https://${host}`)
+
+    return uncappedHosts || termTokens.some(token => hostTokens.includes(token))
+      ? MAX_SEARCH_STORIES
+      : MAX_SEARCH_STORIES_PER_HOST
+  }
+
+  let discussionMatches = 0
+  const rankedCandidates = scoredCandidates
+    .sort((first, second) => (
+      second.score - first.score
+        || second.candidate.points - first.candidate.points
+        || Number(second.candidate.objectID) - Number(first.candidate.objectID)
+    ))
+    // Discussion-only matches add context; they must not crowd out title matches.
+    .filter(scored => scored.match === 'title' || ++discussionMatches <= MAX_SEARCH_DISCUSSION_MATCHES)
+  // Newest orders matches by date before the result limit applies, with title
+  // matches ahead of discussion-only context. A reposted source still keeps its
+  // strongest, usually best-discussed, submission.
+  const orderedCandidates = sort === 'newest'
+    ? keepStrongestPerSource(rankedCandidates).sort((first, second) => (
+      Number(first.match === 'discussion') - Number(second.match === 'discussion')
+        || second.candidate.created_at_i - first.candidate.created_at_i
+        || Number(second.candidate.objectID) - Number(first.candidate.objectID)
+    ))
+    : rankedCandidates
+  const selected = selectDiverseStories(orderedCandidates, {
+    limit: MAX_SEARCH_STORIES,
+    getHostLimit,
+    similarTitlesAcrossHosts: false,
+  })
+
+  return selected.map(({ candidate, match, comment }) => ({
+    objectID: candidate.objectID,
+    title: candidate.title,
+    url: candidate.url,
+    author: candidate.author,
+    points: candidate.points,
+    num_comments: candidate.num_comments,
+    created_at: candidate.created_at,
+    match,
+    ...(comment ? { comment: { id: comment.id, snippet: comment.snippet } } : {}),
+  }))
 }

@@ -1,7 +1,7 @@
 <template>
   <nav
     class="site-header feed-theme-surface sticky top-0 z-50 border-b"
-    :style="currentFeed ? getFeedThemeStyle(currentFeed) : undefined"
+    :style="headerThemeStyle"
   >
     <div class="layout-frame flex h-14 items-center justify-between gap-3 sm:h-16 sm:gap-5">
       <NuxtLink to="/top" class="flex shrink-0 items-center space-x-2" aria-label="HN Glance home">
@@ -29,28 +29,69 @@
           </NuxtLink>
         </div>
       </div>
+      <form
+        v-if="!isSearchPage"
+        class="header-search hidden md:flex"
+        role="search"
+        :action="SEARCH_PATH"
+        method="get"
+        @submit.prevent="submitSearch"
+      >
+        <label for="header-search-input" class="sr-only">Search Hacker News stories</label>
+        <LucideSearch class="header-search-icon" aria-hidden="true" />
+        <input
+          id="header-search-input"
+          ref="searchInputRef"
+          v-model="searchDraft"
+          type="search"
+          name="q"
+          class="header-search-input"
+          placeholder="Search"
+          autocomplete="off"
+          enterkeyhint="search"
+          :maxlength="SEARCH_QUERY_MAX_LENGTH"
+          data-search-input
+          @keydown.esc="searchInputRef?.blur()"
+        >
+        <kbd class="header-search-kbd" aria-hidden="true">/</kbd>
+      </form>
+      <NuxtLink
+        :to="SEARCH_PATH"
+        class="header-icon-button shrink-0"
+        :class="isSearchPage ? 'header-icon-button-active' : 'header-search-compact'"
+        aria-label="Search"
+        title="Search (/)"
+        :aria-current="isSearchPage ? 'page' : undefined"
+      >
+        <LucideSearch class="header-icon" aria-hidden="true" />
+      </NuxtLink>
       <button
         type="button"
-        class="theme-toggle ml-1 shrink-0 sm:ml-2"
+        class="header-icon-button ml-1 shrink-0 sm:ml-2"
         aria-label="Toggle color theme"
         title="Toggle color theme"
         @click="toggleColorMode"
       >
-        <LucideSun class="theme-toggle-icon theme-toggle-icon-sun" aria-hidden="true" />
-        <LucideMoon class="theme-toggle-icon theme-toggle-icon-moon" aria-hidden="true" />
+        <LucideSun class="header-icon theme-toggle-icon-sun" aria-hidden="true" />
+        <LucideMoon class="header-icon theme-toggle-icon-moon" aria-hidden="true" />
       </button>
     </div>
   </nav>
 </template>
 
 <script setup lang="ts">
-import { LucideMoon, LucideSun } from '@lucide/vue'
+import { LucideMoon, LucideSearch, LucideSun } from '@lucide/vue'
 import { isHnFeed } from '#shared/utils/hn';
-import { feedThemeList, getFeedThemeStyle } from '~/composables/useFeedTheme';
+import { getSearchPath, normalizeSearchQuery, SEARCH_PATH, SEARCH_QUERY_MAX_LENGTH } from '#shared/utils/search';
+import { feedThemeList, getFeedThemeStyle, getSearchThemeStyle } from '~/composables/useFeedTheme';
+import { handleSearchShortcut } from '~/utils/searchShortcut';
 
 const colorMode = useColorMode();
 const route = useRoute();
 const feedNavRef = ref<HTMLElement | null>(null);
+const searchInputRef = ref<HTMLInputElement | null>(null);
+const searchDraft = ref('');
+const isSearchPage = computed(() => route.path === SEARCH_PATH);
 
 const currentFeed = computed(() => {
   if (route.path === '/') {
@@ -60,6 +101,24 @@ const currentFeed = computed(() => {
   const feedCandidate = route.path.split('/')[1];
   return isHnFeed(feedCandidate) ? feedCandidate : null;
 });
+
+const headerThemeStyle = computed(() => {
+  if (currentFeed.value) return getFeedThemeStyle(currentFeed.value);
+  return isSearchPage.value ? getSearchThemeStyle() : undefined;
+});
+
+const submitSearch = async () => {
+  const query = normalizeSearchQuery(searchDraft.value);
+
+  if (!query) return;
+
+  searchInputRef.value?.blur();
+  searchDraft.value = '';
+  await navigateTo(getSearchPath({ query }));
+};
+
+onMounted(() => document.addEventListener('keydown', handleSearchShortcut));
+onBeforeUnmount(() => document.removeEventListener('keydown', handleSearchShortcut));
 
 const toggleColorMode = () => {
   colorMode.preference = colorMode.value === 'dark' ? 'light' : 'dark';
@@ -129,7 +188,88 @@ watch(
   color: var(--feed-accent-strong);
 }
 
-.theme-toggle {
+.header-search {
+  position: relative;
+  flex-shrink: 0;
+  align-items: center;
+  margin-left: 0.25rem;
+}
+
+.header-search-icon {
+  position: absolute;
+  left: 0.65rem;
+  width: 0.95rem;
+  height: 0.95rem;
+  color: rgb(100 116 139);
+  pointer-events: none;
+}
+
+.header-search-input {
+  width: 10rem;
+  min-height: 2rem;
+  border: 1px solid rgb(226 232 240 / 0.8);
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.5);
+  padding: 0.25rem 2rem 0.25rem 2rem;
+  font-family: var(--font-ui);
+  font-size: 0.875rem;
+  color: rgb(15 23 42);
+  outline: none;
+  transition:
+    width 180ms ease,
+    background-color 180ms ease,
+    border-color 180ms ease;
+}
+
+.header-search-input::placeholder {
+  color: rgb(100 116 139);
+}
+
+.header-search-input:focus {
+  width: 15rem;
+  border-color: var(--feed-accent-strong, rgb(100 116 139));
+  background: rgb(255 255 255 / 0.9);
+}
+
+.dark .header-search-input {
+  border-color: rgb(71 85 105 / 0.6);
+  background: rgb(15 23 42 / 0.4);
+  color: rgb(248 250 252);
+}
+
+.dark .header-search-input:focus {
+  border-color: var(--feed-accent-strong, rgb(148 163 184));
+  background: rgb(15 23 42 / 0.8);
+}
+
+.header-search-kbd {
+  position: absolute;
+  right: 0.55rem;
+  border: 1px solid rgb(203 213 225 / 0.9);
+  border-radius: 0.3rem;
+  padding: 0 0.3rem;
+  font-family: var(--font-ui);
+  font-size: 0.7rem;
+  font-weight: 600;
+  line-height: 1.35;
+  color: rgb(100 116 139);
+  pointer-events: none;
+}
+
+.dark .header-search-kbd {
+  border-color: rgb(71 85 105 / 0.8);
+  color: rgb(148 163 184);
+}
+
+.header-search-input:focus + .header-search-kbd {
+  display: none;
+}
+
+.header-search-input::-webkit-search-cancel-button {
+  display: none;
+}
+
+.header-icon-button {
   display: inline-grid;
   min-height: 1.875rem;
   min-width: 1.875rem;
@@ -147,7 +287,7 @@ watch(
     opacity 180ms ease;
 }
 
-.theme-toggle-icon {
+.header-icon {
   width: 1rem;
   height: 1rem;
   grid-area: 1 / 1;
@@ -165,30 +305,44 @@ watch(
   display: none;
 }
 
-.theme-toggle:hover,
-.theme-toggle:focus-visible {
+.header-icon-button:hover,
+.header-icon-button:focus-visible {
   border-color: rgb(203 213 225 / 0.76);
   background: rgb(255 255 255 / 0.46);
   color: rgb(15 23 42);
   opacity: 0.96;
 }
 
-.theme-toggle:focus-visible {
+.header-icon-button:focus-visible {
   outline: 2px solid rgb(100 116 139);
   outline-offset: 2px;
 }
 
-.dark .theme-toggle {
+.dark .header-icon-button {
   border-color: rgb(71 85 105 / 0.5);
   background: rgb(15 23 42 / 0.22);
   color: rgb(203 213 225 / 0.74);
 }
 
-.dark .theme-toggle:hover,
-.dark .theme-toggle:focus-visible {
+.dark .header-icon-button:hover,
+.dark .header-icon-button:focus-visible {
   border-color: rgb(100 116 139 / 0.72);
   background: rgb(15 23 42 / 0.42);
   color: rgb(248 250 252);
+}
+
+.header-icon-button-active,
+.dark .header-icon-button-active {
+  border-color: var(--feed-border);
+  color: var(--feed-accent-strong);
+  opacity: 1;
+}
+
+/* The inline field replaces the icon link where it fits. */
+@media (min-width: 768px) {
+  .header-search-compact {
+    display: none;
+  }
 }
 
 @media (min-width: 640px) {
@@ -196,7 +350,7 @@ watch(
     font-size: 0.875rem;
   }
 
-  .theme-toggle {
+  .header-icon-button {
     min-height: 2rem;
     min-width: 2rem;
   }

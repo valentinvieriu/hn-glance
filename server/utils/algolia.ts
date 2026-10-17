@@ -29,6 +29,9 @@ export type AlgoliaStoryHit = {
 }
 
 export type AlgoliaCommentHit = {
+  _snippetResult?: {
+    comment_text?: { value?: string | null } | null
+  } | null
   comment_text?: string | null
   created_at?: string | null
   created_at_i?: number | null

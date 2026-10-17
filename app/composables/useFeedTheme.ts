@@ -64,3 +64,12 @@ const feedThemeStyles = new Map(HN_FEEDS.map<[
 export const getFeedTheme = (feed: FeedEndpoint) => feedThemes[feed]
 
 export const getFeedThemeStyle = (feed: FeedEndpoint) => feedThemeStyles.get(feed)
+
+// Search is not an HN feed, but it shares the feed surface with its own hues.
+const SEARCH_THEME_STYLE: Record<string, string> = {
+  '--feed-hue-a': '262',
+  '--feed-hue-b': '226',
+  '--feed-hue-c': '318',
+}
+
+export const getSearchThemeStyle = () => SEARCH_THEME_STYLE

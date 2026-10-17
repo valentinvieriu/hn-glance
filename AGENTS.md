@@ -61,15 +61,21 @@ Preserve these product principles:
 
 ## Architecture
 
-HN Glance uses Nuxt pages for the main routes and Nitro server routes for Hacker News, Algolia, related-story, user, and screenshot APIs.
+HN Glance uses Nuxt pages for the main routes and Nitro server routes for Hacker News, Algolia, related-story, search, user, and screenshot APIs.
 
 Frontend:
 
 - `app/pages/top.vue`, `app/pages/best.vue`, `app/pages/new.vue`, `app/pages/show.vue`: feed pages. `top.vue` declares `/` as a route alias, so `/` and `/top` both render the top feed without a redirect.
 - `app/pages/item/[id].vue`: story detail page with metadata, screenshot, comments, exact-source HN history, and similar stories.
+- `app/pages/search.vue`: `/search` story search. It renders the shared
+  `StoryGridLayout` with a search field and URL-backed `q`, `range`, and
+  `sort` options; results are SSR-rendered for shared links and `noindex`.
 - `app/pages/user/[username].vue`: user profile/activity page with posts and comments; each list is a `useUserActivityFeed` instance rendered through `app/components/user/UserActivityPanel.vue`.
 - `app/layouts/default.vue`: the single app shell (header, main, footer, loading indicator) shared by pages and `app/error.vue`; `SiteErrorPage.vue` renders error content and owns error-page SEO.
-- `app/components/story/StoryGrid.vue`: feed layout and loading states. Cards render as `LazyStoryCard` with `hydrate-on-visible`, so first load hydrates only cards near the viewport instead of the whole feed in one main-thread task.
+- `app/components/story/StoryGridLayout.vue`: presentational themed grid shell
+  (header, controls slot, skeletons, errors, empty slot, and cards) shared by
+  feeds and search.
+- `app/components/story/StoryGrid.vue`: feed data, SEO, and preload wrapper around `StoryGridLayout`. Cards render as `LazyStoryCard` with `hydrate-on-visible`, so first load hydrates only cards near the viewport instead of the whole feed in one main-thread task.
 - `app/components/story/StoryCard.vue`: visual story card, source link, screenshot preview, title, and status row.
 - `app/components/story/StoryPlaceholderVisual.vue`: shared deterministic wireframe fallback for queued and unavailable screenshots.
 - `app/components/story/SourceScreenshotPreview.vue`: story-detail source screenshot with bounded retries and the full-size preview dialog.
@@ -82,7 +88,8 @@ Frontend:
 - `app/components/SourceIdentity.vue`: shared favicon-plus-preview identity block used by related-story and comment-link rows.
 - `app/components/StoryContextSectionHeader.vue`: shared icon, heading, and count header for the Similar Stories, HN history, and From the Discussion sections; their list rows share the `story-context-source-*` classes in `main.css`.
 - `app/types/commentReader.ts`: comment-reader position types, kept outside `app/components/` so Nuxt does not register a type-only module as a component.
-- `app/components/layout/Header.vue` and `app/components/layout/Footer.vue`: shared shell.
+- `app/components/layout/Header.vue` and `app/components/layout/Footer.vue`: shared shell. The header carries an inline search field at `md` and wider (an icon link elsewhere and on `/search`).
+- `app/utils/searchShortcut.ts`: the global `/` shortcut. It ignores modified keys, editable targets, and open modals (discussion focus and the screenshot dialog), focuses the first visible `data-search-input` field, and otherwise opens `/search`.
 
 Shared client logic:
 
@@ -105,6 +112,9 @@ Server/API:
 - `server/api/top.ts`, `best.ts`, `new.ts`, `show.ts`: configure the shared ordered feed handler.
 - `server/api/item/[id].ts`: fetch story details and comment tree from Algolia Items API.
 - `server/api/related/[id].ts`: lazily build exact-source submission history and semantic story suggestions from one bounded set of concurrent Algolia searches.
+- `server/api/search.ts`: story search. Text queries run the same four retrieval channels as Similar Stories (title relevance, recent title, full text, and comment-mentioned stories) inside the selected time range, then rank with the search preset. An explicit HTTP(S) URL query instead lists every exact-source submission, largest discussion first.
+- `server/utils/storyRetrieval.ts`: Algolia retrieval channels shared by related stories and search. Each channel fails soft with a `failed` flag so callers can serve partial results uncached or fail when every channel is down.
+- `server/utils/relatedStories.ts`: shared tokenizer, candidate merge, and diversity selection with two ranking presets: `rankRelatedStories` (Similar Stories) and `rankSearchStories` (typed queries).
 - `server/utils/previousSubmissions.ts`: conservative source-URL canonicalization and bounded exact-history selection.
 - `server/api/screenshot/[id].ts`: public R2-only screenshot cache layer.
 - `server/api/internal/screenshot-jobs/[id]/prepare.post.ts`: authenticated capture-agent eligibility, R2 reuse, and content-probe endpoint.
@@ -130,6 +140,9 @@ Types and global styling:
 
 - `shared/types/index.ts`: shared story, comment, user, and activity types used by the Vue app and Nitro server.
 - `shared/utils/comments.ts`, `date.ts`, and `hn.ts`: framework-neutral comment analysis, date formatting, and HN identifier/path helpers. `hn.ts` also owns the canonical feed list (`HN_FEEDS`), HN Firebase URLs, reply/user URLs, and route query/hash parsing shared by the app, Nitro, the scheduler Worker, and the capture agent.
+- `shared/utils/search.ts`: search route contract (query normalization, `range`
+  and `sort` values, default omission, URL-query detection, and hour-floored
+  range starts) shared by the page, header, and API.
 - `shared/utils/url.ts` and `hash.ts`: source display-domain extraction and the FNV-1a seed hash behind palettes and placeholders.
 - `shared/utils/productLanguage.ts`: typed, framework-neutral semantic UI language for canonical discussion terms, actions, states, accessibility, and dynamic labels.
 - `shared/utils/commentLinks.ts`: bounded, framework-neutral extraction, deduplication, and value-ordered source categorization for outbound links shared in comments.
@@ -374,6 +387,64 @@ navigation acknowledges the current IDs for the next visit without clearing
 the frozen markers. Only the explicit **Mark all seen** action dismisses them
 immediately. New-comment navigation and markers must use the same frozen set in
 the overview tree, sibling columns, current-comment reader, and reading path.
+
+## Search
+
+Search extends the feed loop (scan, compare, open) beyond the current feeds;
+it is not a text-result clone of hn.algolia.com. Preserve these boundaries:
+
+- Results render as the same `StoryCard` grid and follow feed admission: only
+  stories with an explicit source URL, never synthesized HN permalinks.
+- Search reuses the Similar Stories retrieval and ranking engine. Tune shared
+  behavior in `relatedStories.ts` through the matching preset; the
+  `rankRelatedStories` tests guard Similar Stories against search changes.
+- Ranking requires real term matches rather than Algolia's prefix and typo
+  matches. Each typed word is one term that matches whole or through all of
+  its own hyphen, dot, or digit parts; search lowercases before tokenizing, so
+  capitalization never changes results. Only long plain words complete as
+  prefixes. Short terms such as C and R are kept and retrieved as exact
+  words, and search matches raw titles so tags such as `[pdf]` and
+  `Show HN` stay searchable.
+- A domain term such as `github.com` matches only that host or a genuine
+  subdomain, never lookalikes such as `github.community`.
+- Discussion-only matches must contain the query in a retrieved comment under
+  the same term rules. They stay capped, follow title matches under Newest,
+  and show "Mentioned in discussion" with a two-line plain-text Algolia
+  snippet linking to `/item/:id#comment-<id>`. The snippet is an excerpt, not
+  a reading surface. When the first comment page yields fewer than eight
+  distinct stories, the comment channel reads one more page.
+- All terms are required first. Only a multi-word query with fewer than eight
+  complete title matches runs one broadened (`optionalWords`) title search;
+  its partial matches may miss one term but never the rarest, use
+  `hitsPerPage=0` per-term Algolia counts as weights, and rank below complete
+  matches. Within titles, a split word's parts must be adjacent.
+- The operator vocabulary stays small and conventional: `"exact phrase"`,
+  `-word`, `by:username`, and the words `Show HN`. `shared/utils/search.ts`
+  parses them into Algolia tags and `advancedSyntax`; ranking enforces
+  phrases and exclusions locally, and the page shows each as a removable chip.
+- `scripts/search-eval.mjs` runs a fixed query set against a running server
+  with objective checks; compare top-ten results before and after ranking
+  changes (`--out`, then `--compare`).
+- Exact-source duplicates, keyed by `canonicalizeSubmissionUrl` (ports and
+  meaningful parameters such as `ref` preserved), keep their strongest
+  submission. Near-identical titles collapse only within one host: different
+  sources with the same title remain separate cards because their previews
+  can differ.
+- Newest orders matches by date before the result limit, so recent stories
+  are not cut by relevance first.
+- A failed retrieval channel is reported, not treated as "no match". Search
+  and Similar Stories return partial results with `Cache-Control: no-store`,
+  and an uncached 502 when every channel fails. Search also fails when a
+  partial result is empty, and flags non-empty partial results so the page
+  says some results may be missing.
+- The month range equals `SCREENSHOT_RETENTION_DAYS`. Wider ranges show the
+  wireframe fallback for older stories honestly; capture is never guaranteed.
+- Search never admits or triggers screenshot captures; admission stays
+  feed-driven through the scheduler.
+- `q`, `range`, and `sort` live in the URL with product defaults omitted.
+  Search pages are SSR `no-store` and `noindex`; `/api/search` responses are
+  publicly cacheable for five minutes.
+- `/` opens search from anywhere except editable fields and open modals.
 
 ## Comment Rendering
 

@@ -1,3 +1,5 @@
+import type { SearchMode, SearchRange, SearchSort } from '../utils/search';
+
 interface BaseStory {
   objectID: string;
   title: string;
@@ -72,4 +74,26 @@ export type SubmissionHistoryEntry = RelatedStory;
 export interface StoryContextResponse {
   submissionHistory: SubmissionHistoryEntry[];
   similarStories: RelatedStory[];
+}
+
+/** Where a search result matched: its title or source, or only its discussion. */
+export type SearchMatch = 'title' | 'discussion';
+
+export interface SearchStory extends Story {
+  match: SearchMatch;
+  /** For discussion matches: the comment that mentions the query. */
+  comment?: {
+    id: string;
+    snippet: string;
+  };
+}
+
+export interface StorySearchResponse {
+  query: string;
+  mode: SearchMode;
+  range: SearchRange;
+  sort: SearchSort;
+  /** Some upstream channels failed, so results may be incomplete. */
+  partial: boolean;
+  stories: SearchStory[];
 }

@@ -3,7 +3,6 @@ import type { StoryContextResponse } from '#shared/types'
 import { isValidHnItemId } from '#shared/utils/hn'
 import { formatServerTiming, type ServerTimingMetric } from '#shared/utils/serverTiming'
 
-const RELATED_STORY_ATTRIBUTES = 'objectID,title,created_at,created_at_i,points,num_comments,author,url'
 const SOURCE_STORY_ATTRIBUTES = 'title,url,created_at_i'
 
 const setRelatedCacheHeaders = (event: H3Event) => {
@@ -13,85 +12,6 @@ const setRelatedCacheHeaders = (event: H3Event) => {
     'CDN-Cache-Control': 'public, max-age=3600',
     'Cloudflare-CDN-Cache-Control': 'public, max-age=3600'
   })
-}
-
-const fetchStoryHits = async (
-  params: Record<string, string>,
-  kind: RelatedSearchKind,
-  order: AlgoliaSearchOrder = 'relevance',
-): Promise<SearchResult> => {
-  try {
-    const hits = await searchAlgoliaHits<AlgoliaStoryHit>({
-      attributesToRetrieve: RELATED_STORY_ATTRIBUTES,
-      getRankingInfo: 'true',
-      ...params,
-    }, order)
-    return { hits, kind }
-  } catch (error) {
-    console.warn('Failed to fetch related story candidates:', error)
-    return { hits: [], kind }
-  }
-}
-
-const fetchCommentLinkedStories = async (query: string, excludeId: string): Promise<SearchResult> => {
-  try {
-    const comments = await searchAlgoliaHits<AlgoliaCommentHit>({
-      attributesToRetrieve: 'story_id',
-      query,
-      tags: 'comment',
-      hitsPerPage: '24'
-    })
-
-    const rankedStoryIds: string[] = []
-    const seen = new Set<string>([excludeId])
-
-    for (const comment of comments) {
-      const storyId = comment.story_id ? String(comment.story_id) : ''
-
-      if (!storyId || seen.has(storyId)) continue
-
-      seen.add(storyId)
-      rankedStoryIds.push(storyId)
-
-      if (rankedStoryIds.length === 12) break
-    }
-
-    if (rankedStoryIds.length === 0) {
-      return { hits: [], kind: 'comment' }
-    }
-
-    const order = new Map(rankedStoryIds.map((storyId, index) => [storyId, index]))
-    const filters = rankedStoryIds.map(storyId => `objectID:${storyId}`).join(' OR ')
-    const hits = await searchAlgoliaHits<AlgoliaStoryHit>({
-      attributesToRetrieve: RELATED_STORY_ATTRIBUTES,
-      tags: 'story',
-      filters,
-      hitsPerPage: String(rankedStoryIds.length)
-    })
-
-    return {
-      hits: hits.sort((a, b) => (order.get(a.objectID ?? '') ?? 99) - (order.get(b.objectID ?? '') ?? 99)),
-      kind: 'comment',
-    }
-  } catch (error) {
-    console.warn('Failed to fetch comment-linked related stories:', error)
-    return { hits: [], kind: 'comment' }
-  }
-}
-
-const fetchSubmissionHistoryHits = async (query: string): Promise<AlgoliaStoryHit[]> => {
-  try {
-    return await searchAlgoliaHits<AlgoliaStoryHit>({
-      attributesToRetrieve: RELATED_STORY_ATTRIBUTES,
-      query,
-      tags: 'story',
-      restrictSearchableAttributes: 'url',
-      hitsPerPage: String(SUBMISSION_HISTORY_CANDIDATE_LIMIT),
-    })
-  } catch (error) {
-    console.warn('Failed to fetch submission history candidates:', error)
-    return []
-  }
 }
 
 const fetchSourceStory = async (id: string) => {
@@ -168,19 +88,33 @@ export default defineEventHandler(async (event) => {
         hitsPerPage: '18'
       }, 'full-text'))
 
-      searches.push(fetchCommentLinkedStories(titleQuery, id))
+      searches.push(fetchCommentLinkedStories(titleQuery, { excludeId: id }))
     }
 
     const submissionHistorySearch = submissionUrlQuery
       ? fetchSubmissionHistoryHits(submissionUrlQuery)
-      : Promise.resolve<AlgoliaStoryHit[]>([])
+      : Promise.resolve<SubmissionHistoryHits | null>(null)
 
     const relatedSearchesStartedAt = performance.now()
-    const [results, submissionHistoryHits] = await Promise.all([
+    const [results, submissionHistoryResult] = await Promise.all([
       Promise.all(searches),
       submissionHistorySearch,
     ])
     const relatedSearchesDuration = performance.now() - relatedSearchesStartedAt
+    const channelFailures = [
+      ...results.map(result => Boolean(result.failed)),
+      ...(submissionHistoryResult ? [submissionHistoryResult.failed] : []),
+    ]
+
+    if (channelFailures.length > 0 && channelFailures.every(Boolean)) {
+      setHeader(event, 'Cache-Control', 'no-store')
+      throw createError({
+        statusCode: 502,
+        message: 'Story context is temporarily unavailable',
+      })
+    }
+
+    const submissionHistoryHits = submissionHistoryResult?.hits ?? []
     const relatedRankStartedAt = performance.now()
     const relatedStories = rankRelatedStories(results, story, id)
     const relatedRankDuration = performance.now() - relatedRankStartedAt
@@ -210,7 +144,12 @@ export default defineEventHandler(async (event) => {
       },
     ]
 
-    setRelatedCacheHeaders(event)
+    // A partial context must not stay cached for an hour after the outage.
+    if (channelFailures.some(Boolean)) {
+      setHeader(event, 'Cache-Control', 'no-store')
+    } else {
+      setRelatedCacheHeaders(event)
+    }
     setHeader(event, 'Server-Timing', formatServerTiming(timingMetrics))
 
     return {

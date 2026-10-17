@@ -94,6 +94,19 @@
             {{ story.title }}
           </h2>
         </NuxtLink>
+        <div v-if="note" class="story-card-note meta-text">
+          <component
+            :is="note.to ? NuxtLink : 'p'"
+            :to="note.to"
+            class="story-card-note-label"
+          >
+            <LucideMessagesSquare class="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+            <span>{{ note.label }}</span>
+          </component>
+          <blockquote v-if="note.quote" class="story-card-note-quote reading-text">
+            {{ note.quote }}
+          </blockquote>
+        </div>
         <div class="story-card-status-row meta-text">
           <NuxtLink
             :to="getHnUserPath(story.author)"
@@ -128,8 +141,10 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { LucideTrendingUp, LucideMessageSquare, LucideExternalLink, LucideClock } from '@lucide/vue'
+import { NuxtLink } from '#components'
+import { LucideTrendingUp, LucideMessageSquare, LucideMessagesSquare, LucideExternalLink, LucideClock } from '@lucide/vue'
 import type { Story } from '#shared/types'
+import type { StoryCardNote } from '~/types/storyCard'
 import { getSeedPaletteStyle } from '~/composables/useSeedPalette'
 import { normalizeStoryPlaceholderDomain } from '~/composables/useStoryPlaceholder'
 import { getSourceFaviconUrl } from '~/utils/sourceFavicon'
@@ -141,6 +156,8 @@ import { observeStoryScreenshot, unobserveStoryScreenshot } from '~/utils/storyS
 import { observeStoryCardParallax, unobserveStoryCardParallax } from '~/utils/storyCardParallax'
 
 const props = withDefaults(defineProps<{
+  /** Short context, such as the comment that made a search result match. */
+  note?: StoryCardNote
   priority?: boolean
   story: Story
 }>(), {
@@ -560,6 +577,51 @@ onBeforeUnmount(() => {
 .dark .story-card-title-link:hover .story-card-title,
 .dark .story-card-title-link:focus-visible .story-card-title {
   color: var(--seed-accent-strong);
+}
+
+.story-card-note {
+  display: grid;
+  gap: 0.3rem;
+  margin-top: -0.35rem;
+  min-width: 0;
+}
+
+.story-card-note-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  justify-self: start;
+  margin: 0;
+  color: var(--seed-accent-strong);
+  font-weight: 600;
+}
+
+a.story-card-note-label:hover,
+a.story-card-note-label:focus-visible {
+  text-decoration: underline;
+  text-underline-offset: 0.18em;
+}
+
+.dark .story-card-note-label {
+  color: var(--seed-author-text);
+}
+
+/* A compact excerpt, never a reading surface: two lines at most. */
+.story-card-note-quote {
+  display: -webkit-box;
+  margin: 0;
+  overflow: hidden;
+  border-left: 2px solid var(--seed-border-strong);
+  padding-left: 0.5rem;
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  color: rgb(71 85 105);
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.dark .story-card-note-quote {
+  color: rgb(203 213 225);
 }
 
 .story-card-status-row {

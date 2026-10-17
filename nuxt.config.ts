@@ -15,6 +15,7 @@ const SSR_PAGE_ROUTES = [
   '/item/**',
   '/new',
   '/privacy',
+  '/search',
   '/show',
   '/terms',
   '/top',
