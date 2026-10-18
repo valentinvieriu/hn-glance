@@ -32,6 +32,8 @@ export default defineEventHandler(async (event) => {
     })
   }
 
+  await requireHumanSession(event)
+
   const range = parseSearchRange(params.range)
   const sort = parseSearchSort(params.sort)
   const mode = getSearchMode(query)

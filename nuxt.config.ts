@@ -2,6 +2,7 @@
 import { defineNuxtConfig } from 'nuxt/config'
 import { resolve } from 'node:path'
 import { SCREENSHOT_RETENTION_DAYS } from './shared/utils/screenshot'
+import { TURNSTILE_SITE_KEY, TURNSTILE_TEST_SITE_KEY } from './shared/utils/humanVerification'
 
 const GOOGLE_FONTS_OUTPUT_DIR = 'node_modules/.cache/nuxt-google-fonts'
 const GOOGLE_FONTS_OUTPUT_PATH = resolve(GOOGLE_FONTS_OUTPUT_DIR)
@@ -32,6 +33,16 @@ export default defineNuxtConfig({
     screenshotPolicyProbeTimeoutMs: '1200',
     screenshotR2TtlDays: String(SCREENSHOT_RETENTION_DAYS),
     screenshotXCancelBaseUrl: 'https://xcancel.com',
+    public: {
+      turnstileSiteKey: TURNSTILE_SITE_KEY,
+    },
+  },
+  $development: {
+    runtimeConfig: {
+      public: {
+        turnstileSiteKey: TURNSTILE_TEST_SITE_KEY,
+      },
+    },
   },
   nitro: {
     preset: "cloudflare-module",

@@ -94,6 +94,7 @@ Frontend:
 Shared client logic:
 
 - `app/composables/useStories.ts`: feed loading, session-memory cache, and stale refresh state.
+- `app/composables/useHumanFetch.ts`: `$fetch` for human-gated routes. It forwards the session cookie during SSR and, in the browser, loads Turnstile only after a verification refusal, verifies once, and retries.
 - `app/composables/useFeedTheme.ts`: feed-specific labels, routes, and color theme variables.
 - `app/composables/useDiscussionRoute.ts`: story-detail URL state (comment `sort` at every level, `view=discussion` focus, `reader` mode, and current `comment`), preference fill-in for missing query values, and focus entry/exit.
 - `app/composables/useCommentDisclosure.ts`: overview reply disclosure plus jump-to-comment (ancestor reveal, scroll, focus, highlight) and `#comment-<id>` hash handling outside focus.
@@ -113,6 +114,7 @@ Server/API:
 - `server/api/item/[id].ts`: fetch story details and comment tree from Algolia Items API.
 - `server/api/related/[id].ts`: lazily build exact-source submission history and semantic story suggestions from one bounded set of concurrent Algolia searches.
 - `server/api/search.ts`: story search route: validation, cache headers, and errors around `searchStories`.
+- `server/api/human/verify.post.ts` and `server/utils/humanSession.ts`: Turnstile Siteverify exchange for the signed human-session cookie, and the `requireHumanSession` gate in front of search and story context.
 - `server/utils/storySearch.ts`: search orchestration. Text queries run the same four retrieval channels as Similar Stories (title relevance, recent title, full text, and comment-mentioned stories) inside the selected time range, then rank with `rankSearchStories`. A multi-word query with too few complete title matches takes the semantic pass: broad and query-planned retrieval judged by Workers AI. An explicit HTTP(S) URL query instead lists that source's exact-source submissions, largest discussion first.
 - `server/utils/queryPlanner.ts`: the semantic pass's query plan. A small Workers AI model splits the query into exact anchors, optional context words, and short alternative names.
 - `server/utils/semanticRanking.ts`: the semantic pass's relevance judgments. Clef Flash screens the candidate pool in batches and re-judges the stories that pass one per request.
@@ -490,6 +492,36 @@ it is not a text-result clone of hn.algolia.com. Preserve these boundaries:
   publicly cacheable for five minutes.
 - `/` opens search from anywhere except editable fields and open modals.
 
+## Human Verification
+
+Search's semantic pass spends Workers AI capacity, and every search or Similar
+Stories cache miss spends several Algolia requests. Both routes require a
+Turnstile-verified human session; cached responses never reach the gate.
+
+- `POST /api/human/verify` sends the Turnstile token to Siteverify with
+  `HN_GLANCE_TURNSTILE_SECRET`, requires `success`, the `session` action, and a
+  hostname from `HN_GLANCE_TURNSTILE_HOSTNAMES`, and then sets the 24-hour
+  `HttpOnly` `hn_glance_human` cookie: a random session ID and expiry signed
+  with a key derived from the secret. Siteverify failures fail closed.
+- `requireHumanSession` refuses `/api/search` and `/api/related/:id` without a
+  valid cookie as an uncached 403 with `X-HN-Verification: required`, and
+  applies the `HN_GLANCE_HUMAN_RATE_LIMITER` per-session limit (429).
+- The browser treats that 403, or a WAF challenge (`cf-mitigated: challenge`),
+  as one shared verification: it loads Turnstile on demand with
+  `appearance: interaction-only`, verifies, and retries once. Pages never load
+  Turnstile up front.
+- SSR forwards the cookie. A server render of `/search` without a session
+  returns a pending sentinel so the browser verifies and searches after
+  hydration; Similar Stories stays client-only.
+- The production widget uses pre-clearance, so the same solve sets
+  `cf_clearance`. A zone WAF Managed Challenge on `/api/search` and
+  `/api/related/` then stops unverified clients at the edge. The Worker gate
+  remains authoritative because SSR calls never pass through zone WAF.
+- Development builds use Cloudflare's always-passing test sitekey; `.dev.vars`
+  pairs it with the test secret and `HN_GLANCE_TURNSTILE_HOSTNAMES=example.com`.
+  `scripts/search-eval.mjs` starts its session with the test secret's dummy
+  token. Never add `localhost` or `127.0.0.1` to the production hostname list.
+
 ## Comment Rendering
 
 HN/Algolia item text arrives as a small HTML subset plus plain-text conventions. Do not flatten comments to plain text unless there is a concrete safety reason; links, paragraphs, emphasis, quotes, and code carry meaning.
@@ -666,19 +698,27 @@ Code conventions:
 
 This app deploys to Cloudflare Workers, not Cloudflare Pages.
 
-Configured production app URL after the renamed Worker is deployed: `https://hn-glance.vv42.workers.dev/`.
+Production app URL: `https://hnglance.com/`.
 
 - Nuxt/Nitro preset: `cloudflare-module`
 - Worker entry: `.output/server/index.mjs`
 - Static assets: `.output/public`
 - Wrangler command: `wrangler deploy`
 - Keep `compatibility_flags = ["nodejs_compat"]` in `wrangler.toml`.
+- Keep `workers_dev = false` and `preview_urls = false`. `hnglance.com` is the
+  only public entry so zone WAF and bot rules cannot be bypassed; the capture
+  agent's `HN_GLANCE_BASE_URL` is `https://hnglance.com`.
 - Enable Cloudflare Early Hints for `hnglance.com` under
   **Speed > Settings > Content Optimization** so the SSR `Link` response header
   can be served as a cached `103` response.
 - Keep the R2 binding `SCREENSHOTS_BUCKET` in `wrangler.toml`.
 - Keep the Workers AI binding `AI` in `wrangler.toml`; search's semantic pass
   uses it. AI bindings always run remotely, including in local development.
+- Keep the `HN_GLANCE_TURNSTILE_SECRET` secret, the
+  `HN_GLANCE_TURNSTILE_HOSTNAMES` variable, and the
+  `HN_GLANCE_HUMAN_RATE_LIMITER` rate-limit binding paired with the
+  pre-clearance Turnstile widget whose sitekey is in
+  `shared/utils/humanVerification.ts`.
 - Keep the `hn-glance-screenshots` R2 bucket, the
   `hn-glance-screenshot-scheduler` Worker, `hn-glance-screenshot-jobs` Queue,
   `hn-glance-screenshot-jobs-dlq` DLQ, the

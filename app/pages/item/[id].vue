@@ -311,13 +311,15 @@ if (!storyData.value) {
 const story = computed(() => storyData.value)
 const storyContextRoot = ref<HTMLElement | null>(null)
 let storyContextObserver: IntersectionObserver | null = null
+const humanFetch = useHumanFetch()
 const {
   data: storyContext,
   status: storyContextStatus,
   error: storyContextError,
   execute: executeStoryContext,
-} = useLazyFetch<StoryContextResponse>(
-  () => `/api/related/${storyId.value ?? 'invalid'}?format=story-context-v6`,
+} = useLazyAsyncData<StoryContextResponse>(
+  () => `story-context:${storyId.value ?? 'invalid'}`,
+  () => humanFetch<StoryContextResponse>(`/api/related/${storyId.value ?? 'invalid'}?format=story-context-v6`),
   {
     default: () => ({
       submissionHistory: [],
@@ -325,7 +327,6 @@ const {
     }),
     immediate: false,
     server: false,
-    watch: false,
   },
 )
 const submissionHistory = computed(() => storyContext.value.submissionHistory)

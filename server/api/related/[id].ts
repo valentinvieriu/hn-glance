@@ -35,6 +35,8 @@ export default defineEventHandler(async (event) => {
     })
   }
 
+  await requireHumanSession(event)
+
   try {
     const sourceItemStartedAt = performance.now()
     const story = await fetchSourceStory(id)

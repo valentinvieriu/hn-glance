@@ -2,7 +2,7 @@
 
 HN Glance is a visual Hacker News reader. It keeps Hacker News as the source of truth, but gives readers a more visual way to scan stories, judge links, and read discussions.
 
-Configured Worker URL after the renamed Worker is deployed: https://hn-glance.vv42.workers.dev/
+Production: https://hnglance.com/
 
 ## Why HN Glance Exists
 
@@ -341,11 +341,10 @@ Use `npm run check` as the baseline check before shipping changes.
 
 HN Glance deploys to Cloudflare Workers, not Cloudflare Pages.
 
-The renamed Worker is configured to deploy at:
-
-```text
-https://hn-glance.vv42.workers.dev/
-```
+The Worker serves only `https://hnglance.com/`. `wrangler.toml` sets
+`workers_dev = false` and `preview_urls = false`, so the zone's WAF and bot
+rules see every public request; the capture agent's `HN_GLANCE_BASE_URL` also
+points at `https://hnglance.com`.
 
 The app and scheduler Workers are named `hn-glance` and
 `hn-glance-screenshot-scheduler`, and both use the shared
@@ -360,6 +359,13 @@ The Worker entry and static asset output are configured in `wrangler.toml`:
 - Static assets: `.output/public`
 - Screenshot R2 binding: `SCREENSHOTS_BUCKET`
 - Workers AI binding for search's semantic pass: `AI`
+- Human verification for search and Similar Stories: the
+  `HN_GLANCE_TURNSTILE_SECRET` secret, the `HN_GLANCE_TURNSTILE_HOSTNAMES`
+  variable, and the `HN_GLANCE_HUMAN_RATE_LIMITER` per-session rate limit. The
+  pre-clearance Turnstile widget's sitekey lives in
+  `shared/utils/humanVerification.ts`; a zone WAF Managed Challenge on
+  `/api/search` and `/api/related/` stops unverified clients at the edge, while
+  the Worker's own session check stays authoritative.
 - Front-of-Worker response cache: Wrangler `[cache] enabled = true`, with the
   default version isolation so deployments cannot inherit stale or negative
   static-asset responses

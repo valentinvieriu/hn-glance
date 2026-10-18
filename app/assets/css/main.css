@@ -572,3 +572,12 @@ button {
   }
 }
 /* End story context source lists */
+
+/* Turnstile only becomes visible when Cloudflare needs an interaction. */
+.human-check {
+  position: fixed;
+  z-index: 60;
+  bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+  left: 50%;
+  transform: translateX(-50%);
+}

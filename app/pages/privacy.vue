@@ -37,6 +37,15 @@
       HN Glance does not intentionally set marketing cookies, run analytics tools, use
       ad tracking, sell visitor data, or share visitor data for advertising.
     </p>
+    <p class="mb-5 leading-7">
+      Search and Similar Stories are protected from automated abuse with
+      Cloudflare Turnstile. When those features first load, your browser may run
+      a Turnstile check, which Cloudflare processes under its own privacy policy
+      and which may set a Cloudflare clearance cookie. A successful check sets
+      one functional HN Glance cookie containing a random session ID and expiry
+      time for 24 hours. It is used only to confirm the check and limit request
+      rates, not to identify or track you.
+    </p>
 
     <h2 class="text-2xl font-display font-semibold mt-8 mb-4">External Data Sources</h2>
     <p class="mb-5 leading-7">

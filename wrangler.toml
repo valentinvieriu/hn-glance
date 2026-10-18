@@ -6,6 +6,11 @@ compatibility_flags = ["nodejs_compat"]
 main = "./.output/server/index.mjs"
 assets = { directory = "./.output/public", binding = "ASSETS" }
 
+# hnglance.com is the only public entry, so zone WAF and bot rules see every
+# request. workers.dev and version preview URLs would bypass them.
+workers_dev = false
+preview_urls = false
+
 [[r2_buckets]]
 binding = "SCREENSHOTS_BUCKET"
 bucket_name = "hn-glance-screenshots"
@@ -17,8 +22,19 @@ binding = "AI"
 [cache]
 enabled = true
 
+# Production frontend hostnames accepted from Turnstile Siteverify. `.dev.vars`
+# overrides this locally; never add localhost or 127.0.0.1 here.
+[vars]
+HN_GLANCE_TURNSTILE_HOSTNAMES = "hnglance.com"
+
+# Per human session, across search and story-context cache misses.
+[[ratelimits]]
+name = "HN_GLANCE_HUMAN_RATE_LIMITER"
+namespace_id = "4201"
+simple = { limit = 30, period = 60 }
+
 [secrets]
-required = ["HN_GLANCE_SCREENSHOT_AGENT_TOKEN"]
+required = ["HN_GLANCE_SCREENSHOT_AGENT_TOKEN", "HN_GLANCE_TURNSTILE_SECRET"]
 
 [observability]
 enabled = true

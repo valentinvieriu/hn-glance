@@ -116,10 +116,27 @@ const parseArgs = (argv) => {
   return args
 }
 
-const runSearch = async (base, { query, range }) => {
+// Search requires a human session. Local development verifies with
+// Turnstile's test secret, which accepts this dummy token.
+const startHumanSession = async (base) => {
+  const response = await fetch(`${base}/api/human/verify`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token: 'XXXX.DUMMY.TOKEN.XXXX' }),
+  })
+  const cookie = response.headers.getSetCookie().map(value => value.split(';')[0]).join('; ')
+
+  if (!response.ok || !cookie) {
+    throw new Error(`Human verification failed with ${response.status}; run against a server using Turnstile's test secret`)
+  }
+
+  return cookie
+}
+
+const runSearch = async (base, cookie, { query, range }) => {
   const params = new URLSearchParams({ q: query })
   if (range) params.set('range', range)
-  const response = await fetch(`${base}/api/search?${params}`)
+  const response = await fetch(`${base}/api/search?${params}`, { headers: { cookie } })
   const timing = response.headers.get('server-timing')?.match(/(?:^|,)\s*search;dur=([\d.]+)/u)
   const durationMs = timing ? Number(timing[1]) : null
 
@@ -142,9 +159,10 @@ const evaluate = async ({ base, out }) => {
   const report = []
   const durations = []
   let failures = 0
+  const cookie = await startHumanSession(base)
 
   for (const testCase of CASES) {
-    const { status, durationMs, partial, stories } = await runSearch(base, testCase)
+    const { status, durationMs, partial, stories } = await runSearch(base, cookie, testCase)
     results[testCase.query] = stories
     if (durationMs !== null) durations.push(durationMs)
     const label = `${testCase.query}${testCase.range ? ` [${testCase.range}]` : ''}`

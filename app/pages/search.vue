@@ -170,12 +170,29 @@ const sortOptions = computed<Array<{ value: SearchSort, label: string }>>(() => 
   { value: 'newest', label: 'Newest' },
 ])
 
+// A server render without a human session leaves the search to the browser,
+// which can verify and retry.
+const VERIFICATION_PENDING = 'verification-pending'
+const humanFetch = useHumanFetch()
 const { data, status } = useAsyncData(
   () => `search:${getSearchPath(state.value)}`,
-  () => state.value.query
-    ? $fetch<StorySearchResponse>('/api/search', { query: getSearchRouteQuery(state.value) })
-    : Promise.resolve(null),
-  { lazy: true },
+  async () => {
+    if (!state.value.query) return null
+
+    try {
+      return await humanFetch<StorySearchResponse>('/api/search', { query: getSearchRouteQuery(state.value) })
+    } catch (error) {
+      if (import.meta.server && isHumanVerificationError(error)) return VERIFICATION_PENDING
+      throw error
+    }
+  },
+  {
+    lazy: true,
+    getCachedData: (key, nuxtApp) => {
+      const cached = nuxtApp.isHydrating ? nuxtApp.payload.data[key] : nuxtApp.static.data[key]
+      return cached === VERIFICATION_PENDING ? undefined : cached
+    },
+  },
 )
 
 // Nuxt keeps the previous key's data while a new search loads, so only a
@@ -184,6 +201,7 @@ const currentResponse = computed(() => {
   const response = data.value
 
   return response
+    && response !== VERIFICATION_PENDING
     && response.query === state.value.query
     && response.range === state.value.range
     && response.sort === state.value.sort
