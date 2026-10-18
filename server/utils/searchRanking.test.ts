@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { AlgoliaStoryHit } from './algolia'
 import type { RelatedSearchKind, SearchResult } from './relatedStories'
-import { getSearchTermTokens, rankSearchStories } from './searchRanking'
+import { rankSearchStories } from './searchRanking'
 
 const story = (
   objectID: string,
@@ -20,11 +20,6 @@ const story = (
   url,
   ...overrides,
 })
-
-// Keys come from the same tokenizer as the server's per-term lookups.
-const frequencies = (query: string, counts: number[]) => Object.fromEntries(
-  getSearchTermTokens(query).map((token, index) => [token, counts[index] ?? 0]),
-)
 
 const comment = (id: string, text: string) => ({ id, text, snippet: `snippet ${id}` })
 
@@ -283,40 +278,54 @@ describe('rankSearchStories', () => {
     expect(ids(ranked).sort()).toEqual(['641', '642', '643'])
   })
 
-  it('requires every term unless the partial pass is enabled, and ranks partial matches lower', () => {
+  it('requires every term', () => {
     const hits = [
       story('701', 'Local-first developer utilities', now - day, undefined, { points: 900 }),
       story('702', 'Local-first software, a manifesto', now - 2 * day, undefined, { points: 5 }),
       story('703', 'Software estimates are hard', now - day, undefined, { points: 900 }),
-      story('704', 'Software tooling roundup', now - day, undefined, { points: 900 }),
-      story('705', 'Hiring for software roles', now - day, undefined, { points: 900 }),
     ]
 
     expect(ids(rankSearchStories([result('title', hits)], 'local-first software', options))).toEqual(['702'])
-
-    // Upstream rarity, not the skewed candidate pool, decides which term is light.
-    const partial = rankSearchStories([result('title', hits)], 'local-first software', {
-      ...options,
-      allowPartial: true,
-      termFrequencies: frequencies('local-first software', [39, 2400]),
-    })
-    expect(ids(partial)).toEqual(['702', '701'])
   })
 
-  it('never lets a partial match drop a heavy term such as the query topic', () => {
-    const ranked = rankSearchStories([
-      result('title', [
-        story('731', 'CDP alternatives for startups and small teams', now - day),
-        story('732', 'Kubernetes alternatives for small teams', now - day),
-        story('733', 'Kubernetes alternatives for teams', now - day),
-      ]),
-    ], 'kubernetes alternatives for small teams', {
+  it('qualifies stories by model judgment in the semantic pass, still enforcing phrases and exclusions', () => {
+    const hits = [
+      story('751', 'Show HN: BunkerWeb, an open-source WAF', now - day, undefined, { points: 5 }),
+      story('752', 'Self-hosting like it is 2025', now - day, undefined, { points: 900 }),
+      story('753', 'SafeLine, a self-hosted web application firewall', now - day),
+      story('754', 'Self-hosted WAF game jam', now - day),
+    ]
+    const semanticScores = new Map([['751', 2.6], ['752', 1.2], ['753', 2.4], ['754', 2.2]])
+
+    expect(ids(rankSearchStories([result('title', hits)], 'self hosting waf', {
       ...options,
-      allowPartial: true,
-      termFrequencies: frequencies('kubernetes alternatives for small teams', [900, 2600, 8000, 7000]),
+      semanticScores,
+      excluded: ['game'],
+    }))).toEqual(['751', '753'])
+    expect(ids(rankSearchStories([result('title', hits)], 'web application firewall', {
+      ...options,
+      semanticScores,
+      phrases: ['web application firewall'],
+    }))).toEqual(['753'])
+  })
+
+  it('keeps comment-only stories as discussion matches that must also pass the model', () => {
+    const ranked = rankSearchStories([
+      result('title', [story('761', 'Nomad for small teams', now - day)]),
+      {
+        kind: 'comment',
+        hits: [story('762', 'Ask HN: How do you deploy?', now - day), story('763', 'Launch week recap', now - day)],
+        commentEvidence: {
+          '762': [comment('c1', 'We replaced Kubernetes with Nomad for our small team')],
+          '763': [comment('c2', 'Kubernetes vs Nomad pricing came up in passing')],
+        },
+      },
+    ], 'kubernetes nomad', {
+      ...options,
+      semanticScores: new Map([['761', 2], ['762', 2.1], ['763', 0.4]]),
     })
 
-    expect(ids(ranked)).toEqual(['732', '733'])
+    expect(ranked.map(item => [item.objectID, item.match])).toEqual([['761', 'title'], ['762', 'discussion']])
   })
 
   it('matches a split word through adjacent parts only', () => {

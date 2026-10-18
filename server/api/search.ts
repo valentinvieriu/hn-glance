@@ -7,6 +7,7 @@ import {
   parseSearchSort,
 } from '#shared/utils/search'
 import { formatServerTiming } from '#shared/utils/serverTiming'
+import type { SemanticAi } from '../utils/semanticRanking'
 
 const SEARCH_CACHE_MAX_AGE_SECONDS = 300
 const SEARCH_CACHE_STALE_SECONDS = 600
@@ -34,10 +35,11 @@ export default defineEventHandler(async (event) => {
   const range = parseSearchRange(params.range)
   const sort = parseSearchSort(params.sort)
   const mode = getSearchMode(query)
+  const ai = (event.context.cloudflare?.env as { AI?: SemanticAi } | undefined)?.AI
 
   try {
     const searchStartedAt = performance.now()
-    const { stories, partial } = await searchStories(query, range, sort)
+    const { stories, partial, semantic, plan } = await searchStories(query, range, sort, ai)
 
     // Partial results are shown but never cached past the upstream failure.
     if (partial) {
@@ -49,7 +51,16 @@ export default defineEventHandler(async (event) => {
       name: 'search',
       duration: performance.now() - searchStartedAt,
       description: mode === 'url' ? 'Algolia submission history' : 'Algolia search and ranking',
-    }]))
+    }, ...(plan ? [{
+      name: 'plan',
+      duration: plan.durationMs,
+      description: `Workers AI query plan (${plan.status})`,
+    }] : []), ...(semantic ? [{
+      name: 'semantic',
+      duration: semantic.durationMs,
+      description: 'Workers AI semantic ranking',
+    }] : [])]))
+    setHeader(event, 'X-HN-Search-Rank', semantic?.status ?? 'lexical')
 
     return {
       query,

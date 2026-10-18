@@ -113,7 +113,9 @@ Server/API:
 - `server/api/item/[id].ts`: fetch story details and comment tree from Algolia Items API.
 - `server/api/related/[id].ts`: lazily build exact-source submission history and semantic story suggestions from one bounded set of concurrent Algolia searches.
 - `server/api/search.ts`: story search route: validation, cache headers, and errors around `searchStories`.
-- `server/utils/storySearch.ts`: search orchestration. Text queries run the same four retrieval channels as Similar Stories (title relevance, recent title, full text, and comment-mentioned stories) inside the selected time range, then rank with `rankSearchStories`. An explicit HTTP(S) URL query instead lists that source's exact-source submissions, largest discussion first.
+- `server/utils/storySearch.ts`: search orchestration. Text queries run the same four retrieval channels as Similar Stories (title relevance, recent title, full text, and comment-mentioned stories) inside the selected time range, then rank with `rankSearchStories`. A multi-word query with too few complete title matches takes the semantic pass: broad and query-planned retrieval judged by Workers AI. An explicit HTTP(S) URL query instead lists that source's exact-source submissions, largest discussion first.
+- `server/utils/queryPlanner.ts`: the semantic pass's query plan. A small Workers AI model splits the query into exact anchors, optional context words, and short alternative names.
+- `server/utils/semanticRanking.ts`: the semantic pass's relevance judgments. Clef Flash screens the candidate pool in batches and re-judges the stories that pass one per request.
 - `server/utils/storyRetrieval.ts`: Algolia retrieval channels shared by related stories and search. Each channel fails soft with a `failed` flag, within its own time budget, so callers can serve partial results uncached or fail when every channel is down.
 - `server/utils/relatedStories.ts`: shared tokenizer, candidate merge, and diversity selection, plus the Similar Stories ranker `rankRelatedStories`.
 - `server/utils/searchRanking.ts`: the typed-query ranker `rankSearchStories`, built on those shared helpers with its own matching policy.
@@ -156,9 +158,9 @@ Types and global styling:
 HN Glance reads public data only. There is no HN login, voting, posting, or private
 account integration.
 
-Primary upstreams are HN Firebase, Algolia HN APIs, Cloudflare Queues, the
-authenticated local Browserless API, and XCancel for best-effort public
-X/Twitter capture targets.
+Primary upstreams are HN Firebase, Algolia HN APIs, Cloudflare Queues, Workers
+AI for search's semantic pass, the authenticated local Browserless API, and
+XCancel for best-effort public X/Twitter capture targets.
 
 Feed admission is deliberately narrower than HN's own feeds. `fetchStories`
 must discard Algolia story hits whose `url` is missing or blank before mapping
@@ -401,9 +403,9 @@ it is not a text-result clone of hn.algolia.com. Preserve these boundaries:
   Search matching lives in `searchRanking.ts`; changes to the shared helpers
   in `relatedStories.ts` must keep both the `rankRelatedStories` and
   `rankSearchStories` tests passing.
-- Ranking requires real term matches rather than Algolia's prefix and typo
-  matches, so retrieval disables Algolia typo tolerance rather than spending
-  candidate slots on them. Each typed word is one term that matches whole or
+- The strict pass requires real term matches rather than Algolia's prefix and
+  typo matches, so retrieval disables Algolia typo tolerance rather than
+  spending candidate slots on them. Each typed word is one term that matches whole or
   through all of its own hyphen, dot, or letter-to-digit parts in order
   (`gpt4` matches GPT-4, never GPT-5); search lowercases before tokenizing, so
   capitalization never changes results. Only long plain words complete as
@@ -416,18 +418,38 @@ it is not a text-result clone of hn.algolia.com. Preserve these boundaries:
   and quoted phrases) is checked on the ordered words of the text, repeats and
   stopwords kept; deduplicated token sets only answer membership.
 - Discussion-only matches must contain the query in a retrieved comment under
-  the same term rules. They stay capped, follow title matches under Newest,
+  the same term rules, and in the semantic pass must also pass the relevance
+  model, which judges them with that comment. They stay capped, follow title matches under Newest,
   and show "Mentioned in discussion" with a two-line plain-text Algolia
   snippet linking to `/item/:id#comment-<id>`. The snippet is an excerpt, not
   a reading surface. When the first comment page yields too few distinct
   stories, the comment channel reads one more page.
-- All terms are required first. Only a multi-word query with too few complete
-  title matches runs one broadened (`optionalWords`) title search. Its partial
-  matches may miss one light term and rank below complete matches; a weighted
-  coverage floor keeps the query's topic. Weights come from all-time, exact
-  (no typo or prefix) HN title counts, capped because Algolia only estimates
-  large counts. A time range, filter, or typo match would make a trending
-  topic look common or count "label" for "lab".
+- All terms are required first. A multi-word query with fewer than eight
+  complete title matches takes the semantic pass instead of admitting loose
+  term matches. Algolia weighs every word equally, so common words ("self
+  hosting") drown the defining one ("waf"); the pass fixes retrieval and
+  judgment separately:
+  - Retrieval: broad `optionalWords` title and full-text searches, plus the
+    searches of a query plan from a small Workers AI model (Qwen3 30B-A3B).
+    The plan's anchors are quoted so they match exactly, its context words are
+    optional, and its short alternative names never complete as prefixes. An
+    anchor must be copied from the query. The plan and broad searches start
+    alongside the strict channels, so the pass adds little latency, and a
+    missing or late plan only narrows the pool.
+  - Judgment: Clef Flash scores relevance from 0 to 3 for at most 70
+    candidates, best-retrieved first. Batches of ten screen the pool; each
+    story a batch passes is re-judged alone as soon as its batch returns, up to
+    twelve. Large batches are lenient and depend on candidate order, while a
+    whole pool of single calls exceeds Workers AI capacity. A failed or late
+    refinement keeps screening scores.
+  - Ranking: stories scoring at least 1.5 qualify, ahead of discussion-only
+    matches, and keep the popularity, recency, and diversity rules. Phrases and
+    exclusions still apply.
+  `Server-Timing` reports the `plan` and `semantic` steps, and
+  `X-HN-Search-Rank` says whether the pass was `applied`, `screened` (refinement
+  failed), or `failed`. There is no in-isolate cache for plans or judgments:
+  isolates rarely see the same long-tail query twice, so the public
+  `/api/search` cache carries repeats.
 - The operator vocabulary stays small and conventional: `"exact phrase"`,
   `-word`, `by:username`, and the words `Show HN`. `shared/utils/search.ts`
   parses them into Algolia tags and `advancedSyntax`; ranking enforces
@@ -438,7 +460,8 @@ it is not a text-result clone of hn.algolia.com. Preserve these boundaries:
   with objective checks and reports search time; any failed check sets a
   non-zero exit code. Compare top-ten results before and after ranking
   changes (`--out`, then `--compare`). `storySearch.test.ts` covers
-  orchestration: partial and total failures, timeouts, and the broadened pass.
+  orchestration: partial and total failures, timeouts, and the semantic pass
+  with a stand-in Workers AI binding.
 - Exact-source duplicates, keyed by `canonicalizeSubmissionUrl` (ports and
   meaningful parameters such as `ref` preserved), keep their strongest
   submission. Near-identical titles collapse only within one host: different
@@ -450,9 +473,11 @@ it is not a text-result clone of hn.algolia.com. Preserve these boundaries:
   match". Each channel's requests share one time budget, so a stalled
   upstream cannot hold usable results. Search and Similar Stories return
   partial results with `Cache-Control: no-store`, and an uncached 502 when
-  every channel fails. Search also fails when a partial result is empty, and
-  flags non-empty partial results so the page says some results may be
-  missing.
+  every channel fails. A failed semantic pass, or a missing `AI` binding, is
+  reported the same way: search keeps the complete matches from the wider
+  pool and marks them partial. Search also fails when a partial result is
+  empty, and flags non-empty partial results so the page says some results
+  may be missing.
 - The month range equals `SCREENSHOT_RETENTION_DAYS`. Wider ranges show the
   wireframe fallback for older stories honestly; capture is never guaranteed.
 - Search never admits or triggers screenshot captures; admission stays
@@ -649,6 +674,8 @@ Configured production app URL after the renamed Worker is deployed: `https://hn-
   **Speed > Settings > Content Optimization** so the SSR `Link` response header
   can be served as a cached `103` response.
 - Keep the R2 binding `SCREENSHOTS_BUCKET` in `wrangler.toml`.
+- Keep the Workers AI binding `AI` in `wrangler.toml`; search's semantic pass
+  uses it. AI bindings always run remotely, including in local development.
 - Keep the `hn-glance-screenshots` R2 bucket, the
   `hn-glance-screenshot-scheduler` Worker, `hn-glance-screenshot-jobs` Queue,
   `hn-glance-screenshot-jobs-dlq` DLQ, the

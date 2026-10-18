@@ -1,9 +1,9 @@
 import type { SearchMatch, SearchStory } from '#shared/types'
 import type { SearchSort } from '#shared/utils/search'
 import { canonicalizeSubmissionUrl } from './previousSubmissions'
+import { SEMANTIC_MIN_SCORE } from './semanticRanking'
 import {
   collectCandidates,
-  getAnchorTokens,
   getBigrams,
   getPopularityScore,
   getRankScore,
@@ -58,11 +58,6 @@ export type SearchRankingOptions = {
   /** Words no result title or source may contain. */
   excluded?: string[]
   /**
-   * The fallback pass for multi-word queries with too few complete matches:
-   * stories missing one term qualify, always ranked below complete matches.
-   */
-  allowPartial?: boolean
-  /**
    * Retrieval already applied the whole query as filters (such as `by:pg`),
    * so every candidate qualifies without text terms.
    */
@@ -70,10 +65,11 @@ export type SearchRankingOptions = {
   /** An author filter asks for one person's sources, so hosts are not capped. */
   uncappedHosts?: boolean
   /**
-   * Upstream hit counts per term. Rarity across HN weights terms better than
-   * the candidate pool, which retrieval skews toward the query's own terms.
+   * Model-judged relevance per story ID (0-3), for the semantic pass. Stories
+   * then qualify by that judgment instead of exact terms; phrases and
+   * exclusions still apply.
    */
-  termFrequencies?: Record<string, number>
+  semanticScores?: Map<string, number>
 }
 
 /**
@@ -201,23 +197,15 @@ const termMatches = (term: SearchTerm, text: SearchableText) => {
   return term.parts.length > 0 && containsSequence(text.stream, term.parts)
 }
 
-// A partial match may miss only a light term: with "kubernetes alternatives
-// for small teams", missing "small" is acceptable, missing "kubernetes" is not.
-const PARTIAL_MIN_COVERAGE = 0.65
-const COMPLETE_MATCH_BONUS = 40
-
-/** Relative rarity: the most common query term weighs 1, rarer terms more. */
-const getUpstreamTermWeights = (terms: SearchTerm[], frequencies: number[]) => {
-  const mostCommon = Math.max(...frequencies)
-
-  return new Map(terms.map((term, index) => [
-    term.token,
-    1 + Math.log((mostCommon + 1) / ((frequencies[index] ?? 0) + 1)),
-  ]))
-}
-
-/** The term tokens ranking requires for a query, for per-term upstream lookups. */
-export const getSearchTermTokens = (query: string) => getSearchTerms(query).map(term => term.token)
+// A lexical title match contains every term.
+const TITLE_MATCH_RELEVANCE = 140
+// Semantic title relevance starts where lexical title matches do, so
+// discussion-only context stays below every title match, and spans 90 points
+// from the qualifying score to a perfect one, so popularity and recency still
+// separate equally relevant titles.
+const SEMANTIC_RELEVANCE_BASE = 100
+const SEMANTIC_RELEVANCE_SCALE = 60
+const SEMANTIC_COMPLETE_MATCH_BONUS = 10
 
 const containsSequence = (words: string[], sequence: string[]) => {
   if (sequence.length === 0) return true
@@ -277,10 +265,9 @@ export const rankSearchStories = (
     nowSeconds,
     phrases = [],
     excluded = [],
-    allowPartial = false,
     filterOnly = false,
     uncappedHosts = false,
-    termFrequencies,
+    semanticScores,
   }: SearchRankingOptions,
 ): SearchStory[] => {
   const terms = getSearchTerms(query)
@@ -295,8 +282,6 @@ export const rankSearchStories = (
   const termTokens = terms.map(term => term.token)
   const queryStream = getWordStream(query)
   const queryBigrams = getBigrams(termTokens)
-  const queryAnchors = getAnchorTokens(query)
-  const anchorTerms = terms.filter(term => queryAnchors.has(term.token))
   const recencyScale = rangeStart === null
     ? FIVE_YEARS_IN_SECONDS
     : Math.max(nowSeconds - rangeStart, 1)
@@ -304,51 +289,25 @@ export const rankSearchStories = (
   const tokenizedComments = getTokenizedComments(results)
   const titleWords = new Map<string, string[]>()
   const titleTexts = new Map<string, SearchableText>()
-  const documentFrequency = new Map<string, number>()
 
   for (const candidate of candidates.values()) {
     // A title matches through its words and its source host.
-    const titleText = toSearchableText(candidate.title, SEARCH_TITLE_TOKEN_LIMIT, getHostSearchTokens(candidate.url))
     titleWords.set(candidate.objectID, getSearchTerms(candidate.title).map(term => term.token))
-    titleTexts.set(candidate.objectID, titleText)
-
-    for (const term of terms) {
-      if (termMatches(term, titleText)) {
-        documentFrequency.set(term.token, (documentFrequency.get(term.token) ?? 0) + 1)
-      }
-    }
+    titleTexts.set(
+      candidate.objectID,
+      toSearchableText(candidate.title, SEARCH_TITLE_TOKEN_LIMIT, getHostSearchTokens(candidate.url)),
+    )
   }
 
-  const upstreamFrequencies = terms.map(term => termFrequencies?.[term.token])
-  const termWeights = upstreamFrequencies.every(frequency => frequency !== undefined)
-    ? getUpstreamTermWeights(terms, upstreamFrequencies as number[])
-    : new Map(terms.map(term => [
-      term.token,
-      1 + Math.log((candidates.size + 1) / ((documentFrequency.get(term.token) ?? 0) + 1)),
-    ]))
-  const totalWeight = terms.reduce((total, term) => total + (termWeights.get(term.token) ?? 1), 0)
-
-  // Every term is required by default. The partial pass admits a story missing
-  // one light term; the coverage floor keeps the query's topic. Quoted phrases
-  // are always required. Titles and comment evidence share this one judgment.
+  // Every term and quoted phrase is required. Titles and comment evidence
+  // share this one judgment.
   const evaluate = (text: SearchableText) => {
-    const phrasesMatch = phraseSequences.every(sequence => containsSequence(text.stream, sequence))
+    const complete = terms.every(term => termMatches(term, text))
 
-    if (terms.length === 0) return { coverage: 1, complete: true, qualifies: phrasesMatch }
-
-    const matchedTerms = terms.filter(term => termMatches(term, text))
-    const matchedWeight = matchedTerms.reduce((total, term) => total + (termWeights.get(term.token) ?? 1), 0)
-    const coverage = totalWeight > 0 ? matchedWeight / totalWeight : 0
-    const complete = matchedTerms.length === terms.length
-    const partial = allowPartial
-      && terms.length >= 2
-      && matchedTerms.length >= terms.length - 1
-      && coverage >= PARTIAL_MIN_COVERAGE
-    const qualifies = phrasesMatch
-      && anchorTerms.every(term => matchedTerms.includes(term))
-      && (complete || partial)
-
-    return { coverage, complete, qualifies }
+    return {
+      complete,
+      qualifies: complete && phraseSequences.every(sequence => containsSequence(text.stream, sequence)),
+    }
   }
 
   const scoredCandidates: SearchScoredCandidate[] = []
@@ -364,25 +323,37 @@ export const rankSearchStories = (
     if (excludedTerms.some(term => termMatches(term, titleText))) continue
 
     const titleEvaluation = evaluate(titleText)
-    const titleMatch = titleEvaluation.qualifies
+    const semanticScore = semanticScores?.get(candidate.objectID)
     const discussionRank = candidate.ranks.get('comment')
+    // With model judgments, every story must pass them; a story found only
+    // through a comment was judged with that comment and stays a discussion match.
+    const semanticQualifies = semanticScore !== undefined && semanticScore >= SEMANTIC_MIN_SCORE
+    const commentOnly = candidate.ranks.size === 1 && discussionRank !== undefined
+    const titleMatch = semanticScores
+      ? semanticQualifies
+        && !commentOnly
+        && phraseSequences.every(sequence => containsSequence(titleText.stream, sequence))
+      : titleEvaluation.qualifies
     // A discussion match must contain the query in a retrieved comment, with
     // the same rules as titles; Algolia's own comment matching is looser.
-    const matchingComment = !titleMatch && discussionRank !== undefined
+    const matchingComment = !titleMatch && discussionRank !== undefined && (!semanticScores || semanticQualifies)
       ? (tokenizedComments.get(candidate.objectID) ?? [])
         .find(({ text }) => evaluate(text).qualifies)?.comment
       : undefined
 
     if (!titleMatch && !matchingComment) continue
 
-    const { coverage, complete } = titleEvaluation
+    const { complete } = titleEvaluation
 
     const candidateBigrams = getBigrams(words)
     const bigramMatches = Array.from(queryBigrams).filter(bigram => candidateBigrams.has(bigram)).length
     const phraseMatch = terms.length > 1 && containsSequence(titleText.stream, queryStream)
-    const relevance = titleMatch
-      ? coverage * 100
-        + (complete ? COMPLETE_MATCH_BONUS : 0)
+    const relevance = titleMatch && semanticScore !== undefined
+      ? SEMANTIC_RELEVANCE_BASE
+        + (semanticScore - SEMANTIC_MIN_SCORE) * SEMANTIC_RELEVANCE_SCALE
+        + (complete ? SEMANTIC_COMPLETE_MATCH_BONUS : 0)
+      : titleMatch
+      ? TITLE_MATCH_RELEVANCE
         + Math.min(2, bigramMatches) * 8
         + (phraseMatch ? 15 : 0)
         + getRetrievalScore(candidate, terms.length)

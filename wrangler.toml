@@ -11,6 +11,9 @@ binding = "SCREENSHOTS_BUCKET"
 bucket_name = "hn-glance-screenshots"
 remote = true
 
+[ai]
+binding = "AI"
+
 [cache]
 enabled = true
 

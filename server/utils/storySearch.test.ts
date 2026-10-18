@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AlgoliaStoryHit } from './algolia'
+import { QUERY_PLANNER_MODEL } from './queryPlanner'
+import type { SemanticAi } from './semanticRanking'
 import { searchStories, SearchUnavailableError } from './storySearch'
 
 const nowSeconds = Math.floor(Date.now() / 1000)
@@ -22,13 +24,14 @@ type AlgoliaRequest = {
   signal?: AbortSignal
 }
 
-type Channel = 'title' | 'recent-title' | 'full-text' | 'comment' | 'comment-stories' | 'broadened' | 'frequency' | 'source'
+type Channel = 'title' | 'recent-title' | 'full-text' | 'comment' | 'comment-stories' | 'broadened' | 'planned' | 'alternative' | 'source'
 
 const channelOf = ({ params, byDate }: AlgoliaRequest): Channel => {
   if (params.get('tags') === 'comment') return 'comment'
   if (params.has('filters')) return 'comment-stories'
   if (params.get('restrictSearchableAttributes') === 'url') return 'source'
-  if (params.get('hitsPerPage') === '0') return 'frequency'
+  if (params.get('query')?.includes('"')) return 'planned'
+  if (params.get('queryType') === 'prefixNone' && params.get('hitsPerPage') === '15') return 'alternative'
   if (params.has('optionalWords')) return 'broadened'
   if (params.get('restrictSearchableAttributes') === 'title') return byDate ? 'recent-title' : 'title'
   return 'full-text'
@@ -56,6 +59,35 @@ const stubAlgolia = (responders: Partial<Record<Channel, (request: AlgoliaReques
 
 const fail = () => {
   throw new Error('Algolia unavailable')
+}
+
+/**
+ * A Workers AI stand-in: the planner returns `plan`; Clef scores each story by
+ * title, with `refine` overriding `screen` when a story is judged alone.
+ */
+const fakeAi = ({ plan = null, screen = {}, refine = {}, failScreen = false, failRefine = false }: {
+  plan?: unknown
+  screen?: Record<string, number>
+  refine?: Record<string, number>
+  failScreen?: boolean
+  failRefine?: boolean
+}) => {
+  const run = vi.fn(async (model: string, input: Record<string, unknown>) => {
+    if (model === QUERY_PLANNER_MODEL) return { response: plan }
+
+    const stories = (input.state as { stories: Array<{ key: string, title: string }> }).stories
+    const alone = stories.length === 1
+
+    if ((alone && failRefine) || (!alone && failScreen)) throw new Error('3040: Capacity temporarily exceeded')
+
+    return {
+      answers: Object.fromEntries(stories.map(({ key, title }) => [key, {
+        score: (alone ? refine[title] : undefined) ?? screen[title] ?? 0,
+      }])),
+    }
+  })
+
+  return { ai: { run } satisfies SemanticAi, run }
 }
 
 describe('searchStories', () => {
@@ -108,39 +140,68 @@ describe('searchStories', () => {
     })
   })
 
-  it('broadens only multi-word queries with too few complete title matches', async () => {
+  it('takes the semantic pass only for multi-word queries with too few complete title matches', async () => {
+    const single = fakeAi({})
     const singleWord = stubAlgolia({ title: () => ({ hits: [story('1', 'Zig build system explained')] }) })
-    await searchStories('zig', 'month', 'relevance')
+    await searchStories('zig', 'month', 'relevance', single.ai)
+
     expect(singleWord.map(request => request.channel)).not.toContain('broadened')
+    expect(single.run).not.toHaveBeenCalled()
 
-    const multiWord = stubAlgolia({
-      title: () => ({ hits: [story('2', 'Rust async runtimes')] }),
-      broadened: () => ({ hits: [story('2', 'Rust async runtimes'), story('3', 'Async Python patterns')] }),
-      frequency: ({ params }) => ({ hits: [], nbHits: params.get('query') === 'rust' ? 900 : 4000 }),
+    const { ai } = fakeAi({
+      plan: { anchors: ['waf'], context: ['self hosting'], alternatives: ['NAXSI'] },
+      screen: { 'SafeLine, a self-hosted WAF': 2.4, 'NAXSI, a WAF for Nginx': 2, 'Self-hosting like it is 2025': 1.6 },
+      // Judged alone, the generic story no longer passes.
+      refine: { 'Self-hosting like it is 2025': 0.8 },
     })
-    const { stories } = await searchStories('rust async', 'month', 'relevance')
+    const requests = stubAlgolia({
+      broadened: () => ({ hits: [story('2', 'Self-hosting like it is 2025')] }),
+      planned: () => ({ hits: [story('3', 'SafeLine, a self-hosted WAF')] }),
+      alternative: () => ({ hits: [story('4', 'NAXSI, a WAF for Nginx')] }),
+    })
+    const outcome = await searchStories('self hosting waf', 'month', 'relevance', ai)
 
-    expect(multiWord.filter(request => request.channel === 'frequency').map(request => request.params.get('query')))
-      .toEqual(['rust', 'async'])
-    // "Async Python" misses the rarest term, so the partial pass cannot admit it.
-    expect(stories.map(item => item.objectID)).toEqual(['2'])
+    expect(outcome).toMatchObject({ partial: false, semantic: { status: 'applied' }, plan: { status: 'applied' } })
+    expect(outcome.stories.map(item => item.objectID)).toEqual(['3', '4'])
+
+    // Anchors match exactly; context words and short alternatives never complete as prefixes.
+    const planned = requests.find(request => request.channel === 'planned')?.params
+    expect(planned?.get('query')).toBe('"waf" self hosting')
+    expect(planned?.get('optionalWords')).toBe('self hosting')
+    expect(planned?.get('advancedSyntax')).toBe('true')
+    expect(requests.find(request => request.channel === 'alternative')?.params.get('query')).toBe('NAXSI')
   })
 
-  it('weights terms by all-time exact counts and skips lookups for long queries', async () => {
-    const short = stubAlgolia({ title: () => ({ hits: [story('4', 'Home lab power tracking')] }) })
-    await searchStories('home lab server', 'month', 'relevance')
-    const [lookup] = short.filter(request => request.channel === 'frequency')
+  it('reports a failed semantic pass as partial and keeps complete matches', async () => {
+    const responders = {
+      title: () => ({ hits: [story('5', 'Self hosting a WAF at home')] }),
+      broadened: () => ({ hits: [story('6', 'Self-hosting like it is 2025')] }),
+    }
 
-    expect(lookup?.params.get('tags')).toBe('story')
-    expect(lookup?.params.get('typoTolerance')).toBe('false')
-    expect(lookup?.params.has('numericFilters')).toBe(false)
-    expect(short.find(request => request.channel === 'title')?.params.get('typoTolerance')).toBe('false')
+    stubAlgolia(responders)
+    await expect(searchStories('self hosting waf', 'month', 'relevance', fakeAi({ failScreen: true }).ai))
+      .resolves.toMatchObject({ partial: true, semantic: { status: 'failed' }, stories: [{ objectID: '5' }] })
 
-    const long = stubAlgolia({ title: () => ({ hits: [story('5', 'Postgres is slow')] }) })
-    await searchStories('why my postgres database server runs slow today', 'month', 'relevance')
+    // Without the Workers AI binding, the semantic pass cannot run either.
+    stubAlgolia(responders)
+    await expect(searchStories('self hosting waf', 'month', 'relevance'))
+      .resolves.toMatchObject({ partial: true, semantic: { status: 'failed' }, stories: [{ objectID: '5' }] })
+  })
 
-    expect(long.map(request => request.channel)).toContain('broadened')
-    expect(long.map(request => request.channel)).not.toContain('frequency')
+  it('keeps screening scores when refinement fails', async () => {
+    stubAlgolia({
+      broadened: () => ({ hits: [story('7', 'SafeLine, a self-hosted WAF'), story('8', 'Waffle recipes')] }),
+    })
+
+    await expect(searchStories('self hosting waf', 'month', 'relevance', fakeAi({
+      screen: { 'SafeLine, a self-hosted WAF': 2.2 },
+      failRefine: true,
+    }).ai)).resolves.toMatchObject({
+      partial: false,
+      semantic: { status: 'screened' },
+      plan: { status: 'failed' },
+      stories: [{ objectID: '7' }],
+    })
   })
 
   it('lists a pasted link\'s exact-source submissions, largest discussion first', async () => {

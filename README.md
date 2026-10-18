@@ -30,7 +30,7 @@ synthesizes an HN discussion permalink to make them eligible for a feed card.
 - Presents each story with a visual page preview, title, source, freshness, author, points, and comment count.
 - Opens an HN Glance story page for the card, with metadata, comments, screenshot, exact-source HN history, similar stories, and value-grouped links shared in the discussion.
 - Opens the original source from the source/domain link.
-- Searches link stories as the same visual card grid: titles and sources must contain every short-query term (prefixes only complete long terms), discussions can surface a story with a "Matched in discussion" note, and the past month (the 28-day screenshot retention window) is the default range. Pasting a link lists that source's HN submissions, largest discussion first. Discussion matches quote the comment that mentions the query and link to it. `"exact phrase"`, `-word`, `by:username`, and `Show HN` narrow results. Press `/` anywhere to search; `node scripts/search-eval.mjs` evaluates ranking against a running server.
+- Searches link stories as the same visual card grid: titles and sources must contain every short-query term (prefixes only complete long terms), discussions can surface a story with a "Matched in discussion" note, and a multi-word query with few exact title matches takes a semantic pass (a Workers AI query plan for retrieval and Clef Flash relevance judgments) instead of loose word matching, and the past month (the 28-day screenshot retention window) is the default range. Pasting a link lists that source's HN submissions, largest discussion first. Discussion matches quote the comment that mentions the query and link to it. `"exact phrase"`, `-word`, `by:username`, and `Show HN` narrow results. Press `/` anywhere to search; `node scripts/search-eval.mjs` evaluates ranking against a running server.
 - Renders HN comments with safer rich text, nested branches, quote handling, reference links, expand controls, and comment sorting at every level by recent activity, discussion size, or oldest first.
 - Offers an optional discussion focus for deep branches: each column is a sibling set along the selected reading path, browsable with Finder-style arrow keys, while the comment reader can show either the current comment or the complete root-comment-to-current reading path. The columns can be hidden while reading: the reader then sets larger type, lists the direct replies under the current comment, and keeps arrow-key navigation.
 - Includes user activity pages for posts and comments.
@@ -315,7 +315,7 @@ Use `npm run check` as the baseline check before shipping changes.
 - `app/components/comment/`: the default nested comment tree, shared rich comment content, and the discussion-focus Miller-column projection.
 - `shared/utils/productLanguage.ts`: typed semantic UI language shared by discussion surfaces, including contextual labels and pluralized counts.
 - `server/api/`: feed, item, related-story, search, user, and screenshot APIs.
-- `server/utils/storyRetrieval.ts`, `relatedStories.ts`, and `searchRanking.ts`: one retrieval engine and shared ranking helpers with two rankers, Similar Stories (seeded by a story title) and search (seeded by a typed query); `storySearch.ts` orchestrates search.
+- `server/utils/storyRetrieval.ts`, `relatedStories.ts`, and `searchRanking.ts`: one retrieval engine and shared ranking helpers with two rankers, Similar Stories (seeded by a story title) and search (seeded by a typed query); `storySearch.ts` orchestrates search, and `queryPlanner.ts` and `semanticRanking.ts` run its Workers AI semantic pass.
 - `server/api/internal/screenshot-jobs/`: authenticated capture-agent API.
 - `server/utils/screenshot/`: HN source policy, R2 state, result validation, and agent authentication.
 - `workers/screenshot-scheduler/`: Cron Worker that admits current feed stories to Cloudflare Queues.
@@ -359,6 +359,7 @@ The Worker entry and static asset output are configured in `wrangler.toml`:
 - Worker entry: `.output/server/index.mjs`
 - Static assets: `.output/public`
 - Screenshot R2 binding: `SCREENSHOTS_BUCKET`
+- Workers AI binding for search's semantic pass: `AI`
 - Front-of-Worker response cache: Wrangler `[cache] enabled = true`, with the
   default version isolation so deployments cannot inherit stale or negative
   static-asset responses

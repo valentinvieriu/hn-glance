@@ -139,40 +139,6 @@ export const fetchCommentLinkedStories = async (
   }
 }
 
-// Algolia only estimates large counts, often several times too high. A term
-// in this many HN titles is generic, so its count is capped rather than
-// letting the estimate stretch every other term's weight.
-const TERM_FREQUENCY_CEILING = 50_000
-
-/**
- * All-time HN story-title counts per term for rarity weighting, or null when
- * any lookup fails. Rarity belongs to the word, not to the search: a range or
- * filter would make a trending topic look common, and typo or prefix matches
- * would count "label" for "lab". Each lookup asks for counts only.
- */
-export const fetchTitleTermFrequencies = async (tokens: string[]): Promise<Record<string, number> | null> => {
-  try {
-    const channel = getChannelSignal()
-    const counts = await Promise.all(tokens.map(token => searchAlgolia({
-      query: token,
-      tags: 'story',
-      restrictSearchableAttributes: 'title',
-      typoTolerance: 'false',
-      queryType: 'prefixNone',
-      hitsPerPage: '0',
-      attributesToRetrieve: 'objectID',
-    }, 'relevance', channel)))
-
-    return Object.fromEntries(tokens.map((token, index) => [
-      token,
-      Math.min(counts[index]?.nbHits ?? 0, TERM_FREQUENCY_CEILING),
-    ]))
-  } catch (error) {
-    console.warn('Failed to fetch search term frequencies:', error)
-    return null
-  }
-}
-
 export type SubmissionHistoryHits = {
   hits: AlgoliaStoryHit[]
   failed: boolean
