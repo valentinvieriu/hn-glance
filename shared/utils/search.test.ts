@@ -83,6 +83,13 @@ describe('search query operators', () => {
     })
   })
 
+  it('keeps negative numbers as text but excludes words that start with a digit', () => {
+    expect(parseSearchQuery('off by -1 errors -2fa')).toMatchObject({
+      terms: 'off by -1 errors',
+      excluded: ['2fa'],
+    })
+  })
+
   it('removes one filter by its source text', () => {
     const query = 'rust -game by:pg'
     const [exclusion] = parseSearchQuery(query).filters.filter(filter => filter.kind === 'exclude')

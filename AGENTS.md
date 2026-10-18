@@ -112,9 +112,11 @@ Server/API:
 - `server/api/top.ts`, `best.ts`, `new.ts`, `show.ts`: configure the shared ordered feed handler.
 - `server/api/item/[id].ts`: fetch story details and comment tree from Algolia Items API.
 - `server/api/related/[id].ts`: lazily build exact-source submission history and semantic story suggestions from one bounded set of concurrent Algolia searches.
-- `server/api/search.ts`: story search. Text queries run the same four retrieval channels as Similar Stories (title relevance, recent title, full text, and comment-mentioned stories) inside the selected time range, then rank with the search preset. An explicit HTTP(S) URL query instead lists every exact-source submission, largest discussion first.
-- `server/utils/storyRetrieval.ts`: Algolia retrieval channels shared by related stories and search. Each channel fails soft with a `failed` flag so callers can serve partial results uncached or fail when every channel is down.
-- `server/utils/relatedStories.ts`: shared tokenizer, candidate merge, and diversity selection with two ranking presets: `rankRelatedStories` (Similar Stories) and `rankSearchStories` (typed queries).
+- `server/api/search.ts`: story search route: validation, cache headers, and errors around `searchStories`.
+- `server/utils/storySearch.ts`: search orchestration. Text queries run the same four retrieval channels as Similar Stories (title relevance, recent title, full text, and comment-mentioned stories) inside the selected time range, then rank with `rankSearchStories`. An explicit HTTP(S) URL query instead lists that source's exact-source submissions, largest discussion first.
+- `server/utils/storyRetrieval.ts`: Algolia retrieval channels shared by related stories and search. Each channel fails soft with a `failed` flag, within its own time budget, so callers can serve partial results uncached or fail when every channel is down.
+- `server/utils/relatedStories.ts`: shared tokenizer, candidate merge, and diversity selection, plus the Similar Stories ranker `rankRelatedStories`.
+- `server/utils/searchRanking.ts`: the typed-query ranker `rankSearchStories`, built on those shared helpers with its own matching policy.
 - `server/utils/previousSubmissions.ts`: conservative source-URL canonicalization and bounded exact-history selection.
 - `server/api/screenshot/[id].ts`: public R2-only screenshot cache layer.
 - `server/api/internal/screenshot-jobs/[id]/prepare.post.ts`: authenticated capture-agent eligibility, R2 reuse, and content-probe endpoint.
@@ -395,36 +397,48 @@ it is not a text-result clone of hn.algolia.com. Preserve these boundaries:
 
 - Results render as the same `StoryCard` grid and follow feed admission: only
   stories with an explicit source URL, never synthesized HN permalinks.
-- Search reuses the Similar Stories retrieval and ranking engine. Tune shared
-  behavior in `relatedStories.ts` through the matching preset; the
-  `rankRelatedStories` tests guard Similar Stories against search changes.
+- Search reuses the Similar Stories retrieval channels and ranking helpers.
+  Search matching lives in `searchRanking.ts`; changes to the shared helpers
+  in `relatedStories.ts` must keep both the `rankRelatedStories` and
+  `rankSearchStories` tests passing.
 - Ranking requires real term matches rather than Algolia's prefix and typo
-  matches. Each typed word is one term that matches whole or through all of
-  its own hyphen, dot, or digit parts; search lowercases before tokenizing, so
+  matches, so retrieval disables Algolia typo tolerance rather than spending
+  candidate slots on them. Each typed word is one term that matches whole or
+  through all of its own hyphen, dot, or letter-to-digit parts in order
+  (`gpt4` matches GPT-4, never GPT-5); search lowercases before tokenizing, so
   capitalization never changes results. Only long plain words complete as
   prefixes. Short terms such as C and R are kept and retrieved as exact
   words, and search matches raw titles so tags such as `[pdf]` and
   `Show HN` stay searchable.
 - A domain term such as `github.com` matches only that host or a genuine
   subdomain, never lookalikes such as `github.community`.
+- Titles and comment evidence share one matcher. Adjacency (split-word parts
+  and quoted phrases) is checked on the ordered words of the text, repeats and
+  stopwords kept; deduplicated token sets only answer membership.
 - Discussion-only matches must contain the query in a retrieved comment under
   the same term rules. They stay capped, follow title matches under Newest,
   and show "Mentioned in discussion" with a two-line plain-text Algolia
   snippet linking to `/item/:id#comment-<id>`. The snippet is an excerpt, not
-  a reading surface. When the first comment page yields fewer than eight
-  distinct stories, the comment channel reads one more page.
-- All terms are required first. Only a multi-word query with fewer than eight
-  complete title matches runs one broadened (`optionalWords`) title search;
-  its partial matches may miss one term but never the rarest, use
-  `hitsPerPage=0` per-term Algolia counts as weights, and rank below complete
-  matches. Within titles, a split word's parts must be adjacent.
+  a reading surface. When the first comment page yields too few distinct
+  stories, the comment channel reads one more page.
+- All terms are required first. Only a multi-word query with too few complete
+  title matches runs one broadened (`optionalWords`) title search. Its partial
+  matches may miss one light term and rank below complete matches; a weighted
+  coverage floor keeps the query's topic. Weights come from all-time, exact
+  (no typo or prefix) HN title counts, capped because Algolia only estimates
+  large counts. A time range, filter, or typo match would make a trending
+  topic look common or count "label" for "lab".
 - The operator vocabulary stays small and conventional: `"exact phrase"`,
   `-word`, `by:username`, and the words `Show HN`. `shared/utils/search.ts`
   parses them into Algolia tags and `advancedSyntax`; ranking enforces
   phrases and exclusions locally, and the page shows each as a removable chip.
+  Quoted phrases keep their stopwords, and an exclusion needs a letter, so
+  `-1` stays text.
 - `scripts/search-eval.mjs` runs a fixed query set against a running server
-  with objective checks; compare top-ten results before and after ranking
-  changes (`--out`, then `--compare`).
+  with objective checks and reports search time; any failed check sets a
+  non-zero exit code. Compare top-ten results before and after ranking
+  changes (`--out`, then `--compare`). `storySearch.test.ts` covers
+  orchestration: partial and total failures, timeouts, and the broadened pass.
 - Exact-source duplicates, keyed by `canonicalizeSubmissionUrl` (ports and
   meaningful parameters such as `ref` preserved), keep their strongest
   submission. Near-identical titles collapse only within one host: different
@@ -432,11 +446,13 @@ it is not a text-result clone of hn.algolia.com. Preserve these boundaries:
   can differ.
 - Newest orders matches by date before the result limit, so recent stories
   are not cut by relevance first.
-- A failed retrieval channel is reported, not treated as "no match". Search
-  and Similar Stories return partial results with `Cache-Control: no-store`,
-  and an uncached 502 when every channel fails. Search also fails when a
-  partial result is empty, and flags non-empty partial results so the page
-  says some results may be missing.
+- A failed or timed-out retrieval channel is reported, not treated as "no
+  match". Each channel's requests share one time budget, so a stalled
+  upstream cannot hold usable results. Search and Similar Stories return
+  partial results with `Cache-Control: no-store`, and an uncached 502 when
+  every channel fails. Search also fails when a partial result is empty, and
+  flags non-empty partial results so the page says some results may be
+  missing.
 - The month range equals `SCREENSHOT_RETENTION_DAYS`. Wider ranges show the
   wireframe fallback for older stories honestly; capture is never guaranteed.
 - Search never admits or triggers screenshot captures; admission stays

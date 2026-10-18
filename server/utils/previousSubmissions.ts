@@ -73,6 +73,7 @@ export const canonicalizeSubmissionUrl = (value?: string | null) => {
 export const selectSubmissionHistory = (
   hits: AlgoliaStoryHit[],
   source: SubmissionHistorySource,
+  limit = SUBMISSION_HISTORY_CANDIDATE_LIMIT,
 ): SubmissionHistoryEntry[] => {
   const sourceUrl = canonicalizeSubmissionUrl(source.url)
 
@@ -101,6 +102,6 @@ export const selectSubmissionHistory = (
       (first.created_at_i ?? 0) - (second.created_at_i ?? 0)
       || Number(first.objectID) - Number(second.objectID)
     ))
-    .slice(0, SUBMISSION_HISTORY_CANDIDATE_LIMIT)
+    .slice(0, limit)
     .map(mapAlgoliaStorySummary)
 }

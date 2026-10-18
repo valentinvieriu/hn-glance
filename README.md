@@ -315,7 +315,7 @@ Use `npm run check` as the baseline check before shipping changes.
 - `app/components/comment/`: the default nested comment tree, shared rich comment content, and the discussion-focus Miller-column projection.
 - `shared/utils/productLanguage.ts`: typed semantic UI language shared by discussion surfaces, including contextual labels and pluralized counts.
 - `server/api/`: feed, item, related-story, search, user, and screenshot APIs.
-- `server/utils/storyRetrieval.ts` and `relatedStories.ts`: one retrieval and ranking engine with two presets, Similar Stories (seeded by a story title) and search (seeded by a typed query).
+- `server/utils/storyRetrieval.ts`, `relatedStories.ts`, and `searchRanking.ts`: one retrieval engine and shared ranking helpers with two rankers, Similar Stories (seeded by a story title) and search (seeded by a typed query); `storySearch.ts` orchestrates search.
 - `server/api/internal/screenshot-jobs/`: authenticated capture-agent API.
 - `server/utils/screenshot/`: HN source policy, R2 state, result validation, and agent authentication.
 - `workers/screenshot-scheduler/`: Cron Worker that admits current feed stories to Cloudflare Queues.

@@ -57,9 +57,15 @@ type AlgoliaSearchResponse<THit> = {
   page?: number
 }
 
+export type AlgoliaRequestOptions = {
+  /** Aborts the request, including retries, such as a channel time budget. */
+  signal?: AbortSignal
+}
+
 export const searchAlgolia = <THit>(
   params: Record<string, string> | URLSearchParams,
   order: AlgoliaSearchOrder = 'relevance',
+  { signal }: AlgoliaRequestOptions = {},
 ) => {
   const searchParams = params instanceof URLSearchParams
     ? params
@@ -67,14 +73,16 @@ export const searchAlgolia = <THit>(
 
   return $fetch<AlgoliaSearchResponse<THit>>(
     `${ALGOLIA_SEARCH_ENDPOINTS[order]}?${searchParams}`,
+    signal ? { signal } : undefined,
   )
 }
 
 export const searchAlgoliaHits = async <THit>(
   params: Record<string, string> | URLSearchParams,
   order: AlgoliaSearchOrder = 'relevance',
+  options: AlgoliaRequestOptions = {},
 ) => {
-  const response = await searchAlgolia<THit>(params, order)
+  const response = await searchAlgolia<THit>(params, order, options)
 
   return response.hits ?? []
 }

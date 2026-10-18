@@ -130,7 +130,8 @@ export type ParsedSearchQuery = {
 
 const PHRASE_PATTERN = /"([^"]+)"/gu
 const AUTHOR_PATTERN = /(^|\s)by:([A-Za-z0-9_-]{1,64})(?=\s|$)/giu
-const EXCLUDE_PATTERN = /(^|\s)-([\p{L}\p{N}][^\s"]*)/gu
+// An exclusion needs a letter, so a number such as -1 stays plain text.
+const EXCLUDE_PATTERN = /(^|\s)-((?=[^\s"]*\p{L})[\p{L}\p{N}][^\s"]*)/gu
 const SHOW_HN_PATTERN = /(^|\s)show\s+hn:?(?=\s|$)/giu
 
 /**

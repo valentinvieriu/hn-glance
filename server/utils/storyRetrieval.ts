@@ -15,6 +15,13 @@ import type { CommentEvidence, RelatedSearchKind, SearchResult } from './related
 
 const STORY_CANDIDATE_ATTRIBUTES = 'objectID,title,created_at,created_at_i,points,num_comments,author,url'
 
+// Callers wait for every channel, so one stalled channel would hold usable
+// results. Each channel's requests, sequential pages and retries included,
+// share one budget; a timeout is reported like any other channel failure.
+export const RETRIEVAL_CHANNEL_TIMEOUT_MS = 4000
+
+const getChannelSignal = () => ({ signal: AbortSignal.timeout(RETRIEVAL_CHANNEL_TIMEOUT_MS) })
+
 export const fetchStoryHits = async (
   params: Record<string, string>,
   kind: RelatedSearchKind,
@@ -25,7 +32,7 @@ export const fetchStoryHits = async (
       attributesToRetrieve: STORY_CANDIDATE_ATTRIBUTES,
       getRankingInfo: 'true',
       ...params,
-    }, order)
+    }, order, getChannelSignal())
     return { hits, kind }
   } catch (error) {
     console.warn('Failed to fetch story candidates:', error)
@@ -63,6 +70,7 @@ export const fetchCommentLinkedStories = async (
   const rankedStoryIds: string[] = []
   const commentEvidence: Record<string, CommentEvidence[]> = {}
   const excluded = excludeId ?? ''
+  const channel = getChannelSignal()
 
   const collect = (comments: AlgoliaCommentHit[]) => {
     for (const comment of comments) {
@@ -96,7 +104,7 @@ export const fetchCommentLinkedStories = async (
     page: String(page),
     ...matchParams,
     ...rangeParams,
-  })
+  }, 'relevance', channel)
 
   try {
     const firstPage = await fetchCommentPage(0)
@@ -118,7 +126,7 @@ export const fetchCommentLinkedStories = async (
       filters,
       hitsPerPage: String(rankedStoryIds.length),
       ...rangeParams,
-    })
+    }, 'relevance', channel)
 
     return {
       hits: hits.sort((a, b) => (order.get(a.objectID ?? '') ?? 99) - (order.get(b.objectID ?? '') ?? 99)),
@@ -131,24 +139,34 @@ export const fetchCommentLinkedStories = async (
   }
 }
 
+// Algolia only estimates large counts, often several times too high. A term
+// in this many HN titles is generic, so its count is capped rather than
+// letting the estimate stretch every other term's weight.
+const TERM_FREQUENCY_CEILING = 50_000
+
 /**
- * Upstream title-hit counts per term for rarity weighting, or null when any
- * lookup fails. Each lookup asks for counts only (`hitsPerPage=0`).
+ * All-time HN story-title counts per term for rarity weighting, or null when
+ * any lookup fails. Rarity belongs to the word, not to the search: a range or
+ * filter would make a trending topic look common, and typo or prefix matches
+ * would count "label" for "lab". Each lookup asks for counts only.
  */
-export const fetchTitleTermFrequencies = async (
-  tokens: string[],
-  params: Record<string, string>,
-): Promise<Record<string, number> | null> => {
+export const fetchTitleTermFrequencies = async (tokens: string[]): Promise<Record<string, number> | null> => {
   try {
+    const channel = getChannelSignal()
     const counts = await Promise.all(tokens.map(token => searchAlgolia({
-      ...params,
       query: token,
+      tags: 'story',
       restrictSearchableAttributes: 'title',
+      typoTolerance: 'false',
+      queryType: 'prefixNone',
       hitsPerPage: '0',
       attributesToRetrieve: 'objectID',
-    })))
+    }, 'relevance', channel)))
 
-    return Object.fromEntries(tokens.map((token, index) => [token, counts[index]?.nbHits ?? 0]))
+    return Object.fromEntries(tokens.map((token, index) => [
+      token,
+      Math.min(counts[index]?.nbHits ?? 0, TERM_FREQUENCY_CEILING),
+    ]))
   } catch (error) {
     console.warn('Failed to fetch search term frequencies:', error)
     return null
@@ -160,16 +178,22 @@ export type SubmissionHistoryHits = {
   failed: boolean
 }
 
-/** Candidates for exact-source history; callers must match canonical URLs. */
-export const fetchSubmissionHistoryHits = async (canonicalUrl: string): Promise<SubmissionHistoryHits> => {
+/**
+ * Candidates for exact-source history; callers must match canonical URLs.
+ * Other pages sharing the URL's words compete for the same slots.
+ */
+export const fetchSubmissionHistoryHits = async (
+  canonicalUrl: string,
+  limit = SUBMISSION_HISTORY_CANDIDATE_LIMIT,
+): Promise<SubmissionHistoryHits> => {
   try {
     const hits = await searchAlgoliaHits<AlgoliaStoryHit>({
       attributesToRetrieve: STORY_CANDIDATE_ATTRIBUTES,
       query: canonicalUrl,
       tags: 'story',
       restrictSearchableAttributes: 'url',
-      hitsPerPage: String(SUBMISSION_HISTORY_CANDIDATE_LIMIT),
-    })
+      hitsPerPage: String(limit),
+    }, 'relevance', getChannelSignal())
     return { hits, failed: false }
   } catch (error) {
     console.warn('Failed to fetch submission history candidates:', error)

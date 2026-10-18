@@ -112,7 +112,7 @@
         </template>
         <ul v-else class="search-tips">
           <li>Search link stories by title, source, or what their discussions mention.</li>
-          <li>Paste a link to see every time it was submitted and where the discussion is.</li>
+          <li>Paste a link to see its HN submissions and where the discussion is.</li>
           <li>
             Narrow with <code>"exact phrase"</code>, <code>-word</code>,
             <code>by:username</code>, or <code>show hn</code>.

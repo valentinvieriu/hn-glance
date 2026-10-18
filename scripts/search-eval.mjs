@@ -4,9 +4,10 @@
 //   node scripts/search-eval.mjs [--base http://localhost:3000] [--out file.json]
 //   node scripts/search-eval.mjs --compare before.json after.json
 //
-// Each case prints the top ten results. Objective checks (exclusions,
-// phrases, authors, hosts, remembered titles) report pass or fail; ranking
-// quality beyond them still needs a human read of the listed results.
+// Each case prints the top ten results and the server's search time. Objective
+// checks (exclusions, phrases, authors, hosts, remembered titles) report pass
+// or fail, and any failure sets a non-zero exit code; ranking quality beyond
+// them still needs a human read of the listed results.
 
 import { readFileSync, writeFileSync } from 'node:fs'
 
@@ -119,12 +120,16 @@ const runSearch = async (base, { query, range }) => {
   const params = new URLSearchParams({ q: query })
   if (range) params.set('range', range)
   const response = await fetch(`${base}/api/search?${params}`)
+  const timing = response.headers.get('server-timing')?.match(/(?:^|,)\s*search;dur=([\d.]+)/u)
+  const durationMs = timing ? Number(timing[1]) : null
 
-  if (!response.ok) return { status: response.status, stories: [] }
+  if (!response.ok) return { status: response.status, durationMs, stories: [] }
 
   const body = await response.json()
-  return { status: response.status, partial: body.partial, stories: body.stories }
+  return { status: response.status, durationMs, partial: body.partial, stories: body.stories }
 }
+
+const formatDuration = durationMs => (durationMs === null ? 'n/a' : `${Math.round(durationMs)} ms`)
 
 const formatStory = (story, index) => {
   const tag = story.match === 'discussion' ? 'disc' : 'titl'
@@ -135,13 +140,15 @@ const formatStory = (story, index) => {
 const evaluate = async ({ base, out }) => {
   const results = {}
   const report = []
+  const durations = []
   let failures = 0
 
   for (const testCase of CASES) {
-    const { status, partial, stories } = await runSearch(base, testCase)
+    const { status, durationMs, partial, stories } = await runSearch(base, testCase)
     results[testCase.query] = stories
+    if (durationMs !== null) durations.push(durationMs)
     const label = `${testCase.query}${testCase.range ? ` [${testCase.range}]` : ''}`
-    console.log(`\n■ ${label} — ${testCase.note} — HTTP ${status}, ${stories.length} results${partial ? ', PARTIAL' : ''}`)
+    console.log(`\n■ ${label} — ${testCase.note} — HTTP ${status}, ${stories.length} results${partial ? ', PARTIAL' : ''}, ${formatDuration(durationMs)}`)
     stories.slice(0, TOP).forEach((story, index) => console.log(formatStory(story, index)))
 
     if (testCase.check) {
@@ -157,9 +164,13 @@ const evaluate = async ({ base, out }) => {
     report.push(`${pass ? 'PASS' : 'FAIL'}  ${name}${detail ? `: ${detail}` : ''}`)
   }
 
+  const sorted = durations.toSorted((first, second) => first - second)
+  const median = sorted.length ? sorted[Math.floor(sorted.length / 2)] : null
   console.log(`\nChecks\n${report.join('\n')}\n\n${failures} failing check(s)`)
+  console.log(`Search time: median ${formatDuration(median)}, max ${formatDuration(sorted.at(-1) ?? null)}`)
 
   if (out) writeFileSync(out, JSON.stringify(results, null, 2))
+  if (failures > 0) process.exitCode = 1
 }
 
 const compare = ([beforePath, afterPath]) => {
