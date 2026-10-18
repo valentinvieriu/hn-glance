@@ -35,7 +35,7 @@ const FIVE_YEARS_IN_SECONDS = 5 * 365.25 * 24 * 60 * 60
 // Typed queries are deliberate, so only grammatical words are dropped. Title
 // noise such as "video", "guide", "pdf", or "show" can be exactly what a
 // reader wants, so search also matches raw titles rather than `cleanTitle`.
-const SEARCH_STOPWORDS = new Set([
+export const SEARCH_STOPWORDS = new Set([
   'a', 'an', 'and', 'are', 'as', 'at', 'be', 'by', 'for', 'from', 'how',
   'i', 'in', 'into', 'is', 'it', 'its', 'of', 'on', 'or', 'our', 'that',
   'the', 'their', 'this', 'to', 'was', 'we', 'what', 'when', 'where',

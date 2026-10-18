@@ -430,10 +430,13 @@ it is not a text-result clone of hn.algolia.com. Preserve these boundaries:
   hosting") drown the defining one ("waf"); the pass fixes retrieval and
   judgment separately:
   - Retrieval: broad `optionalWords` title and full-text searches, plus the
-    searches of a query plan from a small Workers AI model (Qwen3 30B-A3B).
-    The plan's anchors are quoted so they match exactly, its context words are
-    optional, and its short alternative names never complete as prefixes. An
-    anchor must be copied from the query. The plan and broad searches start
+    searches of a query plan from a small Workers AI model (Granite 4.0 H
+    Micro). The model writes only anchors and alternatives under a JSON
+    schema; context words are the remaining non-stopword query words, derived
+    locally because output tokens dominate planner latency. The plan's anchors
+    are quoted so they match exactly, its context words are optional, and its
+    short alternative names never complete as prefixes. An anchor must be
+    copied from the query. The plan and broad searches start
     alongside the strict channels, so the pass adds little latency, and a
     missing or late plan only narrows the pool.
   - Judgment: Clef Flash scores relevance from 0 to 3 for at most 70
