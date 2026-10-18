@@ -10,7 +10,9 @@ results are accepted when their outcome and bounded image metadata validate.
 Run multiple identical instances to increase capture capacity. Queue leases
 divide work between instances. Deterministic skips and terminal target failures
 are acknowledged individually; temporary network or capacity failures are
-retried with delay and eventually move to the configured dead-letter queue.
+retried with delay and eventually move to the configured dead-letter queue. A
+Browserless page-script failure (`502:browserless_error`) is retried once and
+acknowledged on its second attempt, because it usually repeats.
 Structured stdout records skipped reasons and terminal target details without
 adding Cloudflare storage writes.
 

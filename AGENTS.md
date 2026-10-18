@@ -623,7 +623,9 @@ Preserve these guardrails:
 - Do not add R2 failure markers. They duplicate admission state and add HEAD,
   PUT, and DELETE operations.
 - Network/service/capacity errors retry through Queue. Terminal target/output
-  errors are acknowledged immediately and must not block other leases.
+  errors are acknowledged immediately and must not block other leases. A
+  `502:browserless_error` page-script failure gets one retry, then is
+  acknowledged on its second attempt; it usually repeats deterministically.
 - Keep publisher routing in the Browserless ruleset. Do not add an HN Glance host
   blacklist or reject trusted Ladder provenance; that would bypass rules that
   the capture service owns.

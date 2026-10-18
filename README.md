@@ -417,7 +417,8 @@ Screenshots are generated only by the background pipeline:
 6. The agent captures eligible HTML pages or the first page of PDF documents
    through the narrow local Browserless API and uploads one validated WebP from
    either its direct or server-owned Ladder route. Terminal page/output errors
-   are acknowledged; temporary infrastructure errors retry through Queue.
+   are acknowledged; temporary infrastructure errors retry through Queue. A
+   Browserless page-script failure gets one retry before it is acknowledged.
 7. The public route performs one R2 read and serves a fresh or stale image, or
    the transparent GIF that exposes the client-rendered wireframe. It never
    starts browser work.

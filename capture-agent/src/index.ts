@@ -52,6 +52,9 @@ type AgentConfig = {
 }
 
 const REQUEST_TIMEOUT_MS = 45_000
+// A failing page script usually fails the same way again; one retry still
+// covers a transient browser fault before the job is acknowledged.
+const PAGE_FAILURE_MAX_ATTEMPTS = 2
 const sleep = (milliseconds: number) => new Promise((resolve) => setTimeout(resolve, milliseconds))
 
 const getRequiredEnv = (name: string) => {
@@ -280,7 +283,7 @@ const validateWebp = (
   return bytes
 }
 
-const captureScreenshot = async (config: AgentConfig, captureUrl: string) => {
+const captureScreenshot = async (config: AgentConfig, captureUrl: string, attempts: number) => {
   const response = await fetch(config.screenshotApiUrl, {
     method: 'POST',
     headers: {
@@ -311,7 +314,11 @@ const captureScreenshot = async (config: AgentConfig, captureUrl: string) => {
   if (!response.ok) {
     const errorCode = await getErrorCode(response)
 
-    if ([400, 405, 413, 415, 422].includes(response.status)) {
+    const repeatedPageFailure = response.status === 502
+      && errorCode === 'browserless_error'
+      && attempts >= PAGE_FAILURE_MAX_ATTEMPTS
+
+    if ([400, 405, 413, 415, 422].includes(response.status) || repeatedPageFailure) {
       throw new TerminalCaptureError(
         `Screenshot API rejected the target (${response.status}${errorCode ? `:${errorCode}` : ''})`,
         'target',
@@ -385,10 +392,12 @@ const uploadResult = async (
   }
 }
 
-const retryDelaySeconds = (attempts: number | undefined) => {
-  const normalizedAttempts = Number.isSafeInteger(attempts) ? Math.max(1, Number(attempts)) : 1
+const normalizeAttempts = (attempts: number | undefined) => {
+  return Number.isSafeInteger(attempts) ? Math.max(1, Number(attempts)) : 1
+}
 
-  return Math.min(1800, 60 * (2 ** (normalizedAttempts - 1)))
+const retryDelaySeconds = (attempts: number | undefined) => {
+  return Math.min(1800, 60 * (2 ** (normalizeAttempts(attempts) - 1)))
 }
 
 const processMessage = async (
@@ -397,6 +406,7 @@ const processMessage = async (
 ): Promise<MessageDisposition> => {
   const leaseId = message.lease_id
   const job = parseScreenshotJobMessage(parseQueueBody(message))
+  let captureUrl: string | undefined
 
   if (!job) {
     console.warn(JSON.stringify({ message: 'Invalid screenshot job acknowledged', messageId: message.id }))
@@ -416,7 +426,8 @@ const processMessage = async (
       return { action: 'ack', leaseId }
     }
 
-    const capture = await captureScreenshot(config, prepared.captureUrl)
+    captureUrl = prepared.captureUrl
+    const capture = await captureScreenshot(config, captureUrl, normalizeAttempts(message.attempts))
     await uploadResult(config, job, capture)
 
     console.info(JSON.stringify({
@@ -446,6 +457,7 @@ const processMessage = async (
       message: 'Screenshot job delayed',
       delaySeconds,
       error: error instanceof Error ? error.message : String(error),
+      hostname: getHostname(captureUrl),
       storyId: job.storyId,
     }))
     return { action: 'retry', delaySeconds, leaseId }
