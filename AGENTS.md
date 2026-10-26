@@ -200,7 +200,8 @@ Caching expectations:
   redirect target, because probe-specific anti-bot redirects can differ from
   Browserless navigation. It has no publisher blacklist: blocked, timed-out,
   and otherwise inconclusive probes proceed to the trusted Browserless service,
-  whose `ruleset.yaml` owns publisher support and direct-versus-Ladder routing.
+  whose `ruleset.yaml` owns publisher support and direct, Ladder, or FlareSolverr
+  routing.
 - Active v9 screenshots expire after 28 days. Keep response TTLs within the
   remaining R2 freshness window.
 - The scheduler runs every three minutes and prioritizes Top, Best, and Show
@@ -605,10 +606,10 @@ Capture is background-only:
    projected 10 GB v9 storage ceiling.
 4. Queue leases jobs to stateless HomeLabs agents.
 5. Prepare performs one preview HEAD, then resolves and probes only a real miss.
-6. Browserless output may use its server-owned `direct` or `ladder` route, and
-   PDF targets render their first page. Every result must be `ok`/`access_gate`,
-   WebP, at most 1440x11111, 16 MP, and 2 MB. The selected route is preserved in
-   R2 metadata.
+6. Browserless output may use its server-owned `direct`, `ladder`, or
+   `flaresolverr` route, and PDF targets render their first page. Every result
+   must be `ok`/`access_gate`, WebP, at most 1440x11111, 16 MP, and 2 MB. The
+   selected route is preserved in R2 metadata.
 7. The public route serves R2 or the transparent GIF; it never starts capture.
 
 Preserve these guardrails:
@@ -627,8 +628,9 @@ Preserve these guardrails:
   `502:browserless_error` page-script failure gets one retry, then is
   acknowledged on its second attempt; it usually repeats deterministically.
 - Keep publisher routing in the Browserless ruleset. Do not add an HN Glance host
-  blacklist or reject trusted Ladder provenance; that would bypass rules that
-  the capture service owns.
+  blacklist or reject trusted Ladder or FlareSolverr provenance; that would
+  bypass rules that the capture service owns. The shared route allowlist in
+  `shared/utils/screenshot.ts` must list every route the service can return.
 - Keep the public route to one bounded R2 GET and prepare to one metadata HEAD
   before source work.
 - Keep source links on the original HN URL even when capture uses XCancel; PDF

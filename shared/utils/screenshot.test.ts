@@ -34,7 +34,9 @@ describe('screenshot profile URL', () => {
   it('recognizes only trusted capture outcomes and source routes', () => {
     expect(isScreenshotAcceptedOutcome('ok')).toBe(true)
     expect(isScreenshotAcceptedOutcome('challenge')).toBe(false)
+    expect(isScreenshotSourceRoute('direct')).toBe(true)
     expect(isScreenshotSourceRoute('ladder')).toBe(true)
+    expect(isScreenshotSourceRoute('flaresolverr')).toBe(true)
     expect(isScreenshotSourceRoute('caller-provided')).toBe(false)
   })
 })

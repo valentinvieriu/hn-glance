@@ -8,7 +8,7 @@ export const SCREENSHOT_PREVIEW_WIDTH = 1440
 export const SCREENSHOT_STORAGE_PREFIX = `screenshots/${SCREENSHOT_PROFILE_VERSION}/items/`
 const SCREENSHOT_PREVIEW_MIN_BYTES = 1024
 const SCREENSHOT_ACCEPTED_OUTCOMES = ['ok', 'access_gate'] as const
-const SCREENSHOT_SOURCE_ROUTES = ['direct', 'ladder'] as const
+const SCREENSHOT_SOURCE_ROUTES = ['direct', 'ladder', 'flaresolverr'] as const
 
 export type ScreenshotAcceptedOutcome = typeof SCREENSHOT_ACCEPTED_OUTCOMES[number]
 export type ScreenshotSourceRoute = typeof SCREENSHOT_SOURCE_ROUTES[number]

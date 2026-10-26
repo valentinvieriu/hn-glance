@@ -416,8 +416,8 @@ Screenshots are generated only by the background pipeline:
    and the bounded content probe.
 6. The agent captures eligible HTML pages or the first page of PDF documents
    through the narrow local Browserless API and uploads one validated WebP from
-   either its direct or server-owned Ladder route. Terminal page/output errors
-   are acknowledged; temporary infrastructure errors retry through Queue. A
+   its direct, server-owned Ladder, or FlareSolverr route. Terminal page/output
+   errors are acknowledged; temporary infrastructure errors retry through Queue. A
    Browserless page-script failure gets one retry before it is acknowledged.
 7. The public route performs one R2 read and serves a fresh or stale image, or
    the transparent GIF that exposes the client-rendered wireframe. It never
@@ -435,7 +435,7 @@ content. Redirects discovered by the bounded content probe are validated but do
 not replace the requested capture URL; Browserless performs the actual page
 navigation. This prevents probe-only anti-bot redirects, such as YouTube being
 sent to Google Sorry, from becoming the screenshot target. Publisher support
-and direct-versus-Ladder routing belong exclusively to the Browserless
+and direct, Ladder, or FlareSolverr routing belong exclusively to the Browserless
 service's `ruleset.yaml`; HN Glance has no publisher blacklist. Blocked, timed-out,
 or otherwise inconclusive probes proceed to Browserless, whose bounded capture
 contract classifies the target outcome. Successful objects preserve the chosen

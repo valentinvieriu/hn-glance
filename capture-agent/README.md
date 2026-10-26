@@ -4,8 +4,9 @@ This stateless service pulls screenshot jobs from Cloudflare Queues, asks the
 HN Glance Worker to validate each story, captures eligible HTML pages or the first
 page of PDF documents through the local Browserless screenshot API, and uploads
 only validated WebP results to HN Glance.
-The Browserless service owns publisher routing: both its direct and Ladder
-results are accepted when their outcome and bounded image metadata validate.
+The Browserless service owns publisher routing: its direct, Ladder, and
+FlareSolverr results are accepted when their outcome and bounded image metadata
+validate.
 
 Run multiple identical instances to increase capture capacity. Queue leases
 divide work between instances. Deterministic skips and terminal target failures
