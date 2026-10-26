@@ -1,6 +1,8 @@
 ARG NODE_VERSION=24-alpine
 
-FROM node:${NODE_VERSION} AS build
+# The bundle is platform-independent JavaScript, so build natively rather than
+# running npm ci under QEMU for every target platform.
+FROM --platform=$BUILDPLATFORM node:${NODE_VERSION} AS build
 WORKDIR /build
 
 COPY package.json package-lock.json ./
